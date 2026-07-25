@@ -4,6 +4,9 @@
 #pragma once
 #include "afxdialogex.h"
 #include <vector>
+#include <set>
+#include <map>
+#include <string>
 
 class CContextMenuDlg : public CDialogEx
 {
@@ -17,18 +20,16 @@ public:
 	enum { IDD = IDD_CONTEXT_MENU_DLG };
 #endif
 
-	// Public struct used by static helper functions
 	struct MenuEntry
 	{
-		CString location;      // scope name (e.g. "文件 (*)")
-		CString keyName;       // registry subkey name (verb or handler name)
-		CString displayName;   // resolved display text (MUIVerb/MUI resolved)
+		CString location;      // scene name (e.g. "文件 (*)")
+		CString keyName;       // registry subkey name (verb or handler name / CLSID)
+		CString displayName;   // resolved display text (MUIVerb/MUI/CLSID resolved)
 		CString command;       // command line or DLL path
-		CString regPath;       // full registry path
-		HKEY   hRoot;          // registry root
+		CString regPath;       // HKCR-relative parent path (e.g. "*\\shell", "*\\shellex\\ContextMenuHandlers")
 		bool   bIsShellEx;     // true: COM ShellEx handler, false: static verb
-		bool   bExtended;      // true: Shift+right-click only
-		bool   bDisabled;      // true: LegacyDisable/ProgrammaticAccessOnly set
+		bool   bExtended;      // true: Shift+right-click only (Extended subkey exists)
+		bool   bDisabled;      // true: LegacyDisable / ProgrammaticAccessOnly / in -ContextMenuHandlers
 		bool   bEnabled;       // true: currently enabled (not disabled by user)
 	};
 
@@ -41,30 +42,38 @@ protected:
 	DECLARE_MESSAGE_MAP()
 
 private:
-	struct LocationFilter
+	// Scene definition matching ContextMenuManager's MENUPATH_* constants.
+	// Each scene has a registry base path (e.g. "*", "Folder", "Directory\\Background").
+	// ScanEntries scans both <basePath>\\shell (static verbs) and
+	// <basePath>\\shellex (COM handlers, both ContextMenuHandlers and -ContextMenuHandlers).
+	struct Scene
 	{
 		CString name;
-		CString shellPath;
-		bool isShellEx;  // true: scan shellex\ContextMenuHandlers (COM-based)
+		CString basePath;   // HKCR-relative base path (e.g. "*", "Folder", "Directory\\Background")
 	};
 
 	std::vector<MenuEntry> m_entries;
-	std::vector<LocationFilter> m_locations;
+	std::vector<Scene> m_scenes;
+
+	// GuidInfo dictionary (loaded from GuidInfosDic.ini, matching ContextMenuManager)
+	struct DictEntry { CString resText; CString zhText; CString text; };
+	static std::map<CString, DictEntry> s_guidDict;
+	static bool s_bDictLoaded;
 
 	int m_listLeft, m_listTop;
 	int m_statusTop;
 
 	void InitLocations();
 	void ScanEntries(const CString& filter);
-	void ScanShellExLocation(const LocationFilter& loc);
-	void ScanShellExWithCom(const LocationFilter& loc);
-	void ScanWithShellAPI();
-	void ScanAllExtensions(const CString& filterExt = _T(""));
+	void ScanScene(const CString& basePath, const CString& sceneName, std::set<CString>& seen);
+	static void ScanShellVerbs(const CString& shellPath, const CString& sceneName, std::vector<MenuEntry>& entries, std::set<CString>& seen);
+	static void ScanShellExHandlers(const CString& shellexBase, const CString& sceneName, std::vector<MenuEntry>& entries, std::set<CString>& seen);
+	static CString ResolveShellExKeyName(HKEY hHandlerKey, const CString& clsid);
 	static bool IsRunningAsAdmin();
 	static CString ResolveClsidName(const CString& clsid);
-	static CString GetShellExDisplayName(const CString& clsid, const CString& dllPath);
 	static CString ResolveMUIString(const CString& raw);
-	static CString ResolveProgID(const CString& ext);
+	static void LoadGuidDictionary();
+	static CString LookupGuidDict(const CString& clsid);
 	void RefreshList();
 	void UpdateStatus(const CString& text);
 	void AdjustColumnWidths();
@@ -76,7 +85,6 @@ private:
 	void SaveWin11ClassicState(bool bEnable);
 	void ToggleEntry(int index);
 	void RestartExplorer();
-	bool IsKeyDisabledByPrefix(const CString& keyName);
 
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void OnBnClickedRefresh();
