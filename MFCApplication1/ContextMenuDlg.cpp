@@ -10,15 +10,19 @@
 #include <set>
 #include "GuidInfosDic.h"
 
-// Static member initialization
-std::map<CString, CContextMenuDlg::DictEntry> CContextMenuDlg::s_guidDict;
-bool CContextMenuDlg::s_bDictLoaded = false;
 #include <shlwapi.h>
 #include <shlobj.h>
+#include <shobjidl.h>
 #include <aclapi.h>
 #include <winver.h>
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "version.lib")
+#pragma comment(lib, "ole32.lib")
+
+// Static member initialization
+std::map<CString, CContextMenuDlg::DictEntry> CContextMenuDlg::s_guidDict;
+bool CContextMenuDlg::s_bDictLoaded = false;
+CString CContextMenuDlg::s_dictPath;
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -54,6 +58,8 @@ BEGIN_MESSAGE_MAP(CContextMenuDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BTN_CM_LOCATE, &CContextMenuDlg::OnBnClickedLocate)
 	ON_BN_CLICKED(IDC_CHECK_CM_FOLDER, &CContextMenuDlg::OnBnClickedCheckFolder)
 	ON_BN_CLICKED(IDC_CHECK_CM_WIN11_CLASSIC, &CContextMenuDlg::OnBnClickedCheckWin11Classic)
+	ON_BN_CLICKED(IDC_BTN_CM_REBUILD, &CContextMenuDlg::OnBnClickedRebuild)
+	ON_BN_CLICKED(IDC_BTN_CM_DICTPATH, &CContextMenuDlg::OnBnClickedDictPath)
 	ON_NOTIFY(NM_RCLICK, IDC_LIST_CM_ENTRIES, &CContextMenuDlg::OnNMRClickList)
 	ON_COMMAND(ID_MENU_CM_DELETE, &CContextMenuDlg::OnMenuDelete)
 	ON_COMMAND(ID_MENU_CM_LOCATE, &CContextMenuDlg::OnMenuLocate)
@@ -113,17 +119,12 @@ void CContextMenuDlg::InitLocations()
 // ============================================================================
 
 // ============================================================================
-// GuidInfo dictionary (from GuidInfosDic.ini, matching ContextMenuManager)
+// GuidInfo dictionary (from GuidInfosDic.ini + external files, matching ContextMenuManager)
 // ============================================================================
 
-void CContextMenuDlg::LoadGuidDictionary()
+// Helper: parse INI content into the dictionary map (overwrites existing entries for same key)
+static void ParseDictIni(const CString& iniContent, std::map<CString, CContextMenuDlg::DictEntry>& dict)
 {
-	if (s_bDictLoaded) return;
-	s_bDictLoaded = true;
-	s_guidDict.clear();
-
-	// Parse the embedded INI string
-	CString iniContent = g_guidInfosDic;
 	int pos = 0;
 	CString currentSection;
 
@@ -143,6 +144,8 @@ void CContextMenuDlg::LoadGuidDictionary()
 		}
 
 		line.Trim();
+		// Also trim \r for Windows line endings
+		line.TrimRight(_T('\r'));
 		if (line.IsEmpty()) continue;
 		if (line[0] == _T(';') || line[0] == _T('#')) continue;
 
@@ -155,8 +158,8 @@ void CContextMenuDlg::LoadGuidDictionary()
 				currentSection = line.Mid(1, close - 1);
 				currentSection.MakeLower();
 				// Ensure section exists in map
-				if (s_guidDict.find(currentSection) == s_guidDict.end())
-					s_guidDict[currentSection] = DictEntry();
+				if (dict.find(currentSection) == dict.end())
+					dict[currentSection] = CContextMenuDlg::DictEntry();
 			}
 			continue;
 		}
@@ -170,8 +173,8 @@ void CContextMenuDlg::LoadGuidDictionary()
 			CString value = line.Mid(eq + 1);
 			value.Trim();
 
-			auto it = s_guidDict.find(currentSection);
-			if (it != s_guidDict.end())
+			auto it = dict.find(currentSection);
+			if (it != dict.end())
 			{
 				if (key.CompareNoCase(_T("ResText")) == 0)
 					it->second.resText = value;
@@ -181,6 +184,124 @@ void CContextMenuDlg::LoadGuidDictionary()
 					it->second.text = value;
 			}
 		}
+	}
+}
+
+// Helper: read entire file content into a CString
+static CString ReadFileContent(const CString& filePath)
+{
+	CString content;
+	try
+	{
+		CStdioFile file;
+		if (file.Open(filePath, CFile::modeRead | CFile::shareDenyWrite))
+		{
+			CString line;
+			while (file.ReadString(line))
+			{
+				content += line + _T("\n");
+			}
+			file.Close();
+		}
+	}
+	catch (CFileException*)
+	{
+		// File not found or access denied — return empty
+	}
+	return content;
+}
+
+// Helper: write content to a file
+static bool WriteFileContent(const CString& filePath, const CString& content)
+{
+	try
+	{
+		CStdioFile file;
+		if (file.Open(filePath, CFile::modeCreate | CFile::modeWrite | CFile::shareDenyWrite))
+		{
+			// Write as UTF-8 with BOM for compatibility
+			// Convert CString (UTF-16LE) to UTF-8
+			int nLen = content.GetLength();
+			int nUtf8Len = WideCharToMultiByte(CP_UTF8, 0, content, nLen, nullptr, 0, nullptr, nullptr);
+			if (nUtf8Len > 0)
+			{
+				std::vector<char> utf8Buf(nUtf8Len + 1);
+				WideCharToMultiByte(CP_UTF8, 0, content, nLen, utf8Buf.data(), nUtf8Len, nullptr, nullptr);
+				utf8Buf[nUtf8Len] = 0;
+				file.Write(utf8Buf.data(), (UINT)nUtf8Len);
+			}
+			file.Close();
+			return true;
+		}
+	}
+	catch (CFileException*)
+	{
+	}
+	return false;
+}
+
+void CContextMenuDlg::LoadGuidDictionary()
+{
+	if (s_bDictLoaded) return;
+	s_bDictLoaded = true;
+	s_guidDict.clear();
+
+	// Priority (lowest to highest): embedded hardcoded → user config → cache file
+	// Later calls overwrite earlier entries for the same CLSID.
+
+	// Layer 1: Load embedded hardcoded dictionary (lowest priority)
+	ParseDictIni(g_guidInfosDic, s_guidDict);
+
+	// Layer 2: Load user-configured external dictionary
+	// Read path from app directory's config.ini
+	if (s_dictPath.IsEmpty())
+	{
+		CString configPath = GetConfigPath();
+		TCHAR szPath[MAX_PATH] = { 0 };
+		GetPrivateProfileString(_T("Dictionary"), _T("Path"), _T(""), szPath, MAX_PATH, configPath);
+		CString readPath = szPath;
+		readPath.Trim();
+		if (!readPath.IsEmpty() && PathFileExists(readPath))
+		{
+			s_dictPath = readPath;
+		}
+	}
+
+	// If still no path configured, use default: %AppData%/MFCApplication1/
+	if (s_dictPath.IsEmpty())
+	{
+		TCHAR szAppData[MAX_PATH] = { 0 };
+		if (SUCCEEDED(SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, 0, szAppData)))
+		{
+			s_dictPath = CString(szAppData) + _T("\\MFCApplication1");
+			CreateDirectory(s_dictPath, nullptr);
+		}
+	}
+
+	if (!s_dictPath.IsEmpty() && PathFileExists(s_dictPath))
+	{
+		// Load all .ini files from the dictionary folder
+		CFileFind finder;
+		CString filter = s_dictPath + _T("\\*.ini");
+		BOOL bFound = finder.FindFile(filter);
+		while (bFound)
+		{
+			bFound = finder.FindNextFile();
+			if (finder.IsDots() || finder.IsDirectory()) continue;
+			CString content = ReadFileContent(finder.GetFilePath());
+			if (!content.IsEmpty())
+				ParseDictIni(content, s_guidDict);
+		}
+		finder.Close();
+	}
+
+	// Layer 3: Load cache file (highest priority, overwrites all previous entries)
+	CString cachePath = GetCachePath();
+	if (!cachePath.IsEmpty() && PathFileExists(cachePath))
+	{
+		CString content = ReadFileContent(cachePath);
+		if (!content.IsEmpty())
+			ParseDictIni(content, s_guidDict);
 	}
 }
 
@@ -1081,6 +1202,27 @@ void CContextMenuDlg::RefreshList()
 
 	CString status;
 	status.Format(_T("共找到 %d 个右键菜单项"), (int)m_entries.size());
+	// Append dictionary path info
+	if (!s_dictPath.IsEmpty())
+	{
+		CString tmp;
+		tmp.Format(_T("  |  字典：%s"), s_dictPath);
+		status += tmp;
+	}
+	else
+	{
+		CString cachePath = GetCachePath();
+		if (!cachePath.IsEmpty() && PathFileExists(cachePath))
+		{
+			CString tmp;
+			tmp.Format(_T("  |  字典：内嵌+缓存 (%s)"), cachePath);
+			status += tmp;
+		}
+		else
+		{
+			status += _T("  |  字典：内嵌硬编码");
+		}
+	}
 	UpdateStatus(status);
 }
 
@@ -1126,6 +1268,19 @@ BOOL CContextMenuDlg::OnInitDialog()
 
 	InitLocations();
 	LoadGuidDictionary();
+
+	// Show current dictionary path on status bar
+	{
+		CString dictInfo;
+		CString cachePath = GetCachePath();
+		if (!s_dictPath.IsEmpty())
+			dictInfo.Format(_T("当前字典：%s  |  缓存：%s"), s_dictPath, cachePath);
+		else if (!cachePath.IsEmpty() && PathFileExists(cachePath))
+			dictInfo.Format(_T("当前字典：内嵌 + 缓存  |  缓存：%s"), cachePath);
+		else
+			dictInfo.Format(_T("当前字典：内嵌硬编码  |  缓存：%s"), cachePath);
+		UpdateStatus(dictInfo);
+	}
 
 	// Scan all scenes (filter empty = "全部" mode)
 	ScanEntries(_T(""));
@@ -1845,4 +2000,429 @@ void CContextMenuDlg::OnMenuToggle()
 	if (idx < 0 || idx >= (int)m_entries.size()) return;
 
 	ToggleEntry(idx);
+}
+
+// ============================================================================
+// Dictionary path helpers
+// ============================================================================
+
+CString CContextMenuDlg::GetCachePath()
+{
+	// Cache file is always in the dictionary folder.
+	// If user configured a folder, use it; otherwise use default %AppData%.
+	if (!s_dictPath.IsEmpty())
+	{
+		return s_dictPath + _T("\\GuidInfosDic.cache.ini");
+	}
+
+	// Default: %AppData%\MFCApplication1\GuidInfosDic.cache.ini
+	TCHAR szPath[MAX_PATH] = { 0 };
+	if (SUCCEEDED(SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, 0, szPath)))
+	{
+		CString dir = CString(szPath) + _T("\\MFCApplication1");
+		CreateDirectory(dir, nullptr);
+		return dir + _T("\\GuidInfosDic.cache.ini");
+	}
+	return CString();
+}
+
+CString CContextMenuDlg::GetConfigPath()
+{
+	TCHAR szExePath[MAX_PATH] = { 0 };
+	GetModuleFileName(nullptr, szExePath, MAX_PATH);
+	CString exePath = szExePath;
+	int nLastSlash = exePath.ReverseFind(_T('\\'));
+	if (nLastSlash >= 0)
+		return exePath.Left(nLastSlash + 1) + _T("config.ini");
+	return _T("config.ini");
+}
+
+// ============================================================================
+// OnBnClickedDictPath — user selects a folder for dictionary INI files
+// ============================================================================
+
+void CContextMenuDlg::OnBnClickedDictPath()
+{
+	CFolderPickerDialog dlg(
+		s_dictPath.IsEmpty() ? nullptr : s_dictPath,
+		0, this);
+	dlg.m_ofn.lpstrTitle = _T("选择字典文件夹");
+
+	if (dlg.DoModal() == IDOK)
+	{
+		CString newPath = dlg.GetPathName();
+		if (newPath == s_dictPath)
+			return; // no change
+
+		// Migrate old dictionary files to new location
+		if (!s_dictPath.IsEmpty() && PathFileExists(s_dictPath))
+		{
+			MigrateDictionaryFiles(s_dictPath, newPath);
+		}
+
+		s_dictPath = newPath;
+
+		// Save the path to app directory's config.ini
+		CString configPath = GetConfigPath();
+		WritePrivateProfileString(_T("Dictionary"), _T("Path"), s_dictPath, configPath);
+
+		// Reload dictionary with the new folder
+		s_bDictLoaded = false;
+		LoadGuidDictionary();
+
+		// Refresh the list to show updated names
+		OnBnClickedRefresh();
+
+		CString msg;
+		msg.Format(_T("字典文件夹已更新：%s"), s_dictPath);
+		UpdateStatus(msg);
+	}
+}
+
+// ============================================================================
+// MigrateDictionaryFiles — copy .ini files from old folder to new folder
+// ============================================================================
+
+bool CContextMenuDlg::MigrateDictionaryFiles(const CString& oldPath, const CString& newPath)
+{
+	if (oldPath == newPath)
+		return false;
+
+	// Ensure the new folder exists
+	if (!PathFileExists(newPath))
+	{
+		if (!CreateDirectory(newPath, nullptr))
+			return false;
+	}
+
+	if (!PathFileExists(oldPath) || !PathIsDirectory(oldPath))
+		return false;
+
+	bool bSuccess = true;
+	CFileFind finder;
+	CString filter = oldPath + _T("\\*.ini");
+	BOOL bFound = finder.FindFile(filter);
+	while (bFound)
+	{
+		bFound = finder.FindNextFile();
+		if (finder.IsDots() || finder.IsDirectory()) continue;
+
+		CString srcFile = finder.GetFilePath();
+		CString dstFile = newPath + _T("\\") + finder.GetFileName();
+		if (!CopyFile(srcFile, dstFile, FALSE))
+			bSuccess = false;
+	}
+	finder.Close();
+	return bSuccess;
+}
+
+// ============================================================================
+// COM-based dictionary rebuild — queries actual context menu names via COM
+// ============================================================================
+
+// Helper: get display name for a ShellEx CLSID by creating the COM object
+// and querying its IContextMenu interface.
+static CString GetComDisplayName(const CString& clsidWithBraces, IDataObject* pDataObj)
+{
+	// Parse CLSID from string
+	CLSID clsid = { 0 };
+	if (FAILED(CLSIDFromString(clsidWithBraces, &clsid)))
+		return CString();
+
+	IUnknown* pUnk = nullptr;
+	HRESULT hr = CoCreateInstance(clsid, nullptr, CLSCTX_INPROC_SERVER | CLSCTX_LOCAL_SERVER,
+		IID_IUnknown, (void**)&pUnk);
+	if (FAILED(hr) || !pUnk)
+		return CString();
+
+	CString result;
+
+	// Try IShellExtInit first
+	IShellExtInit* pInit = nullptr;
+	if (SUCCEEDED(pUnk->QueryInterface(IID_IShellExtInit, (void**)&pInit)) && pInit)
+	{
+		pInit->Initialize(nullptr, pDataObj, nullptr);
+		pInit->Release();
+	}
+
+	// Query IContextMenu
+	IContextMenu* pCtxMenu = nullptr;
+	if (SUCCEEDED(pUnk->QueryInterface(IID_IContextMenu, (void**)&pCtxMenu)) && pCtxMenu)
+	{
+		HMENU hMenu = CreatePopupMenu();
+		if (hMenu)
+		{
+			hr = pCtxMenu->QueryContextMenu(hMenu, 0, 1, 0x7FFF, CMF_NORMAL);
+			if (SUCCEEDED(hr))
+			{
+				int nCount = GetMenuItemCount(hMenu);
+				if (nCount > 0)
+				{
+					TCHAR szText[256] = { 0 };
+					MENUITEMINFO mii = { sizeof(MENUITEMINFO) };
+					mii.fMask = MIIM_STRING;
+					mii.dwTypeData = szText;
+					mii.cch = 256;
+					if (GetMenuItemInfo(hMenu, 0, TRUE, &mii) && szText[0])
+					{
+						result = szText;
+					}
+				}
+			}
+			DestroyMenu(hMenu);
+		}
+		pCtxMenu->Release();
+	}
+
+	pUnk->Release();
+	return result;
+}
+
+// Helper: create an IDataObject for a file path
+static IDataObject* CreateDataObjectForFile(const CString& filePath)
+{
+	// Get PIDL for the file path
+	LPITEMIDLIST pidl = ILCreateFromPath(filePath);
+	if (!pidl)
+		return nullptr;
+
+	IShellFolder* pParentFolder = nullptr;
+	LPCITEMIDLIST pidlChild = nullptr;
+	HRESULT hr = SHBindToParent(pidl, IID_IShellFolder, (void**)&pParentFolder, &pidlChild);
+
+	IDataObject* pDataObj = nullptr;
+	if (SUCCEEDED(hr) && pParentFolder && pidlChild)
+	{
+		pParentFolder->GetUIObjectOf(nullptr, 1, &pidlChild, IID_IDataObject, nullptr, (void**)&pDataObj);
+		pParentFolder->Release();
+	}
+
+	ILFree(pidl);
+	return pDataObj;
+}
+
+// Helper: create an IDataObject for a folder path (directory)
+static IDataObject* CreateDataObjectForFolder(const CString& folderPath)
+{
+	return CreateDataObjectForFile(folderPath);
+}
+
+// Helper: get the InprocServer32 DLL filename for a CLSID as fallback display name
+static CString GetClsidDllName(const CString& clsidWithBraces)
+{
+	static const struct { HKEY hRoot; const TCHAR* fmt; } clsidPaths[] = {
+		{ HKEY_CLASSES_ROOT,   _T("CLSID\\%s\\InprocServer32") },
+		{ HKEY_CLASSES_ROOT,   _T("WOW6432Node\\CLSID\\%s\\InprocServer32") },
+		{ HKEY_LOCAL_MACHINE,  _T("SOFTWARE\\WOW6432Node\\Classes\\CLSID\\%s\\InprocServer32") },
+	};
+	for (const auto& cp : clsidPaths)
+	{
+		CString fullPath;
+		fullPath.Format(cp.fmt, clsidWithBraces);
+		HKEY hKey = nullptr;
+		if (RegOpenKeyEx(cp.hRoot, fullPath, 0, KEY_READ, &hKey) == ERROR_SUCCESS)
+		{
+			TCHAR szVal[MAX_PATH * 2] = { 0 };
+			DWORD cbVal = sizeof(szVal);
+			DWORD dwType = 0;
+			if (RegQueryValueEx(hKey, nullptr, nullptr, &dwType,
+				(LPBYTE)szVal, &cbVal) == ERROR_SUCCESS && szVal[0])
+			{
+				RegCloseKey(hKey);
+				CString dllPath = szVal;
+				int nComma = dllPath.Find(_T(','));
+				if (nComma > 0) dllPath = dllPath.Left(nComma);
+				dllPath.Trim();
+				// Extract just the filename
+				int nSlash = dllPath.ReverseFind(_T('\\'));
+				if (nSlash >= 0)
+					return dllPath.Mid(nSlash + 1);
+				return dllPath;
+			}
+			RegCloseKey(hKey);
+		}
+	}
+	return CString();
+}
+
+void CContextMenuDlg::RebuildDictionary()
+{
+	// Collect all ShellEx CLSIDs from all scenes
+	std::set<CString> allClsids;
+	{
+		std::vector<MenuEntry> tempEntries;
+		std::set<CString> seen;
+		for (const auto& scene : m_scenes)
+		{
+			if (scene.basePath.IsEmpty()) continue;
+			ScanShellExHandlers(scene.basePath + _T("\\shellex"), scene.name, tempEntries, seen);
+		}
+		for (const auto& entry : tempEntries)
+		{
+			if (!entry.keyName.IsEmpty() && entry.keyName[0] == _T('{'))
+			{
+				allClsids.insert(entry.keyName);
+			}
+		}
+	}
+
+	if (allClsids.empty())
+	{
+		UpdateStatus(_T("未找到任何 ShellEx CLSID，无需重建。"));
+		return;
+	}
+
+	CString statusMsg;
+	statusMsg.Format(_T("正在重建字典，共发现 %d 个 CLSID，请稍候..."), (int)allClsids.size());
+	UpdateStatus(statusMsg);
+
+	// Ensure COM is initialized
+	HRESULT hrCom = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+	bool bComInitialized = SUCCEEDED(hrCom);
+
+	// Create IDataObject for common file types
+	// Create a temp .txt file
+	TCHAR szTempPath[MAX_PATH] = { 0 };
+	TCHAR szTempFile[MAX_PATH] = { 0 };
+	GetTempPath(MAX_PATH, szTempPath);
+	GetTempFileName(szTempPath, _T("ctx"), 0, szTempFile);
+	// Ensure the file exists
+	HANDLE hTempFile = CreateFile(szTempFile, GENERIC_WRITE, 0, nullptr,
+		CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+	if (hTempFile != INVALID_HANDLE_VALUE)
+		CloseHandle(hTempFile);
+
+	IDataObject* pFileDataObj = CreateDataObjectForFile(szTempFile);
+
+	// Create a temp folder for folder context menu
+	TCHAR szTempDir[MAX_PATH] = { 0 };
+	GetTempFileName(szTempPath, _T("ctx"), 0, szTempDir);
+	DeleteFile(szTempDir); // Remove the temp file, we'll create a directory
+	CreateDirectory(szTempDir, nullptr);
+	IDataObject* pFolderDataObj = CreateDataObjectForFolder(szTempDir);
+
+	// For each CLSID, try to get the display name via multiple strategies
+	int nResolved = 0;
+	int nComResolved = 0;
+	int nFallback = 0;
+	int nTotal = (int)allClsids.size();
+
+	// Build cache INI content
+	CString cacheContent;
+	cacheContent += _T("; Auto-generated dictionary cache\n");
+	cacheContent += _T("; Generated by MFCApplication1 context menu manager\n");
+	cacheContent += _T("; This file is overwritten on each rebuild.\n\n");
+
+	for (const auto& clsid : allClsids)
+	{
+		// Normalize: remove braces for dictionary key
+		CString clsidNoBraces = clsid;
+		if (!clsidNoBraces.IsEmpty() && clsidNoBraces[0] == _T('{'))
+			clsidNoBraces = clsidNoBraces.Mid(1, clsidNoBraces.GetLength() - 2);
+
+		// Strategy 1: Try registry-based resolution (includes embedded dictionary lookup)
+		CString name = ResolveClsidName(clsid);
+		bool bFromCom = false;
+		bool bFromFallback = false;
+
+		// Strategy 2: If name is empty or looks like a raw GUID/DLL, try COM
+		bool bLooksUnresolved = name.IsEmpty() ||
+			(name.Find(_T('{')) >= 0 && name.Find(_T('}')) >= 0) ||
+			(name.Find(_T(".dll")) >= 0 && name.Find(_T(' ')) < 0);
+
+		if (bLooksUnresolved)
+		{
+			// Try COM with file data object first
+			if (pFileDataObj)
+			{
+				CString comName = GetComDisplayName(clsid, pFileDataObj);
+				if (!comName.IsEmpty())
+				{
+					name = comName;
+					bFromCom = true;
+				}
+			}
+			// Try COM with folder data object
+			if (bLooksUnresolved && name.IsEmpty() && pFolderDataObj)
+			{
+				CString comName = GetComDisplayName(clsid, pFolderDataObj);
+				if (!comName.IsEmpty())
+				{
+					name = comName;
+					bFromCom = true;
+				}
+			}
+
+			// Strategy 3: Fallback — use InprocServer32 DLL name
+			if (name.IsEmpty())
+			{
+				name = GetClsidDllName(clsid);
+				if (!name.IsEmpty())
+					bFromFallback = true;
+			}
+		}
+
+		if (!name.IsEmpty())
+		{
+			cacheContent += _T("[") + clsidNoBraces + _T("]\n");
+			cacheContent += _T("Text = ") + name + _T("\n");
+			if (bFromCom)
+			{
+				cacheContent += _T("; (resolved via COM)\n");
+				nComResolved++;
+			}
+			else if (bFromFallback)
+			{
+				cacheContent += _T("; (fallback: DLL name)\n");
+				nFallback++;
+			}
+			cacheContent += _T("\n");
+			nResolved++;
+		}
+	}
+
+	// Cleanup temp files
+	if (pFileDataObj) pFileDataObj->Release();
+	if (pFolderDataObj) pFolderDataObj->Release();
+	DeleteFile(szTempFile);
+	RemoveDirectory(szTempDir);
+
+	if (bComInitialized)
+		CoUninitialize();
+
+	// Save cache to file
+	CString cachePath = GetCachePath();
+	if (!cachePath.IsEmpty())
+	{
+		if (WriteFileContent(cachePath, cacheContent))
+		{
+			// Reload dictionary with the new cache
+			s_bDictLoaded = false;
+			LoadGuidDictionary();
+
+			// Refresh the list
+			OnBnClickedRefresh();
+
+			CString msg;
+			msg.Format(_T("字典重建完成：%d/%d 个 CLSID 已解析（注册表: %d, COM: %d, 回退: %d）。缓存路径：%s"),
+				nResolved, nTotal, nResolved - nComResolved - nFallback, nComResolved, nFallback, cachePath);
+			UpdateStatus(msg);
+			return;
+		}
+	}
+
+	CString msg;
+	msg.Format(_T("字典重建完成：%d/%d 个 CLSID 已解析，但缓存保存失败。"),
+		nResolved, nTotal);
+	UpdateStatus(msg);
+}
+
+void CContextMenuDlg::OnBnClickedRebuild()
+{
+	CString msg = _T("将扫描所有已注册的 ShellEx CLSID，并通过注册表和 COM 接口解析其显示名称。\n");
+	msg += _T("此过程可能需要几秒钟，是否继续？");
+	if (MessageBox(msg, _T("重建字典"), MB_ICONINFORMATION | MB_YESNO) != IDYES)
+		return;
+
+	RebuildDictionary();
 }

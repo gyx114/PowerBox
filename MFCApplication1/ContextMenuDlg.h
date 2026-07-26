@@ -33,6 +33,12 @@ public:
 		bool   bEnabled;       // true: currently enabled (not disabled by user)
 	};
 
+	// GuidInfo dictionary entry
+	struct DictEntry { CString resText; CString zhText; CString text; };
+	static std::map<CString, DictEntry> s_guidDict;
+	static bool s_bDictLoaded;
+	static CString s_dictPath;          // user-configured external dictionary path
+
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);
 	virtual BOOL OnInitDialog();
@@ -54,11 +60,6 @@ private:
 
 	std::vector<MenuEntry> m_entries;
 	std::vector<Scene> m_scenes;
-
-	// GuidInfo dictionary (loaded from GuidInfosDic.ini, matching ContextMenuManager)
-	struct DictEntry { CString resText; CString zhText; CString text; };
-	static std::map<CString, DictEntry> s_guidDict;
-	static bool s_bDictLoaded;
 
 	int m_listLeft, m_listTop;
 	int m_statusTop;
@@ -85,6 +86,10 @@ private:
 	void SaveWin11ClassicState(bool bEnable);
 	void ToggleEntry(int index);
 	void RestartExplorer();
+	void RebuildDictionary();            // COM-based: query real context menu names
+	static CString GetCachePath();       // %AppData%\MFCApplication1\GuidInfosDic.cache.ini
+	static CString GetConfigPath();      // <exe_dir>\config.ini
+	bool MigrateDictionaryFiles(const CString& oldPath, const CString& newPath);
 
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void OnBnClickedRefresh();
@@ -93,6 +98,8 @@ private:
 	afx_msg void OnBnClickedLocate();
 	afx_msg void OnBnClickedCheckFolder();
 	afx_msg void OnBnClickedCheckWin11Classic();
+	afx_msg void OnBnClickedRebuild();    // 重建字典
+	afx_msg void OnBnClickedDictPath();   // 字典路径
 	afx_msg void OnNMRClickList(NMHDR* pNMHDR, LRESULT* pResult);
 	afx_msg void OnMenuDelete();
 	afx_msg void OnMenuLocate();

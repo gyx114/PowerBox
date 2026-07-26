@@ -278,6 +278,8 @@
 #define IDC_BTN_PATH_DOWN              1230
 #define IDC_EDIT_PATH_PREVIEW          1231
 #define IDC_EDIT_ENV_SEARCH            1232
+#define IDC_BTN_CM_REBUILD             1233
+#define IDC_BTN_CM_DICTPATH            1234
 
 // Next default values for new objects
 // 
@@ -285,7 +287,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        149
 #define _APS_NEXT_COMMAND_VALUE         32820
-#define _APS_NEXT_CONTROL_VALUE         1233
+#define _APS_NEXT_CONTROL_VALUE         1235
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
