@@ -1553,6 +1553,8 @@ static bool CopyRegistryKey(HKEY hSrc, HKEY hDstParent, const CString& srcSubKey
 {
 	// Recursively copy a registry key and all its subkeys/values.
 	// Used by ShellEx move operation (ContextMenuManager's RegistryEx.CopyTo).
+	// Returns true only when every value and subkey is copied successfully,
+	// so the caller can safely delete the source key afterwards.
 	HKEY hSrcKey = nullptr;
 	if (RegOpenKeyEx(hSrc, srcSubKey, 0, KEY_READ, &hSrcKey) != ERROR_SUCCESS)
 		return false;
@@ -1565,19 +1567,34 @@ static bool CopyRegistryKey(HKEY hSrc, HKEY hDstParent, const CString& srcSubKey
 		return false;
 	}
 
-	// Copy all values
+	bool bSuccess = true;
+
+	// Copy all values. Grow buffer dynamically when a value is larger than
+	// the initial capacity (ERROR_MORE_DATA), so no value is silently dropped.
 	DWORD dwIndex = 0;
 	TCHAR szName[MAX_PATH];
 	DWORD cbName = MAX_PATH;
-	BYTE szValue[8192];
-	DWORD cbValue = sizeof(szValue);
 	DWORD dwType = 0;
-	while (RegEnumValue(hSrcKey, dwIndex, szName, &cbName, nullptr, &dwType, szValue, &cbValue) == ERROR_SUCCESS)
+	std::vector<BYTE> valueBuf(8192);
+	for (;;)
 	{
-		RegSetValueEx(hDstKey, szName, 0, dwType, szValue, cbValue);
-		dwIndex++;
 		cbName = MAX_PATH;
-		cbValue = sizeof(szValue);
+		DWORD cbValue = (DWORD)valueBuf.size();
+		LONG enumResult = RegEnumValue(hSrcKey, dwIndex, szName, &cbName,
+			nullptr, &dwType, valueBuf.data(), &cbValue);
+
+		if (enumResult == ERROR_MORE_DATA)
+		{
+			valueBuf.resize(cbValue);
+			continue;  // retry same index with bigger buffer
+		}
+		if (enumResult != ERROR_SUCCESS)
+			break;  // ERROR_NO_MORE_ITEMS ends the loop normally
+
+		if (RegSetValueEx(hDstKey, szName, 0, dwType, valueBuf.data(), cbValue) != ERROR_SUCCESS)
+			bSuccess = false;
+
+		dwIndex++;
 	}
 
 	// Recursively copy subkeys
@@ -1586,14 +1603,15 @@ static bool CopyRegistryKey(HKEY hSrc, HKEY hDstParent, const CString& srcSubKey
 	DWORD cbSubKey = MAX_PATH;
 	while (RegEnumKeyEx(hSrcKey, dwIndex, szSubKey, &cbSubKey, nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS)
 	{
-		CopyRegistryKey(hSrcKey, hDstKey, szSubKey, szSubKey);
+		if (!CopyRegistryKey(hSrcKey, hDstKey, szSubKey, szSubKey))
+			bSuccess = false;
 		dwIndex++;
 		cbSubKey = MAX_PATH;
 	}
 
 	RegCloseKey(hSrcKey);
 	RegCloseKey(hDstKey);
-	return true;
+	return bSuccess;
 }
 
 bool CContextMenuDlg::IsRunningAsAdmin()
@@ -1758,7 +1776,7 @@ void CContextMenuDlg::RestartExplorer()
 // Toggle enable/disable — matches ContextMenuManager logic exactly
 // ============================================================================
 
-void CContextMenuDlg::ToggleEntry(int index)
+void CContextMenuDlg::ToggleEntry(int index, bool bRefresh)
 {
 	if (index < 0 || index >= (int)m_entries.size()) return;
 
@@ -1930,8 +1948,11 @@ void CContextMenuDlg::ToggleEntry(int index)
 	// Notify shell of changes
 	SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
 
-	// Refresh the list to show updated state
-	RefreshList();
+	// Refresh the list to show updated state.
+	// Skipped during batch operations (caller refreshes once at the end)
+	// to avoid redundant repaints and status bar flicker.
+	if (bRefresh)
+		RefreshList();
 
 	CString msg;
 	msg.Format(_T("已%s: %s"), entry.bEnabled ? _T("启用") : _T("禁用"), entry.displayName);
@@ -1979,9 +2000,10 @@ void CContextMenuDlg::OnBnClickedDelete()
 	if (MessageBox(msg, _T("确认禁用"), MB_ICONWARNING | MB_YESNO) != IDYES)
 		return;
 
-	// Iterate in reverse order so that indices remain valid after ToggleEntry
-	// refreshes the list (RefreshList repopulates deterministically).
-	std::sort(selected.rbegin(), selected.rend());
+	// Toggle each selected item without refreshing inside the loop.
+	// RefreshList only repaints the list control and never clears m_entries,
+	// so indices stay valid across multiple ToggleEntry calls; we refresh
+	// once at the end to avoid redundant repaints and status bar flicker.
 	int nDisabled = 0;
 	for (int idx : selected)
 	{
@@ -1990,9 +2012,10 @@ void CContextMenuDlg::OnBnClickedDelete()
 		if (!m_entries[idx].bEnabled)
 			continue;
 
-		ToggleEntry(idx);
+		ToggleEntry(idx, false);
 		nDisabled++;
 	}
+	RefreshList();
 
 	CString status;
 	status.Format(_T("已禁用 %d 项"), nDisabled);

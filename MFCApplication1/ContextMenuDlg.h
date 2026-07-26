@@ -84,7 +84,7 @@ private:
 	void SaveSelfContextMenuState(bool bEnable);
 	void LoadWin11ClassicState();
 	void SaveWin11ClassicState(bool bEnable);
-	void ToggleEntry(int index);
+	void ToggleEntry(int index, bool bRefresh = true);
 	void RestartExplorer();
 	void RebuildDictionary();            // COM-based: query real context menu names
 	static CString GetCachePath();       // %AppData%\MFCApplication1\GuidInfosDic.cache.ini
