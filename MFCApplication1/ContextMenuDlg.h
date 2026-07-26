@@ -68,13 +68,13 @@ private:
 	void ScanEntries(const CString& filter);
 	void ScanScene(const CString& basePath, const CString& sceneName, std::set<CString>& seen);
 	static void ScanShellVerbs(const CString& shellPath, const CString& sceneName, std::vector<MenuEntry>& entries, std::set<CString>& seen);
-	static void ScanShellExHandlers(const CString& shellexBase, const CString& sceneName, std::vector<MenuEntry>& entries, std::set<CString>& seen);
-	static CString ResolveShellExKeyName(HKEY hHandlerKey, const CString& clsid);
+	static void ScanShellExHandlers(const CString& shellexBase, const CString& sceneName, std::vector<MenuEntry>& entries, std::set<CString>& seen, const CString& scenePath = CString());
+	static CString ResolveShellExKeyName(HKEY hHandlerKey, const CString& clsid, const CString& scenePath = CString());
 	static bool IsRunningAsAdmin();
-	static CString ResolveClsidName(const CString& clsid);
+	static CString ResolveClsidName(const CString& clsid, const CString& scenePath = CString());
 	static CString ResolveMUIString(const CString& raw);
 	static void LoadGuidDictionary();
-	static CString LookupGuidDict(const CString& clsid);
+	static CString LookupGuidDict(const CString& clsid, const CString& scenePath = CString());
 	void RefreshList();
 	void UpdateStatus(const CString& text);
 	void AdjustColumnWidths();

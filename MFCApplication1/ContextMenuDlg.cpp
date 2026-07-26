@@ -15,9 +15,11 @@
 #include <shobjidl.h>
 #include <aclapi.h>
 #include <winver.h>
+#include <knownfolders.h>
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "version.lib")
 #pragma comment(lib, "ole32.lib")
+#pragma comment(lib, "shell32.lib")
 
 // Static member initialization
 std::map<CString, CContextMenuDlg::DictEntry> CContextMenuDlg::s_guidDict;
@@ -196,10 +198,34 @@ static CString ReadFileContent(const CString& filePath)
 		CStdioFile file;
 		if (file.Open(filePath, CFile::modeRead | CFile::shareDenyWrite))
 		{
-			CString line;
-			while (file.ReadString(line))
+			ULONGLONG nFileLen = file.GetLength();
+			if (nFileLen > 0)
 			{
-				content += line + _T("\n");
+				std::vector<BYTE> buf((size_t)nFileLen + 1);
+				file.Read(buf.data(), (UINT)nFileLen);
+				buf[nFileLen] = 0;
+
+				int nOffset = 0;
+				// Detect UTF-8 BOM
+				if (nFileLen >= 3 && buf[0] == 0xEF && buf[1] == 0xBB && buf[2] == 0xBF)
+				{
+					nOffset = 3; // skip BOM
+				}
+
+				// Convert to wide string
+				int nWideLen = MultiByteToWideChar(CP_UTF8, 0,
+					(LPCCH)(buf.data() + nOffset),
+					(int)(nFileLen - nOffset),
+					nullptr, 0);
+				if (nWideLen > 0)
+				{
+					wchar_t* pWide = content.GetBuffer(nWideLen);
+					MultiByteToWideChar(CP_UTF8, 0,
+						(LPCCH)(buf.data() + nOffset),
+						(int)(nFileLen - nOffset),
+						pWide, nWideLen);
+					content.ReleaseBuffer(nWideLen);
+				}
 			}
 			file.Close();
 		}
@@ -219,7 +245,10 @@ static bool WriteFileContent(const CString& filePath, const CString& content)
 		CStdioFile file;
 		if (file.Open(filePath, CFile::modeCreate | CFile::modeWrite | CFile::shareDenyWrite))
 		{
-			// Write as UTF-8 with BOM for compatibility
+			// Write UTF-8 BOM for editor compatibility
+			const BYTE bom[3] = { 0xEF, 0xBB, 0xBF };
+			file.Write(bom, 3);
+
 			// Convert CString (UTF-16LE) to UTF-8
 			int nLen = content.GetLength();
 			int nUtf8Len = WideCharToMultiByte(CP_UTF8, 0, content, nLen, nullptr, 0, nullptr, nullptr);
@@ -280,7 +309,18 @@ void CContextMenuDlg::LoadGuidDictionary()
 
 	if (!s_dictPath.IsEmpty() && PathFileExists(s_dictPath))
 	{
-		// Load all .ini files from the dictionary folder
+		// Layer 2: Load cache file first (auto-generated, lower priority)
+		// This allows user-edited .ini files in the folder to override cache
+		CString cachePath = GetCachePath();
+		if (!cachePath.IsEmpty() && PathFileExists(cachePath))
+		{
+			CString content = ReadFileContent(cachePath);
+			if (!content.IsEmpty())
+				ParseDictIni(content, s_guidDict);
+		}
+
+		// Layer 3: Load all .ini files from the dictionary folder
+		// (user-edited files have higher priority and will override cache entries)
 		CFileFind finder;
 		CString filter = s_dictPath + _T("\\*.ini");
 		BOOL bFound = finder.FindFile(filter);
@@ -288,81 +328,72 @@ void CContextMenuDlg::LoadGuidDictionary()
 		{
 			bFound = finder.FindNextFile();
 			if (finder.IsDots() || finder.IsDirectory()) continue;
+			// Skip the cache file (loaded above), only load user files
+			if (finder.GetFileName() == _T("GuidInfosDic.cache.ini"))
+				continue;
 			CString content = ReadFileContent(finder.GetFilePath());
 			if (!content.IsEmpty())
 				ParseDictIni(content, s_guidDict);
 		}
 		finder.Close();
 	}
-
-	// Layer 3: Load cache file (highest priority, overwrites all previous entries)
-	CString cachePath = GetCachePath();
-	if (!cachePath.IsEmpty() && PathFileExists(cachePath))
-	{
-		CString content = ReadFileContent(cachePath);
-		if (!content.IsEmpty())
-			ParseDictIni(content, s_guidDict);
-	}
 }
 
-CString CContextMenuDlg::LookupGuidDict(const CString& clsid)
+CString CContextMenuDlg::LookupGuidDict(const CString& clsid, const CString& scenePath)
 {
 	if (!s_bDictLoaded)
 		LoadGuidDictionary();
 
-	// Normalize: lowercase, no braces
-	CString key = clsid;
-	key.MakeLower();
-	if (!key.IsEmpty() && key[0] == _T('{'))
-		key = key.Mid(1, key.GetLength() - 2);
+	// Normalize CLSID: lowercase, no braces
+	CString clsidKey = clsid;
+	clsidKey.MakeLower();
+	if (!clsidKey.IsEmpty() && clsidKey[0] == _T('{'))
+		clsidKey = clsidKey.Mid(1, clsidKey.GetLength() - 2);
 
-	auto it = s_guidDict.find(key);
+	// Lambda to extract text from a dict entry
+	auto extractText = [](const DictEntry& entry) -> CString {
+		if (!entry.resText.IsEmpty())
+		{
+			CString resolved = ResolveMUIString(entry.resText);
+			if (!resolved.IsEmpty()) return resolved;
+		}
+		if (!entry.zhText.IsEmpty())
+			return entry.zhText;
+		if (!entry.text.IsEmpty())
+		{
+			CString resolved = ResolveMUIString(entry.text);
+			if (!resolved.IsEmpty()) return resolved;
+			return entry.text;
+		}
+		return CString();
+	};
+
+	// Try scene-specific key first: scenePath\clsid
+	if (!scenePath.IsEmpty())
+	{
+		CString sceneKey = scenePath;
+		sceneKey.MakeLower();
+		CString fullKey = sceneKey + _T("\\") + clsidKey;
+		auto it = s_guidDict.find(fullKey);
+		if (it != s_guidDict.end())
+		{
+			CString result = extractText(it->second);
+			if (!result.IsEmpty()) return result;
+		}
+	}
+
+	// Fallback: global key (clsid only)
+	auto it = s_guidDict.find(clsidKey);
 	if (it == s_guidDict.end())
 		return CString();
 
-	// Priority matches ContextMenuManager GuidInfo.GetText:
-	//   ResText > [culture]-Text > Text
-	if (!it->second.resText.IsEmpty())
-	{
-		// ContextMenuManager calls GetAbsStr before GetDirectString.
-		// GetAbsStr resolves relative paths in ResText:
-		//   - Plain filename like "shell32.dll" → search system paths
-		//   - ".\xxx.dll" → relative to GUID file path
-		//   - "..\xxx.dll" → parent of GUID file path
-		//   - "*xxx.dll" → the GUID file itself
-		// For system DLLs (shell32.dll, imageres.dll etc.), SHLoadIndirectString
-		// already handles bare filenames, so we pass through directly.
-		CString resolved = ResolveMUIString(it->second.resText);
-		if (!resolved.IsEmpty()) return resolved;
-	}
-	if (!it->second.zhText.IsEmpty())
-		return it->second.zhText;
-	if (!it->second.text.IsEmpty())
-	{
-		// Text may be a MUI string or plain text
-		CString resolved = ResolveMUIString(it->second.text);
-		if (!resolved.IsEmpty()) return resolved;
-		// If MUI resolution failed, return as-is (it's plain text)
-		return it->second.text;
-	}
-
-	return CString();
+	return extractText(it->second);
 }
 
-CString CContextMenuDlg::ResolveClsidName(const CString& clsid)
+CString CContextMenuDlg::ResolveClsidName(const CString& clsid, const CString& scenePath)
 {
-	// Matches ContextMenuManager's GuidInfo.GetText:
-	// Strategy order (highest priority first):
-	//   1. Dictionary ResText → SHLoadIndirectString
-	//   2. Dictionary zh-CN-Text
-	//   3. Dictionary Text → SHLoadIndirectString
-	//   4. Registry LocalizedString / InfoTip / default (3 CLSID paths)
-	//   5. ProgID → ProgID friendly name
-	//   6. InprocServer32/LocalServer32 → FileVersionInfo → FileName
-	//   7. AuxUserType\2
-
-	// Step 1: Dictionary lookup (highest priority, matches ContextMenuManager)
-	CString dictName = LookupGuidDict(clsid);
+	// Step 1: Dictionary lookup (scene-specific first, then global)
+	CString dictName = LookupGuidDict(clsid, scenePath);
 	if (!dictName.IsEmpty())
 		return dictName;
 
@@ -748,7 +779,7 @@ void CContextMenuDlg::ScanScene(const CString& basePath, const CString& sceneNam
 	// Scan ShellEx handlers: <basePath>\shellex (both ContextMenuHandlers and -ContextMenuHandlers)
 	// ContextMenuManager: LoadShellExItems(GetShellExPath(scenePath))
 	CString shellexBase = basePath + _T("\\shellex");
-	ScanShellExHandlers(shellexBase, sceneName, m_entries, seen);
+	ScanShellExHandlers(shellexBase, sceneName, m_entries, seen, basePath);
 }
 
 void CContextMenuDlg::ScanShellVerbs(const CString& shellPath, const CString& sceneName,
@@ -941,7 +972,8 @@ void CContextMenuDlg::ScanShellVerbs(const CString& shellPath, const CString& sc
 //   6. File version info from InprocServer32
 // ============================================================================
 
-CString CContextMenuDlg::ResolveShellExKeyName(HKEY hHandlerKey, const CString& clsid)
+CString CContextMenuDlg::ResolveShellExKeyName(HKEY hHandlerKey, const CString& clsid,
+	const CString& scenePath)
 {
 	// Strategy 1: Read display name values directly from the ShellEx handler key
 	TCHAR szVal[MAX_PATH * 2] = { 0 };
@@ -969,7 +1001,7 @@ CString CContextMenuDlg::ResolveShellExKeyName(HKEY hHandlerKey, const CString& 
 	// Strategy 2: Resolve via CLSID (if available)
 	if (!clsid.IsEmpty())
 	{
-		CString name = CContextMenuDlg::ResolveClsidName(clsid);
+		CString name = CContextMenuDlg::ResolveClsidName(clsid, scenePath);
 		if (!name.IsEmpty()) return name;
 	}
 
@@ -977,7 +1009,7 @@ CString CContextMenuDlg::ResolveShellExKeyName(HKEY hHandlerKey, const CString& 
 }
 
 void CContextMenuDlg::ScanShellExHandlers(const CString& shellexBase, const CString& sceneName,
-	std::vector<MenuEntry>& entries, std::set<CString>& seen)
+	std::vector<MenuEntry>& entries, std::set<CString>& seen, const CString& scenePath)
 {
 	static const struct { const TCHAR* folder; bool bEnabled; } folders[] = {
 		{ _T("ContextMenuHandlers"), true },
@@ -1052,11 +1084,11 @@ void CContextMenuDlg::ScanShellExHandlers(const CString& shellexBase, const CStr
 			CString displayName;
 			if (hHandler)
 			{
-				displayName = ResolveShellExKeyName(hHandler, clsidForLookup);
-			}
-			else if (!clsidForLookup.IsEmpty())
-			{
-				displayName = ResolveClsidName(clsidForLookup);
+				displayName = ResolveShellExKeyName(hHandler, clsidForLookup, scenePath);
+		}
+		else if (!clsidForLookup.IsEmpty())
+		{
+			displayName = ResolveClsidName(clsidForLookup, scenePath);
 			}
 
 			// Fall back: use key name as-is, but try to resolve if it's a ProgID
@@ -2120,11 +2152,53 @@ bool CContextMenuDlg::MigrateDictionaryFiles(const CString& oldPath, const CStri
 // COM-based dictionary rebuild — queries actual context menu names via COM
 // ============================================================================
 
+// Helper: check if a name is poor quality (GUID, DLL name, or empty)
+static bool IsPoorName(const CString& name)
+{
+	if (name.IsEmpty()) return true;
+	// Looks like a GUID
+	if (name.Find(_T('{')) >= 0 && name.Find(_T('}')) >= 0) return true;
+	// Looks like a DLL filename
+	if (name.Find(_T(".dll")) >= 0 && name.Find(_T(' ')) < 0) return true;
+	// Too short (single word, likely a verb like "edit", "open")
+	if (name.GetLength() < 5) return true;
+	// Only contains ASCII (likely an English verb/command name, not a display name)
+	bool bHasNonAscii = false;
+	for (int i = 0; i < name.GetLength(); i++)
+	{
+		if (name[i] > 127) { bHasNonAscii = true; break; }
+	}
+	if (!bHasNonAscii && name.GetLength() > 3)
+	{
+		// Check if it looks like a readable english word (not a path/guid)
+		bool bHasSpaces = (name.Find(_T(' ')) >= 0);
+		bool bHasPunct = (name.Find(_T('.')) >= 0 || name.Find(_T('-')) >= 0);
+		if (!bHasSpaces && !bHasPunct && name.GetLength() <= 20)
+			return true; // Likely a verb/progID, not a display name
+	}
+	return false;
+}
+
+// Helper: compare two names and return the better (more human-readable) one
+static bool IsBetterName(const CString& a, const CString& b)
+{
+	if (a.IsEmpty()) return false;
+	if (b.IsEmpty()) return true;
+	// Prefer non-poor names over poor names
+	bool aPoor = IsPoorName(a);
+	bool bPoor = IsPoorName(b);
+	if (aPoor && !bPoor) return false;
+	if (!aPoor && bPoor) return true;
+	// Both same quality — prefer longer (more descriptive)
+	return a.GetLength() > b.GetLength();
+}
+
 // Helper: get display name for a ShellEx CLSID by creating the COM object
-// and querying its IContextMenu interface.
+// and querying its IContextMenu interface with multiple flag combinations.
+// Uses GetCommandString (the official Shell way) to get reliable menu text.
+// Returns the single best menu item name found.
 static CString GetComDisplayName(const CString& clsidWithBraces, IDataObject* pDataObj)
 {
-	// Parse CLSID from string
 	CLSID clsid = { 0 };
 	if (FAILED(CLSIDFromString(clsidWithBraces, &clsid)))
 		return CString();
@@ -2135,9 +2209,9 @@ static CString GetComDisplayName(const CString& clsidWithBraces, IDataObject* pD
 	if (FAILED(hr) || !pUnk)
 		return CString();
 
-	CString result;
+	std::set<CString> seenItems;
 
-	// Try IShellExtInit first
+	// Initialize Shell extension
 	IShellExtInit* pInit = nullptr;
 	if (SUCCEEDED(pUnk->QueryInterface(IID_IShellExtInit, (void**)&pInit)) && pInit)
 	{
@@ -2145,33 +2219,123 @@ static CString GetComDisplayName(const CString& clsidWithBraces, IDataObject* pD
 		pInit->Release();
 	}
 
-	// Query IContextMenu
+	// Try IContextMenu with multiple flag combinations
 	IContextMenu* pCtxMenu = nullptr;
 	if (SUCCEEDED(pUnk->QueryInterface(IID_IContextMenu, (void**)&pCtxMenu)) && pCtxMenu)
 	{
-		HMENU hMenu = CreatePopupMenu();
-		if (hMenu)
+		const DWORD flagsToTry[] = {
+			CMF_NORMAL,
+			CMF_VERBSONLY,
+			CMF_EXPLORE,
+			CMF_DEFAULTONLY,
+		};
+
+		for (DWORD flag : flagsToTry)
 		{
-			hr = pCtxMenu->QueryContextMenu(hMenu, 0, 1, 0x7FFF, CMF_NORMAL);
+			HMENU hMenu = CreatePopupMenu();
+			if (!hMenu) break;
+
+			hr = pCtxMenu->QueryContextMenu(hMenu, 0, 1, 0x7FFF, flag);
 			if (SUCCEEDED(hr))
 			{
 				int nCount = GetMenuItemCount(hMenu);
-				if (nCount > 0)
+				for (int i = 0; i < nCount; i++)
 				{
-					TCHAR szText[256] = { 0 };
+					// Get item type first
 					MENUITEMINFO mii = { sizeof(MENUITEMINFO) };
-					mii.fMask = MIIM_STRING;
-					mii.dwTypeData = szText;
-					mii.cch = 256;
-					if (GetMenuItemInfo(hMenu, 0, TRUE, &mii) && szText[0])
+					mii.fMask = MIIM_FTYPE | MIIM_ID;
+					if (!GetMenuItemInfo(hMenu, i, TRUE, &mii))
+						continue;
+
+					// Skip separator and non-string items
+					if (mii.fType & MFT_SEPARATOR)
+						continue;
+
+					// For owner-drawn items, dwTypeData is not a string, use GetCommandString instead
+					if (mii.fType & MFT_OWNERDRAW)
 					{
-						result = szText;
+						if (mii.wID >= 1)
+						{
+							// Use GetCommandString to get the menu text
+							wchar_t szBuf[256] = { 0 };
+							if (SUCCEEDED(pCtxMenu->GetCommandString(
+								mii.wID - 1, GCS_HELPTEXTW, nullptr,
+								reinterpret_cast<LPSTR>(szBuf), 256)))
+							{
+								CString item(szBuf);
+								item.Trim();
+								if (!item.IsEmpty())
+									seenItems.insert(item);
+							}
+						}
+						continue;
+					}
+
+					// For regular string items, read the string directly
+					{
+						TCHAR szText[256] = { 0 };
+						MENUITEMINFO miiStr = { sizeof(MENUITEMINFO) };
+						miiStr.fMask = MIIM_STRING;
+						miiStr.dwTypeData = szText;
+						miiStr.cch = 256;
+						if (GetMenuItemInfo(hMenu, i, TRUE, &miiStr) && szText[0])
+						{
+							CString item = szText;
+							item.Trim();
+							if (!item.IsEmpty())
+								seenItems.insert(item);
+						}
+					}
+
+					// Also try GetCommandString for verb name
+					if (mii.wID >= 1)
+					{
+						wchar_t szVerb[256] = { 0 };
+						if (SUCCEEDED(pCtxMenu->GetCommandString(
+							mii.wID - 1, GCS_VERBW, nullptr,
+							reinterpret_cast<LPSTR>(szVerb), 256)))
+						{
+							// Verb is usually lower-case english, skip if it looks like a verb
+							// (only add if it seems like a display name)
+						}
 					}
 				}
 			}
 			DestroyMenu(hMenu);
 		}
 		pCtxMenu->Release();
+	}
+
+	// Try IExplorerCommand interface (Win7+ modern shell extensions)
+	IExplorerCommand* pExplorerCmd = nullptr;
+	if (SUCCEEDED(pUnk->QueryInterface(IID_IExplorerCommand, (void**)&pExplorerCmd)) && pExplorerCmd)
+	{
+		PWSTR pszTitle = nullptr;
+		if (SUCCEEDED(pExplorerCmd->GetTitle(nullptr, &pszTitle)) && pszTitle)
+		{
+			CString item(pszTitle);
+			item.Trim();
+			if (!item.IsEmpty())
+				seenItems.insert(item);
+			CoTaskMemFree(pszTitle);
+		}
+		pExplorerCmd->Release();
+	}
+
+	// Return only the best single name (don't concatenate multiple items).
+	// A CLSID represents one shell extension; concatenating multiple menu
+	// items would produce confusing results like "批量打印 | 文件瘦身".
+	CString result;
+	if (!seenItems.empty())
+	{
+		// Pick the best name: prefer non-poor names, then longest
+		CString best;
+		for (const auto& item : seenItems)
+		{
+			if (best.IsEmpty() || IsBetterName(item, best))
+				best = item;
+		}
+		result = best;
 	}
 
 	pUnk->Release();
@@ -2205,6 +2369,86 @@ static IDataObject* CreateDataObjectForFile(const CString& filePath)
 static IDataObject* CreateDataObjectForFolder(const CString& folderPath)
 {
 	return CreateDataObjectForFile(folderPath);
+}
+
+// Helper: create an IDataObject for a directory background (folder window)
+// Uses IShellFolder::GetUIObjectOf with 0 items to get the background data object
+static IDataObject* CreateDataObjectForBackground(const CString& folderPath)
+{
+	LPITEMIDLIST pidl = ILCreateFromPath(folderPath);
+	if (!pidl)
+		return nullptr;
+
+	IShellFolder* pDesktop = nullptr;
+	HRESULT hr = SHGetDesktopFolder(&pDesktop);
+	if (FAILED(hr) || !pDesktop)
+	{
+		ILFree(pidl);
+		return nullptr;
+	}
+
+	IShellFolder* pFolder = nullptr;
+	hr = pDesktop->BindToObject(pidl, nullptr, IID_IShellFolder, (void**)&pFolder);
+	pDesktop->Release();
+	ILFree(pidl);
+
+	if (FAILED(hr) || !pFolder)
+		return nullptr;
+
+	// GetUIObjectOf with 0 items returns the folder background's data object
+	IDataObject* pDataObj = nullptr;
+	pFolder->GetUIObjectOf(nullptr, 0, nullptr, IID_IDataObject, nullptr, (void**)&pDataObj);
+	pFolder->Release();
+	return pDataObj;
+}
+
+// Helper: create an IDataObject for a scene based on its basePath
+// Returns the IDataObject that best matches the scene's context
+// Returns nullptr for scenes that don't support safe COM querying
+static IDataObject* CreateDataObjectForScene(const CString& basePath,
+	const TCHAR* szTempFile, const TCHAR* szTempDir)
+{
+	// File scenes: use temp file
+	if (basePath == _T("*") ||
+		basePath == _T("AllFilesystemObjects") ||
+		basePath == _T("Unknown") ||
+		basePath == _T("Launcher.ImmersiveApplication") ||
+		basePath == _T("lnkfile") ||
+		basePath.Find(_T("SystemFileAssociations")) == 0)
+	{
+		return CreateDataObjectForFile(szTempFile);
+	}
+
+	// Folder scenes: use temp folder
+	if (basePath == _T("Directory") || basePath == _T("Folder"))
+	{
+		return CreateDataObjectForFile(szTempDir);
+	}
+
+	// Background scenes: use folder background data object (safe for real filesystem)
+	if (basePath == _T("Directory\\Background"))
+	{
+		return CreateDataObjectForBackground(szTempDir);
+	}
+
+	if (basePath == _T("DesktopBackground"))
+	{
+		TCHAR szDesktop[MAX_PATH] = { 0 };
+		if (SUCCEEDED(SHGetFolderPath(nullptr, CSIDL_DESKTOP, nullptr, 0, szDesktop)))
+			return CreateDataObjectForBackground(szDesktop);
+		return CreateDataObjectForBackground(szTempDir);
+	}
+
+	if (basePath == _T("Drive"))
+	{
+		return CreateDataObjectForBackground(_T("C:\\"));
+	}
+
+	// Virtual folders (Recycle Bin, Computer, Libraries)
+	// These are unsafe for COM querying — skip them and use registry fallback
+	// Recycle Bin, Computer, LibraryFolder, UserLibraryFolder
+	// Return nullptr to signal: don't attempt COM for this scene
+	return nullptr;
 }
 
 // Helper: get the InprocServer32 DLL filename for a CLSID as fallback display name
@@ -2247,24 +2491,76 @@ static CString GetClsidDllName(const CString& clsidWithBraces)
 
 void CContextMenuDlg::RebuildDictionary()
 {
-	// Collect all ShellEx CLSIDs from all scenes
-	std::set<CString> allClsids;
+	// Collect CLSIDs per scene: scene basePath -> set of CLSIDs
+	// This allows us to query COM with the correct IDataObject for each scene
+	std::map<CString, std::set<CString>> sceneClsids;
 	{
-		std::vector<MenuEntry> tempEntries;
-		std::set<CString> seen;
 		for (const auto& scene : m_scenes)
 		{
 			if (scene.basePath.IsEmpty()) continue;
-			ScanShellExHandlers(scene.basePath + _T("\\shellex"), scene.name, tempEntries, seen);
-		}
-		for (const auto& entry : tempEntries)
-		{
-			if (!entry.keyName.IsEmpty() && entry.keyName[0] == _T('{'))
+
+			std::vector<MenuEntry> tempEntries;
+			std::set<CString> seen;
+			ScanShellExHandlers(scene.basePath + _T("\\shellex"), scene.name, tempEntries, seen, scene.basePath);
+
+			for (const auto& entry : tempEntries)
 			{
-				allClsids.insert(entry.keyName);
+				CString clsid;
+				if (!entry.keyName.IsEmpty() && entry.keyName[0] == _T('{'))
+				{
+					clsid = entry.keyName;
+				}
+				else
+				{
+					CString handlerKeyPath = entry.regPath + _T("\\") + entry.keyName;
+					HKEY hKey = nullptr;
+					if (RegOpenKeyEx(HKEY_CLASSES_ROOT, handlerKeyPath, 0, KEY_READ, &hKey) == ERROR_SUCCESS)
+					{
+						TCHAR szVal[MAX_PATH] = { 0 };
+						DWORD cbVal = sizeof(szVal);
+						DWORD dwType = 0;
+						if (RegQueryValueEx(hKey, nullptr, nullptr, &dwType,
+							(LPBYTE)szVal, &cbVal) == ERROR_SUCCESS && szVal[0])
+							clsid = szVal;
+						RegCloseKey(hKey);
+					}
+				}
+
+				clsid.Trim();
+				if (clsid.IsEmpty() || clsid[0] != _T('{')) continue;
+
+				// Filter: must have InprocServer32 (real COM object)
+				bool bIsReal = false;
+				CString clsidPath;
+				clsidPath.Format(_T("CLSID\\%s\\InprocServer32"), clsid);
+				HKEY hTest = nullptr;
+				if (RegOpenKeyEx(HKEY_CLASSES_ROOT, clsidPath, 0, KEY_READ, &hTest) == ERROR_SUCCESS)
+				{
+					RegCloseKey(hTest);
+					bIsReal = true;
+				}
+				else
+				{
+					CString wowPath;
+					wowPath.Format(_T("WOW6432Node\\CLSID\\%s\\InprocServer32"), clsid);
+					if (RegOpenKeyEx(HKEY_CLASSES_ROOT, wowPath, 0, KEY_READ, &hTest) == ERROR_SUCCESS)
+					{
+						RegCloseKey(hTest);
+						bIsReal = true;
+					}
+				}
+				if (!bIsReal) continue;
+
+				sceneClsids[scene.basePath].insert(clsid);
 			}
 		}
 	}
+
+	// Count total unique CLSIDs
+	std::set<CString> allClsids;
+	for (const auto& p : sceneClsids)
+		for (const auto& c : p.second)
+			allClsids.insert(c);
 
 	if (allClsids.empty())
 	{
@@ -2272,118 +2568,126 @@ void CContextMenuDlg::RebuildDictionary()
 		return;
 	}
 
+	int nTotal = (int)allClsids.size();
 	CString statusMsg;
-	statusMsg.Format(_T("正在重建字典，共发现 %d 个 CLSID，请稍候..."), (int)allClsids.size());
+	statusMsg.Format(_T("正在重建字典，共 %d 个 CLSID（%d 个场景），请稍候..."),
+		nTotal, (int)sceneClsids.size());
 	UpdateStatus(statusMsg);
 
 	// Ensure COM is initialized
 	HRESULT hrCom = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 	bool bComInitialized = SUCCEEDED(hrCom);
 
-	// Create IDataObject for common file types
-	// Create a temp .txt file
+	// Create temp file and folder for IDataObject creation
 	TCHAR szTempPath[MAX_PATH] = { 0 };
 	TCHAR szTempFile[MAX_PATH] = { 0 };
 	GetTempPath(MAX_PATH, szTempPath);
 	GetTempFileName(szTempPath, _T("ctx"), 0, szTempFile);
-	// Ensure the file exists
 	HANDLE hTempFile = CreateFile(szTempFile, GENERIC_WRITE, 0, nullptr,
 		CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 	if (hTempFile != INVALID_HANDLE_VALUE)
 		CloseHandle(hTempFile);
 
-	IDataObject* pFileDataObj = CreateDataObjectForFile(szTempFile);
-
-	// Create a temp folder for folder context menu
 	TCHAR szTempDir[MAX_PATH] = { 0 };
 	GetTempFileName(szTempPath, _T("ctx"), 0, szTempDir);
-	DeleteFile(szTempDir); // Remove the temp file, we'll create a directory
+	DeleteFile(szTempDir);
 	CreateDirectory(szTempDir, nullptr);
-	IDataObject* pFolderDataObj = CreateDataObjectForFolder(szTempDir);
 
-	// For each CLSID, try to get the display name via multiple strategies
 	int nResolved = 0;
 	int nComResolved = 0;
 	int nFallback = 0;
-	int nTotal = (int)allClsids.size();
 
 	// Build cache INI content
+	// Format: [scenePath\CLSID] for scene-specific, [CLSID] for global fallback
 	CString cacheContent;
 	cacheContent += _T("; Auto-generated dictionary cache\n");
-	cacheContent += _T("; Generated by MFCApplication1 context menu manager\n");
+	cacheContent += _T("; Scene-specific entries use [scene\\CLSID] format\n");
 	cacheContent += _T("; This file is overwritten on each rebuild.\n\n");
 
-	for (const auto& clsid : allClsids)
+	// Track globally resolved CLSIDs (for fallback entries)
+	std::set<CString> globalResolved;
+
+	// Process each scene with its own IDataObject
+	for (const auto& scenePair : sceneClsids)
 	{
-		// Normalize: remove braces for dictionary key
-		CString clsidNoBraces = clsid;
-		if (!clsidNoBraces.IsEmpty() && clsidNoBraces[0] == _T('{'))
-			clsidNoBraces = clsidNoBraces.Mid(1, clsidNoBraces.GetLength() - 2);
+		const CString& scenePath = scenePair.first;
+		const std::set<CString>& clsids = scenePair.second;
 
-		// Strategy 1: Try registry-based resolution (includes embedded dictionary lookup)
-		CString name = ResolveClsidName(clsid);
-		bool bFromCom = false;
-		bool bFromFallback = false;
+		// Create IDataObject for this scene
+		IDataObject* pDataObj = CreateDataObjectForScene(scenePath, szTempFile, szTempDir);
 
-		// Strategy 2: If name is empty or looks like a raw GUID/DLL, try COM
-		bool bLooksUnresolved = name.IsEmpty() ||
-			(name.Find(_T('{')) >= 0 && name.Find(_T('}')) >= 0) ||
-			(name.Find(_T(".dll")) >= 0 && name.Find(_T(' ')) < 0);
-
-		if (bLooksUnresolved)
+		for (const auto& clsid : clsids)
 		{
-			// Try COM with file data object first
-			if (pFileDataObj)
-			{
-				CString comName = GetComDisplayName(clsid, pFileDataObj);
-				if (!comName.IsEmpty())
-				{
-					name = comName;
-					bFromCom = true;
-				}
-			}
-			// Try COM with folder data object
-			if (bLooksUnresolved && name.IsEmpty() && pFolderDataObj)
-			{
-				CString comName = GetComDisplayName(clsid, pFolderDataObj);
-				if (!comName.IsEmpty())
-				{
-					name = comName;
-					bFromCom = true;
-				}
-			}
+			CString clsidNoBraces = clsid;
+			if (!clsidNoBraces.IsEmpty() && clsidNoBraces[0] == _T('{'))
+				clsidNoBraces = clsidNoBraces.Mid(1, clsidNoBraces.GetLength() - 2);
 
-			// Strategy 3: Fallback — use InprocServer32 DLL name
-			if (name.IsEmpty())
+			// Strategy 1: COM with this scene's IDataObject
+			CString name;
+			bool bFromCom = false;
+			bool bFromFallback = false;
+
+			if (pDataObj)
 			{
-				name = GetClsidDllName(clsid);
+				name = GetComDisplayName(clsid, pDataObj);
 				if (!name.IsEmpty())
-					bFromFallback = true;
+					bFromCom = true;
 			}
-		}
 
-		if (!name.IsEmpty())
-		{
-			cacheContent += _T("[") + clsidNoBraces + _T("]\n");
+			// Strategy 2: Registry + DLL fallback
+			if (name.IsEmpty() || IsPoorName(name))
+			{
+				CString regName = ResolveClsidName(clsid, scenePath);
+				if (!regName.IsEmpty() && !IsPoorName(regName))
+				{
+					name = regName;
+				}
+				else if (name.IsEmpty())
+				{
+					CString dllName = GetClsidDllName(clsid);
+					if (!dllName.IsEmpty())
+					{
+						name = dllName;
+						bFromFallback = true;
+						bFromCom = false;
+					}
+				}
+			}
+
+			if (name.IsEmpty())
+				continue;
+
+			// Write scene-specific entry: [scenePath\CLSID]
+			CString sectionKey = scenePath + _T("\\") + clsidNoBraces;
+			cacheContent += _T("[") + sectionKey + _T("]\n");
 			cacheContent += _T("Text = ") + name + _T("\n");
 			if (bFromCom)
 			{
-				cacheContent += _T("; (resolved via COM)\n");
+				cacheContent += _T("; (COM, scene: ") + scenePath + _T(")\n");
 				nComResolved++;
 			}
 			else if (bFromFallback)
 			{
-				cacheContent += _T("; (fallback: DLL name)\n");
+				cacheContent += _T("; (DLL fallback)\n");
 				nFallback++;
 			}
 			cacheContent += _T("\n");
-			nResolved++;
+
+			// Also write global fallback entry (first non-poor name wins)
+			if (globalResolved.find(clsid) == globalResolved.end() && !IsPoorName(name))
+			{
+				cacheContent += _T("[") + clsidNoBraces + _T("]\n");
+				cacheContent += _T("Text = ") + name + _T("\n\n");
+				globalResolved.insert(clsid);
+				nResolved++;
+			}
 		}
+
+		if (pDataObj)
+			pDataObj->Release();
 	}
 
 	// Cleanup temp files
-	if (pFileDataObj) pFileDataObj->Release();
-	if (pFolderDataObj) pFolderDataObj->Release();
 	DeleteFile(szTempFile);
 	RemoveDirectory(szTempDir);
 
