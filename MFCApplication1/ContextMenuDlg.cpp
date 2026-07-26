@@ -203,13 +203,27 @@ CString CContextMenuDlg::LookupGuidDict(const CString& clsid)
 	//   ResText > [culture]-Text > Text
 	if (!it->second.resText.IsEmpty())
 	{
+		// ContextMenuManager calls GetAbsStr before GetDirectString.
+		// GetAbsStr resolves relative paths in ResText:
+		//   - Plain filename like "shell32.dll" → search system paths
+		//   - ".\xxx.dll" → relative to GUID file path
+		//   - "..\xxx.dll" → parent of GUID file path
+		//   - "*xxx.dll" → the GUID file itself
+		// For system DLLs (shell32.dll, imageres.dll etc.), SHLoadIndirectString
+		// already handles bare filenames, so we pass through directly.
 		CString resolved = ResolveMUIString(it->second.resText);
 		if (!resolved.IsEmpty()) return resolved;
 	}
 	if (!it->second.zhText.IsEmpty())
 		return it->second.zhText;
 	if (!it->second.text.IsEmpty())
+	{
+		// Text may be a MUI string or plain text
+		CString resolved = ResolveMUIString(it->second.text);
+		if (!resolved.IsEmpty()) return resolved;
+		// If MUI resolution failed, return as-is (it's plain text)
 		return it->second.text;
+	}
 
 	return CString();
 }
@@ -435,7 +449,7 @@ CString CContextMenuDlg::ResolveClsidName(const CString& clsid)
 
 CString CContextMenuDlg::ResolveMUIString(const CString& raw)
 {
-	// Matches ContextMenuManager's ResourceString.GetDirectString:
+	// Matches ContextMenuManager's ResourceString.GetDirectString exactly:
 	//   SHLoadIndirectString on every value; non-@ strings pass through;
 	//   @ strings are resolved; on failure returns empty.
 	if (raw.IsEmpty())
@@ -443,32 +457,12 @@ CString CContextMenuDlg::ResolveMUIString(const CString& raw)
 	if (raw[0] != _T('@'))
 		return raw;
 
-	// Method 1: SHLoadIndirectString (handles language fallback automatically)
+	// C# GetDirectString: just calls SHLoadIndirectString, returns result.
+	// Does NOT check return value; empty buffer = empty string on failure.
 	TCHAR szResult[1024] = { 0 };
 	HRESULT hr = SHLoadIndirectString(raw, szResult, 1024, nullptr);
 	if (SUCCEEDED(hr) && szResult[0])
 		return CString(szResult);
-
-	// Method 2: Manual LoadString fallback (@path,-id)
-	int nPos = raw.ReverseFind(_T(','));
-	if (nPos > 0)
-	{
-		CString strDll = raw.Mid(1, nPos - 1);
-		int nId = _ttoi(raw.Mid(nPos + 1));
-		if (nId < 0) nId = -nId;
-
-		HMODULE hMod = LoadLibraryEx(strDll, nullptr, LOAD_LIBRARY_AS_DATAFILE);
-		if (hMod)
-		{
-			TCHAR szBuf[512] = { 0 };
-			if (LoadString(hMod, nId, szBuf, 512) > 0)
-			{
-				FreeLibrary(hMod);
-				return CString(szBuf);
-			}
-			FreeLibrary(hMod);
-		}
-	}
 
 	// Resolution failed — return empty (matches GetDirectString behavior)
 	return CString();
@@ -1011,15 +1005,17 @@ void CContextMenuDlg::ScanEntries(const CString& filter)
 	m_entries.clear();
 	std::set<CString> seen;
 
-	// In "全部" mode (filter empty), scan all scenes.
+	// In "全部" mode (filter empty or "全部"), scan all scenes.
 	// In filtered mode, scan only the matching scene.
 	// ContextMenuManager: each scene is independent, no cross-scene dedup needed.
 	// We use cross-scene dedup for "全部" mode to avoid showing the same item twice.
+	bool bScanAll = filter.IsEmpty() || filter == _T("全部");
+
 	for (const auto& scene : m_scenes)
 	{
 		if (scene.basePath.IsEmpty()) continue; // skip "全部"
 
-		if (!filter.IsEmpty() && scene.name != filter)
+		if (!bScanAll && scene.name != filter)
 			continue;
 
 		ScanScene(scene.basePath, scene.name, seen);
@@ -1503,15 +1499,17 @@ void CContextMenuDlg::ToggleEntry(int index)
 	// Build the HKCR-relative full path: regPath\keyName (e.g. "*\shell\edit")
 	CString hkcrFullPath = entry.regPath + _T("\\") + entry.keyName;
 
+	// Clean up any previous HKCU override from earlier attempts
+	// (ensures HKLM writes are not masked by stale HKCU entries in merged view)
+	CString hkcuCleanup = _T("Software\\Classes\\") + hkcrFullPath;
+	SHDeleteKey(HKEY_CURRENT_USER, hkcuCleanup);
+
 	if (entry.bIsShellEx)
 	{
 		// --- ShellEx handler: move between ContextMenuHandlers and -ContextMenuHandlers ---
-		// Matches ContextMenuManager's ShellExItem.ItemVisible.set:
+		// Matches C# ShellExItem.ItemVisible.set:
 		//   RegistryEx.MoveTo(RegPath, BackupPath); RegPath = BackupPath;
-		//
-		// BackupPath swaps between ContextMenuHandlers and -ContextMenuHandlers.
-		// Parse hkcrFullPath (e.g. "*\shellex\ContextMenuHandlers\{guid}")
-		// into: shellexBase, curFolder, keyName
+		// Writes DIRECTLY to HKLM\SOFTWARE\Classes (via HKCR), not HKCU.
 
 		int lastSlash = hkcrFullPath.ReverseFind(_T('\\'));
 		if (lastSlash < 0)
@@ -1544,139 +1542,110 @@ void CContextMenuDlg::ToggleEntry(int index)
 			return;
 		}
 
-		// Build HKCU paths
-		CString hkcuShellexBase = _T("Software\\Classes\\") + shellexBase;
-		CString hkcuOldFolder = hkcuShellexBase + _T("\\") + curFolder;
-		CString hkcuNewFolder = hkcuShellexBase + _T("\\") + newFolder;
+		// Build full HKCR paths
+		CString srcParentPath = shellexBase + _T("\\") + curFolder;
+		CString dstParentPath = shellexBase + _T("\\") + newFolder;
 
-		// Ensure target folder exists in HKCU
-		HKEY hNewFolderKey = nullptr;
-		if (RegCreateKeyEx(HKEY_CURRENT_USER, hkcuNewFolder, 0, nullptr, 0,
-			KEY_WRITE, nullptr, &hNewFolderKey, nullptr) != ERROR_SUCCESS)
+		// Take ownership of source key (matches C# TakeRegTreeOwnerShip)
+		CString srcKeyPath = srcParentPath + _T("\\") + keyName;
+		TakeRegKeyOwnership(HKEY_CLASSES_ROOT, srcKeyPath);
+
+		// Open source parent in HKCR for reading
+		HKEY hSrcParent = nullptr;
+		if (RegOpenKeyEx(HKEY_CLASSES_ROOT, srcParentPath, 0, KEY_READ, &hSrcParent) != ERROR_SUCCESS)
 		{
-			MessageBox(_T("无法创建目标文件夹。"), _T("操作失败"), MB_ICONERROR);
-			return;
-		}
-		RegCloseKey(hNewFolderKey);
-
-		// Try to read source from HKCU first, then HKLM
-		HKEY hOldParent = nullptr;
-		CString oldFolderPath = hkcuOldFolder;
-		HKEY hOldRoot = HKEY_CURRENT_USER;
-
-		if (RegOpenKeyEx(HKEY_CURRENT_USER, hkcuOldFolder, 0, KEY_READ, &hOldParent) != ERROR_SUCCESS)
-		{
-			// Try HKLM
-			oldFolderPath = _T("Software\\Classes\\") + shellexBase + _T("\\") + curFolder;
-			if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, oldFolderPath, 0, KEY_READ, &hOldParent) != ERROR_SUCCESS)
-			{
-				// Source key doesn't exist in either hive — just update the entry state
-				entry.regPath = shellexBase + _T("\\") + newFolder;
-				entry.bEnabled = !entry.bEnabled;
-				SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
-				RefreshList();
-				CString msg;
-				msg.Format(_T("已%s: %s"), entry.bEnabled ? _T("启用") : _T("禁用"), entry.displayName);
-				UpdateStatus(msg);
-				return;
-			}
-			hOldRoot = HKEY_LOCAL_MACHINE;
-		}
-
-		// Open destination in HKCU
-		HKEY hNewParent = nullptr;
-		if (RegOpenKeyEx(HKEY_CURRENT_USER, hkcuNewFolder, 0, KEY_WRITE | KEY_READ, &hNewParent) != ERROR_SUCCESS)
-		{
-			RegCloseKey(hOldParent);
-			MessageBox(_T("无法打开目标文件夹。"), _T("操作失败"), MB_ICONERROR);
+			MessageBox(_T("无法打开源注册表项。"), _T("操作失败"), MB_ICONERROR);
 			return;
 		}
 
-		// Copy the key from old location to new location in HKCU
-		// ContextMenuManager: RegistryEx.CopyTo(srcPath, dstPath)
-		if (!CopyRegistryKey(hOldParent, hNewParent, keyName, keyName))
+		// Take ownership of destination parent and create it
+		TakeRegKeyOwnership(HKEY_CLASSES_ROOT, dstParentPath);
+		HKEY hDstParent = nullptr;
+		DWORD dwDisp = 0;
+		if (RegCreateKeyEx(HKEY_CLASSES_ROOT, dstParentPath, 0, nullptr,
+			REG_OPTION_NON_VOLATILE, KEY_WRITE | KEY_READ, nullptr, &hDstParent, &dwDisp) != ERROR_SUCCESS)
 		{
-			RegCloseKey(hOldParent);
-			RegCloseKey(hNewParent);
+			RegCloseKey(hSrcParent);
+			MessageBox(_T("无法创建目标注册表项。"), _T("操作失败"), MB_ICONERROR);
+			return;
+		}
+
+		// Copy key from source to destination (matches C# RegistryEx.CopyTo)
+		if (!CopyRegistryKey(hSrcParent, hDstParent, keyName, keyName))
+		{
+			RegCloseKey(hSrcParent);
+			RegCloseKey(hDstParent);
 			MessageBox(_T("复制注册表项失败。"), _T("操作失败"), MB_ICONERROR);
 			return;
 		}
-		RegCloseKey(hNewParent);
+		RegCloseKey(hDstParent);
 
-		// Delete the old key
-		// ContextMenuManager: RegistryEx.DeleteKeyTree(srcPath, true)
-		LONG delResult = SHDeleteKey(hOldParent, keyName);
-		RegCloseKey(hOldParent);
+		// Delete source key (matches C# RegistryEx.DeleteKeyTree)
+		// Writing to HKCR deletes from HKLM\SOFTWARE\Classes
+		LONG delResult = SHDeleteKey(hSrcParent, keyName);
+		RegCloseKey(hSrcParent);
 
 		if (delResult != ERROR_SUCCESS)
 		{
-			// If we can't delete the old key (e.g. HKLM without admin), the new key
-			// in HKCU will still serve as an override in the merged HKCR view.
 			MessageBox(_T("删除旧注册表项失败，但新项已成功创建。\n请手动检查注册表。"),
 				_T("部分成功"), MB_ICONWARNING);
 		}
 
-		// Update entry state (matches ContextMenuManager: RegPath = BackupPath)
+		// Update entry state (matches C#: RegPath = BackupPath)
 		entry.regPath = shellexBase + _T("\\") + newFolder;
 		entry.bEnabled = !entry.bEnabled;
 	}
 	else
 	{
-		// --- Static verb: set/remove LegacyDisable + ProgrammaticAccessOnly ---
-		// Matches ContextMenuManager's ShellItem.ItemVisible.set:
-		//   Disable: HideBasedOnVelocityId=0x639bc8 (Win10 1703+),
-		//            LegacyDisable="", ProgrammaticAccessOnly=""
-		//   Enable:  delete all three values
-		//
-		// Write to HKCU\Software\Classes\{path} to create user-level override.
-		// C# Registry.SetValue writes to the appropriate hive. We use HKCU for
-		// non-admin compatibility since HKCU takes precedence in HKCR merged view.
+		// --- Static verb: set/remove LegacyDisable + ProgrammaticAccessOnly + HideBasedOnVelocityId ---
+		// Matches C# ShellItem.ItemVisible.set exactly:
+		//   Disable: Registry.SetValue(RegPath, "HideBasedOnVelocityId", 0x639bc8);
+		//            Registry.SetValue(RegPath, "LegacyDisable", "");
+		//            Registry.SetValue(RegPath, "ProgrammaticAccessOnly", "");
+		//   Enable:  RegistryEx.DeleteValue(RegPath, "HideBasedOnVelocityId");
+		//            RegistryEx.DeleteValue(RegPath, "LegacyDisable");
+		//            RegistryEx.DeleteValue(RegPath, "ProgrammaticAccessOnly");
+		//            if (CommandFlags % 16 >= 8) RegistryEx.DeleteValue(RegPath, "CommandFlags");
+		// Writes DIRECTLY to HKLM\SOFTWARE\Classes (via HKCR), not HKCU.
 
-		CString hkcuPath = _T("Software\\Classes\\") + hkcrFullPath;
+		// Take ownership of the key (matches C# TakeRegTreeOwnerShip)
+		TakeRegKeyOwnership(HKEY_CLASSES_ROOT, hkcrFullPath);
 
+		// Open/create the key in HKCR (writes to HKLM\SOFTWARE\Classes)
 		HKEY hVerb = nullptr;
 		DWORD dwDisp = 0;
-		LONG lResult = RegCreateKeyEx(HKEY_CURRENT_USER, hkcuPath, 0, nullptr,
+		LONG lResult = RegCreateKeyEx(HKEY_CLASSES_ROOT, hkcrFullPath, 0, nullptr,
 			REG_OPTION_NON_VOLATILE, KEY_WRITE | KEY_READ, nullptr, &hVerb, &dwDisp);
 		if (lResult != ERROR_SUCCESS)
 		{
 			CString errMsg;
-			errMsg.Format(_T("无法创建/打开注册表项：%s\n错误代码：%d"), hkcrFullPath, lResult);
+			errMsg.Format(_T("无法打开注册表项：%s\n错误代码：%d"), hkcrFullPath, lResult);
 			MessageBox(errMsg, _T("操作失败"), MB_ICONERROR);
 			return;
 		}
 
 		if (entry.bEnabled)
 		{
-			// Disable: set HideBasedOnVelocityId (Win10 1703+), LegacyDisable, ProgrammaticAccessOnly
-			// ContextMenuManager: Registry.SetValue(RegPath, "HideBasedOnVelocityId", 0x639bc8);
-			//                    Registry.SetValue(RegPath, "LegacyDisable", "");
-			//                    Registry.SetValue(RegPath, "ProgrammaticAccessOnly", "");
-			DWORD dwHideBasedOnVelocityId = 0x639bc8;
+			// Disable: set values (matches C# Registry.SetValue)
+			DWORD dwHideBased = 0x639bc8;
 			RegSetValueEx(hVerb, _T("HideBasedOnVelocityId"), 0, REG_DWORD,
-				(BYTE*)&dwHideBasedOnVelocityId, sizeof(DWORD));
-
+				(BYTE*)&dwHideBased, sizeof(DWORD));
 			const TCHAR* szEmpty = _T("");
 			RegSetValueEx(hVerb, _T("LegacyDisable"), 0, REG_SZ,
 				(LPBYTE)szEmpty, sizeof(TCHAR));
 			RegSetValueEx(hVerb, _T("ProgrammaticAccessOnly"), 0, REG_SZ,
 				(LPBYTE)szEmpty, sizeof(TCHAR));
-
 			entry.bEnabled = false;
 			entry.bDisabled = true;
 		}
 		else
 		{
-			// Enable: remove LegacyDisable, ProgrammaticAccessOnly, HideBasedOnVelocityId
-			// ContextMenuManager: RegistryEx.DeleteValue(RegPath, "LegacyDisable");
-			//                    RegistryEx.DeleteValue(RegPath, "ProgrammaticAccessOnly");
-			//                    RegistryEx.DeleteValue(RegPath, "HideBasedOnVelocityId");
-			//                    if (CommandFlags % 16 >= 8) RegistryEx.DeleteValue(RegPath, "CommandFlags");
+			// Enable: delete values (matches C# RegistryEx.DeleteValue)
 			RegDeleteValue(hVerb, _T("LegacyDisable"));
 			RegDeleteValue(hVerb, _T("ProgrammaticAccessOnly"));
 			RegDeleteValue(hVerb, _T("HideBasedOnVelocityId"));
 
-			// Also delete CommandFlags if it was set to hide the item
+			// Also delete CommandFlags if it was hiding the item
 			DWORD dwCmdFlags = 0;
 			DWORD cbCmdFlags = sizeof(dwCmdFlags);
 			if (RegQueryValueEx(hVerb, _T("CommandFlags"), nullptr, nullptr,
@@ -1684,7 +1653,6 @@ void CContextMenuDlg::ToggleEntry(int index)
 			{
 				RegDeleteValue(hVerb, _T("CommandFlags"));
 			}
-
 			entry.bEnabled = true;
 			entry.bDisabled = false;
 		}
@@ -1732,7 +1700,7 @@ void CContextMenuDlg::OnBnClickedDelete()
 	//   ShellItem.DeleteMe():  RegistryEx.DeleteKeyTree(this.RegPath, true)
 	//   ShellExItem.DeleteMe(): RegistryEx.DeleteKeyTree(this.RegPath, true);
 	//                           RegistryEx.DeleteKeyTree(this.BackupPath);
-	// We try HKCU first (user override), then HKLM.
+	// Writes DIRECTLY to HKLM\SOFTWARE\Classes (via HKCR), not HKCU.
 
 	int deleted = 0;
 	std::sort(selected.rbegin(), selected.rend());
@@ -1741,22 +1709,18 @@ void CContextMenuDlg::OnBnClickedDelete()
 		auto& entry = m_entries[idx];
 		CString hkcrRelPath = entry.regPath + _T("\\") + entry.keyName;
 
-		// Try HKCU first
+		// Clean up any previous HKCU override
 		CString hkcuPath = _T("Software\\Classes\\") + hkcrRelPath;
-		bool bDeleted = DeleteRegistryKeyRecursive(HKEY_CURRENT_USER, hkcuPath);
+		SHDeleteKey(HKEY_CURRENT_USER, hkcuPath);
 
-		// Try HKLM
-		if (!bDeleted)
-		{
-			CString hklmPath = _T("Software\\Classes\\") + hkcrRelPath;
-			bDeleted = DeleteRegistryKeyRecursive(HKEY_LOCAL_MACHINE, hklmPath);
-		}
+		// Take ownership and delete from HKCR (= HKLM\SOFTWARE\Classes)
+		TakeRegKeyOwnership(HKEY_CLASSES_ROOT, hkcrRelPath);
+		bool bDeleted = (SHDeleteKey(HKEY_CLASSES_ROOT, hkcrRelPath) == ERROR_SUCCESS);
 
-		// For ShellEx items, also try to delete from the opposite folder
+		// For ShellEx items, also delete from the opposite folder (backup path)
 		// ContextMenuManager: RegistryEx.DeleteKeyTree(this.BackupPath)
 		if (entry.bIsShellEx)
 		{
-			// Build the backup path (opposite folder)
 			int lastSlash = hkcrRelPath.ReverseFind(_T('\\'));
 			if (lastSlash >= 0)
 			{
@@ -1769,9 +1733,12 @@ void CContextMenuDlg::OnBnClickedDelete()
 					CString curFolder = parentPath.Mid(secondSlash + 1);
 					CString otherFolder = (curFolder == _T("ContextMenuHandlers"))
 						? _T("-ContextMenuHandlers") : _T("ContextMenuHandlers");
-					CString backupPath = _T("Software\\Classes\\") + shellexBase + _T("\\") + otherFolder + _T("\\") + keyName;
-					DeleteRegistryKeyRecursive(HKEY_CURRENT_USER, backupPath);
-					DeleteRegistryKeyRecursive(HKEY_LOCAL_MACHINE, backupPath);
+					CString backupPath = shellexBase + _T("\\") + otherFolder + _T("\\") + keyName;
+					TakeRegKeyOwnership(HKEY_CLASSES_ROOT, backupPath);
+					SHDeleteKey(HKEY_CLASSES_ROOT, backupPath);
+					// Also clean HKCU backup
+					CString hkcuBackup = _T("Software\\Classes\\") + backupPath;
+					SHDeleteKey(HKEY_CURRENT_USER, hkcuBackup);
 				}
 			}
 		}
