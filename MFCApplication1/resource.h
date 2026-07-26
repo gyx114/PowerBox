@@ -280,6 +280,7 @@
 #define IDC_EDIT_ENV_SEARCH            1232
 #define IDC_BTN_CM_REBUILD             1233
 #define IDC_BTN_CM_DICTPATH            1234
+#define IDC_BTN_CM_DICTOPEN            1235
 
 // Next default values for new objects
 // 

@@ -88,8 +88,14 @@ private:
 	void RestartExplorer();
 	void RebuildDictionary();            // COM-based: query real context menu names
 	static CString GetCachePath();       // %AppData%\MFCApplication1\GuidInfosDic.cache.ini
+	static CString GetUserOverridePath(); // user_override.ini path
 	static CString GetConfigPath();      // <exe_dir>\config.ini
 	bool MigrateDictionaryFiles(const CString& oldPath, const CString& newPath);
+	bool InputCustomName(const CString& clsid, const CString& scenePath,
+		const CString& currentName, CString& outName);
+	bool SaveUserOverride(const CString& clsid, const CString& scenePath,
+		const CString& customName);
+	void OnBnClickedDictOpen();           // 打开字典目录
 
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void OnBnClickedRefresh();
@@ -102,6 +108,7 @@ private:
 	afx_msg void OnBnClickedDictPath();   // 字典路径
 	afx_msg void OnNMRClickList(NMHDR* pNMHDR, LRESULT* pResult);
 	afx_msg void OnMenuDelete();
-	afx_msg void OnMenuLocate();
 	afx_msg void OnMenuToggle();
+	afx_msg void OnMenuLocate();
+	afx_msg void OnMenuCustomParse();
 };

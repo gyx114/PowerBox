@@ -26,14 +26,59 @@ std::map<CString, CContextMenuDlg::DictEntry> CContextMenuDlg::s_guidDict;
 bool CContextMenuDlg::s_bDictLoaded = false;
 CString CContextMenuDlg::s_dictPath;
 
+class CCustomParseInputDlg : public CDialogEx
+{
+public:
+	CCustomParseInputDlg(CWnd* pParent, const CString& title, const CString& prompt,
+		const CString& initialValue)
+		: CDialogEx(IDD_INPUT_DLG, pParent)
+		, m_strTitle(title)
+		, m_strPrompt(prompt)
+		, m_strInitialValue(initialValue)
+	{
+	}
+
+	CString GetInput() const { return m_strResult; }
+
+protected:
+	virtual BOOL OnInitDialog()
+	{
+		CDialogEx::OnInitDialog();
+		SetWindowText(m_strTitle);
+		SetDlgItemText(IDC_INPUT_PROMPT, m_strPrompt);
+		SetDlgItemText(IDC_INPUT_EDIT, m_strInitialValue);
+		GetDlgItem(IDC_INPUT_EDIT)->SetFocus();
+		return FALSE;
+	}
+
+	virtual void DoDataExchange(CDataExchange* pDX)
+	{
+		CDialogEx::DoDataExchange(pDX);
+		DDX_Text(pDX, IDC_INPUT_EDIT, m_strResult);
+	}
+
+	virtual void OnOK()
+	{
+		UpdateData(TRUE);
+		CDialogEx::OnOK();
+	}
+
+	CString m_strTitle;
+	CString m_strPrompt;
+	CString m_strInitialValue;
+	CString m_strResult;
+};
+
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
 
 // Menu command IDs for right-click context menu in the list
-#define ID_MENU_CM_DELETE   50020
-#define ID_MENU_CM_LOCATE   50021
-#define ID_MENU_CM_TOGGLE   50022
+#define ID_MENU_CM_TOGGLE       50019
+#define ID_MENU_CM_DELETE       50020
+#define ID_MENU_CM_LOCATE       50021
+
+#define ID_MENU_CM_CUSTOMPARSE  50023
 
 IMPLEMENT_DYNAMIC(CContextMenuDlg, CDialogEx)
 
@@ -62,10 +107,12 @@ BEGIN_MESSAGE_MAP(CContextMenuDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_CHECK_CM_WIN11_CLASSIC, &CContextMenuDlg::OnBnClickedCheckWin11Classic)
 	ON_BN_CLICKED(IDC_BTN_CM_REBUILD, &CContextMenuDlg::OnBnClickedRebuild)
 	ON_BN_CLICKED(IDC_BTN_CM_DICTPATH, &CContextMenuDlg::OnBnClickedDictPath)
+	ON_BN_CLICKED(IDC_BTN_CM_DICTOPEN, &CContextMenuDlg::OnBnClickedDictOpen)
 	ON_NOTIFY(NM_RCLICK, IDC_LIST_CM_ENTRIES, &CContextMenuDlg::OnNMRClickList)
+	ON_COMMAND(ID_MENU_CM_TOGGLE, &CContextMenuDlg::OnMenuToggle)
 	ON_COMMAND(ID_MENU_CM_DELETE, &CContextMenuDlg::OnMenuDelete)
 	ON_COMMAND(ID_MENU_CM_LOCATE, &CContextMenuDlg::OnMenuLocate)
-	ON_COMMAND(ID_MENU_CM_TOGGLE, &CContextMenuDlg::OnMenuToggle)
+	ON_COMMAND(ID_MENU_CM_CUSTOMPARSE, &CContextMenuDlg::OnMenuCustomParse)
 END_MESSAGE_MAP()
 
 BOOL CContextMenuDlg::PreTranslateMessage(MSG* pMsg)
@@ -159,9 +206,11 @@ static void ParseDictIni(const CString& iniContent, std::map<CString, CContextMe
 			{
 				currentSection = line.Mid(1, close - 1);
 				currentSection.MakeLower();
-				// Ensure section exists in map
-				if (dict.find(currentSection) == dict.end())
-					dict[currentSection] = CContextMenuDlg::DictEntry();
+				// Always replace entry (don't merge) — higher-priority layers
+			// must completely overwrite lower-priority entries, otherwise
+			// residual fields (e.g. resText from cache) prevent user override
+			// text from being seen by extractText which checks resText first.
+			dict[currentSection] = CContextMenuDlg::DictEntry();
 			}
 			continue;
 		}
@@ -310,7 +359,6 @@ void CContextMenuDlg::LoadGuidDictionary()
 	if (!s_dictPath.IsEmpty() && PathFileExists(s_dictPath))
 	{
 		// Layer 2: Load cache file first (auto-generated, lower priority)
-		// This allows user-edited .ini files in the folder to override cache
 		CString cachePath = GetCachePath();
 		if (!cachePath.IsEmpty() && PathFileExists(cachePath))
 		{
@@ -328,14 +376,24 @@ void CContextMenuDlg::LoadGuidDictionary()
 		{
 			bFound = finder.FindNextFile();
 			if (finder.IsDots() || finder.IsDirectory()) continue;
-			// Skip the cache file (loaded above), only load user files
-			if (finder.GetFileName() == _T("GuidInfosDic.cache.ini"))
+			// Skip cache and user_override files (loaded separately with priority)
+			if (finder.GetFileName() == _T("GuidInfosDic.cache.ini") ||
+				finder.GetFileName() == _T("user_override.ini"))
 				continue;
 			CString content = ReadFileContent(finder.GetFilePath());
 			if (!content.IsEmpty())
 				ParseDictIni(content, s_guidDict);
 		}
 		finder.Close();
+	}
+
+	// Layer 4 (highest priority): Load user_override.ini (user custom parsing)
+	CString userOverridePath = GetUserOverridePath();
+	if (!userOverridePath.IsEmpty() && PathFileExists(userOverridePath))
+	{
+		CString content = ReadFileContent(userOverridePath);
+		if (!content.IsEmpty())
+			ParseDictIni(content, s_guidDict);
 	}
 }
 
@@ -368,13 +426,34 @@ CString CContextMenuDlg::LookupGuidDict(const CString& clsid, const CString& sce
 		return CString();
 	};
 
-	// Try scene-specific key first: scenePath\clsid
+	// Try scene-specific key first: scenePath\clsid (new format)
+	// Also try old format: scenePath\shellex\[-]ContextMenuHandlers\clsid (for backward compatibility)
 	if (!scenePath.IsEmpty())
 	{
 		CString sceneKey = scenePath;
 		sceneKey.MakeLower();
+
+		// New format: scenePath\clsid
 		CString fullKey = sceneKey + _T("\\") + clsidKey;
 		auto it = s_guidDict.find(fullKey);
+		if (it != s_guidDict.end())
+		{
+			CString result = extractText(it->second);
+			if (!result.IsEmpty()) return result;
+		}
+
+		// Old format: scenePath\shellex\ContextMenuHandlers\clsid
+		CString oldKey1 = sceneKey + _T("\\shellex\\contextmenuhandlers\\") + clsidKey;
+		it = s_guidDict.find(oldKey1);
+		if (it != s_guidDict.end())
+		{
+			CString result = extractText(it->second);
+			if (!result.IsEmpty()) return result;
+		}
+
+		// Old format: scenePath\shellex\-ContextMenuHandlers\clsid
+		CString oldKey2 = sceneKey + _T("\\shellex\\-contextmenuhandlers\\") + clsidKey;
+		it = s_guidDict.find(oldKey2);
 		if (it != s_guidDict.end())
 		{
 			CString result = extractText(it->second);
@@ -975,12 +1054,21 @@ void CContextMenuDlg::ScanShellVerbs(const CString& shellPath, const CString& sc
 CString CContextMenuDlg::ResolveShellExKeyName(HKEY hHandlerKey, const CString& clsid,
 	const CString& scenePath)
 {
-	// Strategy 1: Read display name values directly from the ShellEx handler key
+	// Strategy 1 (highest priority): Dictionary lookup (user override + cache + embedded)
+	// Must check BEFORE handler key's own values, otherwise user custom names
+	// are never seen because LocalizedString/InfoTip on the handler key returns first.
+	if (!clsid.IsEmpty())
+	{
+		CString name = CContextMenuDlg::ResolveClsidName(clsid, scenePath);
+		if (!name.IsEmpty()) return name;
+	}
+
+	// Strategy 2: Read display name values directly from the ShellEx handler key
 	TCHAR szVal[MAX_PATH * 2] = { 0 };
 	DWORD cbVal = sizeof(szVal);
 	DWORD dwType = 0;
 
-	// 1a: LocalizedString on the handler key itself
+	// 2a: LocalizedString on the handler key itself
 	cbVal = sizeof(szVal); szVal[0] = 0;
 	if (RegQueryValueEx(hHandlerKey, _T("LocalizedString"), nullptr, &dwType,
 		(LPBYTE)szVal, &cbVal) == ERROR_SUCCESS && szVal[0])
@@ -989,19 +1077,12 @@ CString CContextMenuDlg::ResolveShellExKeyName(HKEY hHandlerKey, const CString& 
 		if (!name.IsEmpty()) return name;
 	}
 
-	// 1b: InfoTip on the handler key itself
+	// 2b: InfoTip on the handler key itself
 	cbVal = sizeof(szVal); szVal[0] = 0;
 	if (RegQueryValueEx(hHandlerKey, _T("InfoTip"), nullptr, &dwType,
 		(LPBYTE)szVal, &cbVal) == ERROR_SUCCESS && szVal[0])
 	{
 		CString name = CContextMenuDlg::ResolveMUIString(szVal);
-		if (!name.IsEmpty()) return name;
-	}
-
-	// Strategy 2: Resolve via CLSID (if available)
-	if (!clsid.IsEmpty())
-	{
-		CString name = CContextMenuDlg::ResolveClsidName(clsid, scenePath);
 		if (!name.IsEmpty()) return name;
 	}
 
@@ -1858,7 +1939,8 @@ void CContextMenuDlg::ToggleEntry(int index)
 }
 
 // ============================================================================
-// Delete — matches ContextMenuManager's DeleteMe
+// Disable selected items — moves ShellEx to -ContextMenuHandlers or sets
+// LegacyDisable for static verbs. Reversible via per-item toggle.
 // ============================================================================
 
 void CContextMenuDlg::OnBnClickedDelete()
@@ -1873,87 +1955,48 @@ void CContextMenuDlg::OnBnClickedDelete()
 
 	if (selected.empty())
 	{
-		MessageBox(_T("请先选择要删除的项。"), _T("提示"), MB_ICONINFORMATION);
+		MessageBox(_T("请先选择要禁用的项。"), _T("提示"), MB_ICONINFORMATION);
+		return;
+	}
+
+	// Count only currently enabled items (already disabled ones are skipped)
+	int nEnabled = 0;
+	for (int idx : selected)
+	{
+		if (idx >= 0 && idx < (int)m_entries.size() && m_entries[idx].bEnabled)
+			nEnabled++;
+	}
+
+	if (nEnabled == 0)
+	{
+		MessageBox(_T("选中的项均已禁用。"), _T("提示"), MB_ICONINFORMATION);
 		return;
 	}
 
 	CString msg;
-	msg.Format(_T("确定要删除选中的 %d 个右键菜单项吗？\n此操作将修改注册表，不可撤销。"),
-		(int)selected.size());
-	if (MessageBox(msg, _T("确认删除"), MB_ICONWARNING | MB_YESNO) != IDYES)
+	msg.Format(_T("确定要禁用选中的 %d 个右键菜单项吗？\n禁用后可通过右键菜单\"启用\"恢复。"),
+		nEnabled);
+	if (MessageBox(msg, _T("确认禁用"), MB_ICONWARNING | MB_YESNO) != IDYES)
 		return;
 
-	// ContextMenuManager:
-	//   ShellItem.DeleteMe():  RegistryEx.DeleteKeyTree(this.RegPath, true)
-	//   ShellExItem.DeleteMe(): RegistryEx.DeleteKeyTree(this.RegPath, true);
-	//                           RegistryEx.DeleteKeyTree(this.BackupPath);
-	// Writes DIRECTLY to HKLM\SOFTWARE\Classes (via HKCR), not HKCU.
-
-	int deleted = 0;
+	// Iterate in reverse order so that indices remain valid after ToggleEntry
+	// refreshes the list (RefreshList repopulates deterministically).
 	std::sort(selected.rbegin(), selected.rend());
+	int nDisabled = 0;
 	for (int idx : selected)
 	{
-		auto& entry = m_entries[idx];
-		CString hkcrRelPath = entry.regPath + _T("\\") + entry.keyName;
+		if (idx < 0 || idx >= (int)m_entries.size())
+			continue;
+		if (!m_entries[idx].bEnabled)
+			continue;
 
-		// Clean up any previous HKCU override
-		CString hkcuPath = _T("Software\\Classes\\") + hkcrRelPath;
-		SHDeleteKey(HKEY_CURRENT_USER, hkcuPath);
-
-		// Take ownership and delete from HKCR (= HKLM\SOFTWARE\Classes)
-		TakeRegKeyOwnership(HKEY_CLASSES_ROOT, hkcrRelPath);
-		bool bDeleted = (SHDeleteKey(HKEY_CLASSES_ROOT, hkcrRelPath) == ERROR_SUCCESS);
-
-		// For ShellEx items, also delete from the opposite folder (backup path)
-		// ContextMenuManager: RegistryEx.DeleteKeyTree(this.BackupPath)
-		if (entry.bIsShellEx)
-		{
-			int lastSlash = hkcrRelPath.ReverseFind(_T('\\'));
-			if (lastSlash >= 0)
-			{
-				CString keyName = hkcrRelPath.Mid(lastSlash + 1);
-				CString parentPath = hkcrRelPath.Left(lastSlash);
-				int secondSlash = parentPath.ReverseFind(_T('\\'));
-				if (secondSlash >= 0)
-				{
-					CString shellexBase = hkcrRelPath.Left(secondSlash);
-					CString curFolder = parentPath.Mid(secondSlash + 1);
-					CString otherFolder = (curFolder == _T("ContextMenuHandlers"))
-						? _T("-ContextMenuHandlers") : _T("ContextMenuHandlers");
-					CString backupPath = shellexBase + _T("\\") + otherFolder + _T("\\") + keyName;
-					TakeRegKeyOwnership(HKEY_CLASSES_ROOT, backupPath);
-					SHDeleteKey(HKEY_CLASSES_ROOT, backupPath);
-					// Also clean HKCU backup
-					CString hkcuBackup = _T("Software\\Classes\\") + backupPath;
-					SHDeleteKey(HKEY_CURRENT_USER, hkcuBackup);
-				}
-			}
-		}
-
-		if (bDeleted)
-		{
-			pList->DeleteItem(idx);
-			m_entries.erase(m_entries.begin() + idx);
-			deleted++;
-		}
-		else
-		{
-			CString errMsg;
-			errMsg.Format(_T("无法删除：%s\n\n可能原因：系统保护、权限不足、或该项正在被使用。"),
-				entry.displayName);
-			MessageBox(errMsg, _T("删除失败"), MB_ICONERROR);
-		}
+		ToggleEntry(idx);
+		nDisabled++;
 	}
 
 	CString status;
-	status.Format(_T("已删除 %d 项"), deleted);
+	status.Format(_T("已禁用 %d 项"), nDisabled);
 	UpdateStatus(status);
-
-	if (deleted > 0)
-	{
-		OnBnClickedRefresh();
-		LoadSelfContextMenuState();
-	}
 }
 
 void CContextMenuDlg::OnBnClickedLocate()
@@ -1993,16 +2036,17 @@ void CContextMenuDlg::OnNMRClickList(NMHDR* pNMHDR, LRESULT* pResult)
 	int idx = pList->GetNextSelectedItem(pos);
 	if (idx < 0 || idx >= (int)m_entries.size()) return;
 
+	// Determine toggle label based on current state
+	bool bEnabled = m_entries[idx].bEnabled;
+
 	CMenu menu;
 	menu.CreatePopupMenu();
 
-	if (m_entries[idx].bEnabled)
-		menu.AppendMenu(MF_STRING, ID_MENU_CM_TOGGLE, _T("禁用"));
-	else
-		menu.AppendMenu(MF_STRING, ID_MENU_CM_TOGGLE, _T("启用"));
-
+	menu.AppendMenu(MF_STRING, ID_MENU_CM_TOGGLE, bEnabled ? _T("禁用") : _T("启用"));
 	menu.AppendMenu(MF_SEPARATOR);
-	menu.AppendMenu(MF_STRING, ID_MENU_CM_DELETE, _T("删除选中"));
+	menu.AppendMenu(MF_STRING, ID_MENU_CM_CUSTOMPARSE, _T("自定义解析"));
+	menu.AppendMenu(MF_SEPARATOR);
+	menu.AppendMenu(MF_STRING, ID_MENU_CM_DELETE, _T("禁用选中"));
 	menu.AppendMenu(MF_STRING, ID_MENU_CM_LOCATE, _T("定位(注册表)"));
 
 	CPoint pt;
@@ -2013,11 +2057,6 @@ void CContextMenuDlg::OnNMRClickList(NMHDR* pNMHDR, LRESULT* pResult)
 void CContextMenuDlg::OnMenuDelete()
 {
 	OnBnClickedDelete();
-}
-
-void CContextMenuDlg::OnMenuLocate()
-{
-	OnBnClickedLocate();
 }
 
 void CContextMenuDlg::OnMenuToggle()
@@ -2032,11 +2071,274 @@ void CContextMenuDlg::OnMenuToggle()
 	if (idx < 0 || idx >= (int)m_entries.size()) return;
 
 	ToggleEntry(idx);
+
+	CString status;
+	status.Format(_T("已%s: %s"),
+		m_entries[idx].bEnabled ? _T("启用") : _T("禁用"),
+		m_entries[idx].displayName);
+	UpdateStatus(status);
+}
+
+void CContextMenuDlg::OnMenuLocate()
+{
+	OnBnClickedLocate();
 }
 
 // ============================================================================
-// Dictionary path helpers
+// Custom parse dialog — user can define custom display names for CLSIDs
 // ============================================================================
+
+void CContextMenuDlg::OnMenuCustomParse()
+{
+	CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_CM_ENTRIES);
+	if (!pList) return;
+
+	POSITION pos = pList->GetFirstSelectedItemPosition();
+	if (!pos) return;
+
+	int idx = pList->GetNextSelectedItem(pos);
+	if (idx < 0 || idx >= (int)m_entries.size()) return;
+
+	const MenuEntry& entry = m_entries[idx];
+
+	// Get the CLSID for this entry
+	CString clsid;
+	if (!entry.keyName.IsEmpty() && entry.keyName[0] == _T('{'))
+	{
+		clsid = entry.keyName;
+	}
+	else
+	{
+		CString handlerKeyPath = entry.regPath + _T("\\") + entry.keyName;
+		HKEY hKey = nullptr;
+		if (RegOpenKeyEx(HKEY_CLASSES_ROOT, handlerKeyPath, 0, KEY_READ, &hKey) == ERROR_SUCCESS)
+		{
+			TCHAR szVal[MAX_PATH] = { 0 };
+			DWORD cbVal = sizeof(szVal);
+			DWORD dwType = 0;
+			if (RegQueryValueEx(hKey, nullptr, nullptr, &dwType,
+				(LPBYTE)szVal, &cbVal) == ERROR_SUCCESS && szVal[0])
+				clsid = szVal;
+			RegCloseKey(hKey);
+		}
+	}
+
+	if (clsid.IsEmpty())
+	{
+		MessageBox(_T("无法获取该项的 CLSID，不能进行自定义解析。"), _T("提示"), MB_OK | MB_ICONWARNING);
+		return;
+	}
+
+	// Get current display name for reference
+	CString currentName = entry.displayName;
+
+	// Resolve scene basePath from entry's location (scene name)
+	// The dictionary uses basePath (e.g. "*") as scene key, not regPath (e.g. "*\shellex\ContextMenuHandlers")
+	CString sceneBasePath;
+	for (const auto& scene : m_scenes)
+	{
+		if (scene.name == entry.location)
+		{
+			sceneBasePath = scene.basePath;
+			break;
+		}
+	}
+
+	CString customName;
+	if (InputCustomName(clsid, sceneBasePath, currentName, customName))
+	{
+		// Save to user_override.ini
+		if (SaveUserOverride(clsid, sceneBasePath, customName))
+		{
+			// Reload dictionary
+			s_bDictLoaded = false;
+			LoadGuidDictionary();
+
+			// Refresh the list
+			OnBnClickedRefresh();
+
+			CString msg;
+			if (customName.IsEmpty())
+				msg.Format(_T("已删除 %s 的自定义解析。"), clsid);
+			else
+				msg.Format(_T("已保存 %s 的自定义解析为：%s"), clsid, customName);
+			UpdateStatus(msg);
+		}
+	}
+}
+
+// Helper: show a simple input dialog for custom name
+bool CContextMenuDlg::InputCustomName(const CString& clsid, const CString& scenePath,
+	const CString& currentName, CString& outName)
+{
+	// Get the CLSID without braces for display
+	CString clsidNoBraces = clsid;
+	if (!clsidNoBraces.IsEmpty() && clsidNoBraces[0] == _T('{'))
+		clsidNoBraces = clsidNoBraces.Mid(1, clsidNoBraces.GetLength() - 2);
+
+	// Create a simple dialog dynamically
+	CString prompt;
+	CString strCurName = currentName.IsEmpty() ? CString(_T("(无)")) : currentName;
+	prompt.Format(_T("CLSID: %s\n当前名称: %s\n\n输入自定义显示名（留空可删除自定义）:"),
+		clsidNoBraces, strCurName);
+
+	CCustomParseInputDlg dlg(this, _T("自定义解析"), prompt, currentName);
+	if (dlg.DoModal() == IDOK)
+	{
+		outName = dlg.GetInput();
+		return true;
+	}
+	return false;
+}
+
+// Forward declaration
+static CString RemoveSectionFromIni(const CString& content, const CString& sectionKey);
+
+// Save user custom entry to user_override.ini
+bool CContextMenuDlg::SaveUserOverride(const CString& clsid, const CString& scenePath,
+	const CString& customName)
+{
+	CString filePath = GetUserOverridePath();
+	if (filePath.IsEmpty())
+		return false;
+
+	// Load existing content
+	CString existingContent;
+	if (PathFileExists(filePath))
+		existingContent = ReadFileContent(filePath);
+
+	CString clsidNoBraces = clsid;
+	if (!clsidNoBraces.IsEmpty() && clsidNoBraces[0] == _T('{'))
+		clsidNoBraces = clsidNoBraces.Mid(1, clsidNoBraces.GetLength() - 2);
+
+	// Build the section key
+	CString sectionKey;
+	if (!scenePath.IsEmpty())
+		sectionKey = scenePath + _T("\\") + clsidNoBraces;
+	else
+		sectionKey = clsidNoBraces;
+
+	// Build new content — only add header comments if file doesn't exist yet
+	CString newContent;
+	bool bFileExists = !existingContent.IsEmpty();
+
+	if (!bFileExists)
+	{
+		newContent += _T("; User custom overrides (highest priority)\n");
+		newContent += _T("; This file stores user-defined display names for context menu items\n\n");
+	}
+
+	if (!customName.IsEmpty())
+	{
+		// Remove existing entry for this section
+		CString filteredContent = RemoveSectionFromIni(existingContent, sectionKey);
+
+		// Add the new entry
+		newContent += _T("[") + sectionKey + _T("]\n");
+		newContent += _T("Text = ") + customName + _T("\n\n");
+
+		// Append remaining content
+		if (!filteredContent.IsEmpty())
+			newContent += filteredContent;
+	}
+	else
+	{
+		// Remove the entry (user wants to delete custom parsing)
+		CString filteredContent = RemoveSectionFromIni(existingContent, sectionKey);
+		if (!filteredContent.IsEmpty())
+			newContent += filteredContent;
+	}
+
+	return WriteFileContent(filePath, newContent);
+}
+
+// Helper: remove a section from INI content
+static CString RemoveSectionFromIni(const CString& content, const CString& sectionKey)
+{
+	CString result;
+	int pos = 0;
+	bool bInTargetSection = false;
+	bool bFirstLine = true;
+
+	while (pos < content.GetLength())
+	{
+		int end = content.Find(_T('\n'), pos);
+		CString line;
+		if (end == -1)
+		{
+			line = content.Mid(pos);
+			pos = content.GetLength();
+		}
+		else
+		{
+			line = content.Mid(pos, end - pos);
+			pos = end + 1;
+		}
+
+		line.Trim();
+		line.TrimRight(_T('\r'));
+
+		// Check if this is a section header
+		if (line[0] == _T('[') && line[line.GetLength() - 1] == _T(']'))
+		{
+			CString section = line.Mid(1, line.GetLength() - 2);
+			section.MakeLower();
+			CString targetKey = sectionKey;
+			targetKey.MakeLower();
+
+			if (section == targetKey)
+			{
+				// Skip this section
+				bInTargetSection = true;
+				continue;
+			}
+			else
+			{
+				bInTargetSection = false;
+			}
+		}
+
+		if (!bInTargetSection)
+		{
+			if (!bFirstLine)
+				result += _T("\n");
+			result += line;
+			bFirstLine = false;
+		}
+	}
+
+	return result;
+}
+
+// ============================================================================
+// Open dictionary folder button handler
+// ============================================================================
+
+void CContextMenuDlg::OnBnClickedDictOpen()
+{
+	CString dictPath = s_dictPath;
+	if (dictPath.IsEmpty())
+	{
+		TCHAR szPath[MAX_PATH] = { 0 };
+		if (SUCCEEDED(SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, 0, szPath)))
+		{
+			dictPath = CString(szPath) + _T("\\MFCApplication1");
+			CreateDirectory(dictPath, nullptr);
+		}
+	}
+
+	if (!dictPath.IsEmpty() && PathFileExists(dictPath))
+	{
+		// Open folder in Explorer
+		CString params;
+		params.Format(_T("explorer \"%s\""), dictPath);
+		ShellExecute(nullptr, _T("open"), _T("explorer"), dictPath, nullptr, SW_SHOWNORMAL);
+	}
+	else
+	{
+		MessageBox(_T("字典文件夹不存在。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+	}
+}
 
 CString CContextMenuDlg::GetCachePath()
 {
@@ -2055,6 +2357,23 @@ CString CContextMenuDlg::GetCachePath()
 		CreateDirectory(dir, nullptr);
 		return dir + _T("\\GuidInfosDic.cache.ini");
 	}
+	return CString();
+}
+
+CString CContextMenuDlg::GetUserOverridePath()
+{
+	CString dir = s_dictPath;
+	if (dir.IsEmpty())
+	{
+		TCHAR szPath[MAX_PATH] = { 0 };
+		if (SUCCEEDED(SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, 0, szPath)))
+		{
+			dir = CString(szPath) + _T("\\MFCApplication1");
+			CreateDirectory(dir, nullptr);
+		}
+	}
+	if (!dir.IsEmpty())
+		return dir + _T("\\user_override.ini");
 	return CString();
 }
 
@@ -2145,6 +2464,16 @@ bool CContextMenuDlg::MigrateDictionaryFiles(const CString& oldPath, const CStri
 			bSuccess = false;
 	}
 	finder.Close();
+
+	// Also migrate user_override.ini (user custom parsing)
+	CString userOverrideFile = oldPath + _T("\\user_override.ini");
+	if (PathFileExists(userOverrideFile))
+	{
+		CString dstFile = newPath + _T("\\user_override.ini");
+		if (!CopyFile(userOverrideFile, dstFile, FALSE))
+			bSuccess = false;
+	}
+
 	return bSuccess;
 }
 
