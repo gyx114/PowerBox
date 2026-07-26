@@ -1,4 +1,4 @@
-// ContextMenuDlg.cpp: implementation file
+﻿// ContextMenuDlg.cpp: implementation file
 //
 
 #include "pch.h"
@@ -1788,7 +1788,14 @@ void CContextMenuDlg::ToggleEntry(int index, bool bRefresh)
 	// Clean up any previous HKCU override from earlier attempts
 	// (ensures HKLM writes are not masked by stale HKCU entries in merged view)
 	CString hkcuCleanup = _T("Software\\Classes\\") + hkcrFullPath;
-	SHDeleteKey(HKEY_CURRENT_USER, hkcuCleanup);
+	// Check if the entry lives in HKCU (per-user install like WPS) vs HKLM
+	// Only clean HKCU if the entry is NOT originally there (i.e., stale override).
+	HKEY hHkcuTest = nullptr;
+	bool bInHkcu = (RegOpenKeyEx(HKEY_CURRENT_USER, hkcuCleanup, 0, KEY_READ, &hHkcuTest) == ERROR_SUCCESS);
+	if (bInHkcu) RegCloseKey(hHkcuTest);
+	if (!bInHkcu)
+		SHDeleteKey(HKEY_CURRENT_USER, hkcuCleanup);
+
 
 	if (entry.bIsShellEx)
 	{
@@ -1836,9 +1843,9 @@ void CContextMenuDlg::ToggleEntry(int index, bool bRefresh)
 		CString srcKeyPath = srcParentPath + _T("\\") + keyName;
 		TakeRegKeyOwnership(HKEY_CLASSES_ROOT, srcKeyPath);
 
-		// Open source parent in HKCR for reading
+		// Open source parent with KEY_WRITE access (needed for SHDeleteKey later)
 		HKEY hSrcParent = nullptr;
-		if (RegOpenKeyEx(HKEY_CLASSES_ROOT, srcParentPath, 0, KEY_READ, &hSrcParent) != ERROR_SUCCESS)
+		if (RegOpenKeyEx(HKEY_CLASSES_ROOT, srcParentPath, 0, KEY_READ | KEY_WRITE, &hSrcParent) != ERROR_SUCCESS)
 		{
 			MessageBox(_T("无法打开源注册表项。"), _T("操作失败"), MB_ICONERROR);
 			return;
@@ -1859,9 +1866,14 @@ void CContextMenuDlg::ToggleEntry(int index, bool bRefresh)
 		// Copy key from source to destination (matches C# RegistryEx.CopyTo)
 		if (!CopyRegistryKey(hSrcParent, hDstParent, keyName, keyName))
 		{
+			// Clean up: remove the destination key if it was partially created
+			SHDeleteKey(hDstParent, keyName);
 			RegCloseKey(hSrcParent);
 			RegCloseKey(hDstParent);
-			MessageBox(_T("复制注册表项失败。"), _T("操作失败"), MB_ICONERROR);
+			CString errMsg;
+			errMsg.Format(_T("复制注册表项失败。\n\n源: %s\\%s\n目标: %s\\%s"),
+				srcParentPath, keyName, dstParentPath, keyName);
+			MessageBox(errMsg, _T("操作失败"), MB_ICONERROR);
 			return;
 		}
 		RegCloseKey(hDstParent);
@@ -1873,8 +1885,17 @@ void CContextMenuDlg::ToggleEntry(int index, bool bRefresh)
 
 		if (delResult != ERROR_SUCCESS)
 		{
-			MessageBox(_T("删除旧注册表项失败，但新项已成功创建。\n请手动检查注册表。"),
-				_T("部分成功"), MB_ICONWARNING);
+			// Rollback: remove the destination key we just created
+			HKEY hDstParentRollback = nullptr;
+			if (RegOpenKeyEx(HKEY_CLASSES_ROOT, dstParentPath, 0, KEY_WRITE, &hDstParentRollback) == ERROR_SUCCESS)
+			{
+				SHDeleteKey(hDstParentRollback, keyName);
+				RegCloseKey(hDstParentRollback);
+			}
+			CString errMsg;
+			errMsg.Format(_T("删除旧注册表项失败，已回滚。\n错误码: %d"), delResult);
+			MessageBox(errMsg, _T("操作失败"), MB_ICONERROR);
+			return;
 		}
 
 		// Update entry state (matches C#: RegPath = BackupPath)
