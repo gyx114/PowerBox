@@ -1089,6 +1089,15 @@ void CMFCApplication1Dlg::OnToolsStickyNote()
     {
         m_pStickyNoteDlg = new CStickyNoteDlg(nullptr);
         m_pStickyNoteDlg->Create(IDD_STICKY_NOTE_DLG, nullptr);
+
+        // Position left edge at 3/5 of screen width, top at 10px
+        CRect rcDlg;
+        m_pStickyNoteDlg->GetWindowRect(&rcDlg);
+        int screenW = GetSystemMetrics(SM_CXSCREEN);
+        int x = screenW * 3 / 5;
+        int y = 10;
+        m_pStickyNoteDlg->SetWindowPos(nullptr, x, y, 0, 0, SWP_NOZORDER | SWP_NOSIZE);
+
         m_pStickyNoteDlg->ShowWindow(SW_SHOW);
     }
 }
