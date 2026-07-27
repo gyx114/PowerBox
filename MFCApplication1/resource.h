@@ -1,6 +1,6 @@
 //{{NO_DEPENDENCIES}}
-// Microsoft Visual C++ ï¿½ï¿½ï¿½ÉµÄ°ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½
-// ï¿½ï¿½ MFCApplication1.rc Ê¹ï¿½ï¿½
+// Microsoft Visual C++ Éú³ÉµÄ°üº¬ÎÄ¼þ¡£
+// ¹© MFCApplication1.rc Ê¹ÓÃ
 //
 #define IDM_ABOUTBOX                    0x0010
 #define IDD_ABOUTBOX                    100
@@ -17,6 +17,13 @@
 #define IDD_FOLDER_PROCESS_DLG          140
 #define IDD_INPUT_DLG                   141
 #define IDD_STICKY_NOTE_DLG             142
+#define IDD_MARKDOWN_DLG                143
+#define IDD_ENCODING_CONVERTER_DLG      144
+#define IDD_CONTEXT_MENU_DLG            145
+#define IDD_ENVVAR_DLG                  146
+#define IDD_ENVVAR_INPUT_DLG            147
+#define IDD_ENVVAR_PATH_DLG             148
+#define IDD_FILELOCK_DLG                149
 #define IDC_TAB1                        1000
 #define IDC_LIST1                       1001
 #define IDC_LIST2                       1002
@@ -77,9 +84,7 @@
 #define IDC_LIST5                       1076
 #define IDC_BUTTON33                    1077
 #define IDC_EDIT_DEFAULT_NAME           1078
-#define IDC_LIST6                       1178
 #define IDC_EDIT_BILI_PATH              1079
-#define IDC_LIST7                       1179
 #define IDC_BROWSE_BILI                 1080
 #define IDC_EDIT_WECHAT_PATH            1081
 #define IDC_BROWSE_WECHAT               1082
@@ -179,47 +184,72 @@
 #define IDC_COMBO_OCR_LANG              1175
 #define IDC_EDIT_PROCESS_FILTER         1176
 #define IDC_CHECK_PROCESS_REGEX         1177
-#define IDC_CHECK_TRACK_EXT            1180
-#define IDC_EDIT_TRACK_EXT             1181
-#define IDC_CHECK_TRACK_MATCH          1182
-#define IDC_EDIT_TRACK_PATTERN         1183
-#define IDC_CHECK_TRACK_REGEX          1184
-#define IDC_BTN_TRACK_CLEAR            1185
-#define IDC_STATIC_TRACK_GROUP         1186
-#define IDC_BTN_PROCESS_REGEX_HELP     1187
-#define IDC_BTN_RENAME_UNDO            1188
-#define IDM_KILL_SAME_NAME             1189
-#define IDC_EDIT_STICKY_NOTE           1190
-#define IDC_BTN_STICKY_BROWSE          1191
-#define IDC_EDIT_STICKY_DIR            1192
-#define IDC_BROWSE_STICKY_DIR          1193
-#define IDD_MARKDOWN_DLG               143
-#define IDC_EDIT_MARKDOWN              1194
-#define IDC_MARKDOWN_PREVIEW           1195
-#define IDC_BTN_OPEN                   1196
-#define IDC_STATIC_MARKDOWN_PATH       1197
-#define IDD_ENCODING_CONVERTER_DLG     144
-#define IDC_EDIT_ENC_SOURCE            1198
-#define IDC_COMBO_ENC_SOURCE           1199
-#define IDC_EDIT_ENC_TARGET            1200
-#define IDC_COMBO_ENC_TARGET           1201
-#define IDC_BTN_ENC_OPEN               1202
-#define IDC_BTN_ENC_SAVEAS             1203
-#define IDC_BTN_ENC_OVERWRITE          1204
-#define IDC_STATIC_ENC_PATH            1205
-#define IDC_BTN_ENC_CONVERT            1206
-
-// Context Menu Manager dialog
-#define IDD_CONTEXT_MENU_DLG           145
-#define IDC_COMBO_CM_LOCATION          1207
-#define IDC_BTN_CM_REFRESH             1208
-#define IDC_BTN_CM_DELETE              1209
-#define IDC_BTN_CM_LOCATE              1210
-#define IDC_LIST_CM_ENTRIES            1211
-#define IDC_STATIC_CM_STATUS           1212
-#define IDC_CHECK_CM_FOLDER            1213
-#define IDC_CHECK_CM_WIN11_CLASSIC     1214
-
+#define IDC_LIST6                       1178
+#define IDC_LIST7                       1179
+#define IDC_CHECK_TRACK_EXT             1180
+#define IDC_EDIT_TRACK_EXT              1181
+#define IDC_CHECK_TRACK_MATCH           1182
+#define IDC_EDIT_TRACK_PATTERN          1183
+#define IDC_CHECK_TRACK_REGEX           1184
+#define IDC_BTN_TRACK_CLEAR             1185
+#define IDC_STATIC_TRACK_GROUP          1186
+#define IDC_BTN_PROCESS_REGEX_HELP      1187
+#define IDC_BTN_RENAME_UNDO             1188
+#define IDM_KILL_SAME_NAME              1189
+#define IDC_EDIT_STICKY_NOTE            1190
+#define IDC_BTN_STICKY_BROWSE           1191
+#define IDC_EDIT_STICKY_DIR             1192
+#define IDC_BROWSE_STICKY_DIR           1193
+#define IDC_EDIT_MARKDOWN               1194
+#define IDC_MARKDOWN_PREVIEW            1195
+#define IDC_BTN_OPEN                    1196
+#define IDC_STATIC_MARKDOWN_PATH        1197
+#define IDC_EDIT_ENC_SOURCE             1198
+#define IDC_COMBO_ENC_SOURCE            1199
+#define IDC_EDIT_ENC_TARGET             1200
+#define IDC_COMBO_ENC_TARGET            1201
+#define IDC_BTN_ENC_OPEN                1202
+#define IDC_BTN_ENC_SAVEAS              1203
+#define IDC_BTN_ENC_OVERWRITE           1204
+#define IDC_STATIC_ENC_PATH             1205
+#define IDC_BTN_ENC_CONVERT             1206
+#define IDC_COMBO_CM_LOCATION           1207
+#define IDC_BTN_CM_REFRESH              1208
+#define IDC_BTN_CM_DELETE               1209
+#define IDC_BTN_CM_LOCATE               1210
+#define IDC_LIST_CM_ENTRIES             1211
+#define IDC_STATIC_CM_STATUS            1212
+#define IDC_CHECK_CM_FOLDER             1213
+#define IDC_CHECK_CM_WIN11_CLASSIC      1214
+#define IDC_LIST_ENV_SYSTEM             1215
+#define IDC_LIST_ENV_USER               1216
+#define IDC_BTN_ENV_ADD                 1217
+#define IDC_BTN_ENV_EDIT                1218
+#define IDC_BTN_ENV_DELETE              1219
+#define IDC_BTN_ENV_REFRESH             1220
+#define IDC_BTN_ENV_EXPORT              1221
+#define IDC_STATIC_ENV_STATUS           1222
+#define IDC_ENV_INPUT_NAME              1223
+#define IDC_ENV_INPUT_VALUE             1224
+#define IDC_LIST_PATH_ENTRIES           1225
+#define IDC_BTN_PATH_ADD                1226
+#define IDC_BTN_PATH_EDIT               1227
+#define IDC_BTN_PATH_DELETE             1228
+#define IDC_BTN_PATH_UP                 1229
+#define IDC_BTN_PATH_DOWN               1230
+#define IDC_EDIT_PATH_PREVIEW           1231
+#define IDC_EDIT_ENV_SEARCH             1232
+#define IDC_BTN_CM_REBUILD              1233
+#define IDC_BTN_CM_DICTPATH             1234
+#define IDC_BTN_CM_DICTOPEN             1235
+#define IDC_LIST_FILELOCK               1236
+#define IDC_BTN_FILELOCK_END            1237
+#define IDC_BTN_FILELOCK_ENDALL         1238
+#define IDC_BTN_FILELOCK_LOCATE         1239
+#define IDC_BTN_FILELOCK_REFRESH        1240
+#define IDC_BTN_FILELOCK_CLEAR          1241
+#define IDC_STATIC_FILELOCK_HINT        1242
+#define IDC_BTN_FILELOCK_REFRESH2       1243
 #define ID_FILE_SETTINGS                32775
 #define ID_FILE_EXIT                    32776
 #define ID_HELP_ABOUT                   32777
@@ -249,46 +279,19 @@
 #define ID_TOOLS_BATCH_RENAME           32813
 #define ID_HELP_REGEX_GUIDE             32814
 #define ID_TOOLS_STICKY_NOTE            32815
-#define ID_TOOLS_MARKDOWN              32816
-#define ID_TOOLS_ENCODING              32817
-#define ID_TOOLS_CONTEXT_MENU          32818
-#define ID_TOOLS_ENVVAR                32819
-
-// Environment Variable Manager dialog
-#define IDD_ENVVAR_DLG                 146
-#define IDD_ENVVAR_INPUT_DLG           147
-#define IDC_LIST_ENV_SYSTEM            1215
-#define IDC_LIST_ENV_USER              1216
-#define IDC_BTN_ENV_ADD                1217
-#define IDC_BTN_ENV_EDIT               1218
-#define IDC_BTN_ENV_DELETE             1219
-#define IDC_BTN_ENV_REFRESH            1220
-#define IDC_BTN_ENV_EXPORT             1221
-#define IDC_STATIC_ENV_STATUS          1222
-#define IDC_ENV_INPUT_NAME             1223
-#define IDC_ENV_INPUT_VALUE            1224
-
-// PATH editor dialog
-#define IDD_ENVVAR_PATH_DLG            148
-#define IDC_LIST_PATH_ENTRIES          1225
-#define IDC_BTN_PATH_ADD               1226
-#define IDC_BTN_PATH_EDIT              1227
-#define IDC_BTN_PATH_DELETE            1228
-#define IDC_BTN_PATH_UP                1229
-#define IDC_BTN_PATH_DOWN              1230
-#define IDC_EDIT_PATH_PREVIEW          1231
-#define IDC_EDIT_ENV_SEARCH            1232
-#define IDC_BTN_CM_REBUILD             1233
-#define IDC_BTN_CM_DICTPATH            1234
-#define IDC_BTN_CM_DICTOPEN            1235
+#define ID_TOOLS_MARKDOWN               32816
+#define ID_TOOLS_ENCODING               32817
+#define ID_TOOLS_CONTEXT_MENU           32818
+#define ID_TOOLS_ENVVAR                 32819
+#define ID_TOOLS_FILELOCK               32820
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        149
-#define _APS_NEXT_COMMAND_VALUE         32820
-#define _APS_NEXT_CONTROL_VALUE         1235
+#define _APS_NEXT_RESOURCE_VALUE        150
+#define _APS_NEXT_COMMAND_VALUE         32821
+#define _APS_NEXT_CONTROL_VALUE         1243
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

@@ -291,6 +291,7 @@ public:
     afx_msg void OnToolsEncoding();
 	afx_msg void OnToolsContextMenu();
 	afx_msg void OnToolsEnvVar();
+	afx_msg void OnToolsFileLock();
 
     // Sticky note dialog (modeless, auto-opened on startup)
     CStickyNoteDlg* m_pStickyNoteDlg{nullptr};
