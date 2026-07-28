@@ -24,6 +24,10 @@ namespace fs = std::filesystem;
 #define IDM_FILE_UNIGNORE       32830
 #define IDM_FILE_TRACK          32831
 #define IDM_FILE_UNTRACK        32832
+#define IDM_FILE_MOVE_UP        32833
+#define IDM_FILE_MOVE_DOWN      32834
+#define IDM_FILE_MOVE_TO_UP     32835
+#define IDM_FILE_MOVE_TO_DOWN   32836
 
 // Simple input dialog class
 class CInputDialog : public CDialogEx
@@ -123,7 +127,15 @@ BEGIN_MESSAGE_MAP(CBatchRenameDlg, CDialogEx)
     ON_COMMAND(IDM_FILE_UNIGNORE, &CBatchRenameDlg::OnFileUnignore)
     ON_COMMAND(IDM_FILE_TRACK, &CBatchRenameDlg::OnFileTrack)
     ON_COMMAND(IDM_FILE_UNTRACK, &CBatchRenameDlg::OnFileUntrack)
+    ON_COMMAND(IDM_FILE_MOVE_UP, &CBatchRenameDlg::OnFileMoveUp)
+    ON_COMMAND(IDM_FILE_MOVE_DOWN, &CBatchRenameDlg::OnFileMoveDown)
+    ON_COMMAND(IDM_FILE_MOVE_TO_UP, &CBatchRenameDlg::OnFileMoveToUp)
+    ON_COMMAND(IDM_FILE_MOVE_TO_DOWN, &CBatchRenameDlg::OnFileMoveToDown)
     ON_NOTIFY(NM_RCLICK, IDC_LIST_RENAME, &CBatchRenameDlg::OnFileListRightClick)
+    ON_NOTIFY(LVN_BEGINDRAG, IDC_LIST_RENAME, &CBatchRenameDlg::OnLvnBeginDrag)
+    ON_NOTIFY(NM_CUSTOMDRAW, IDC_LIST_RENAME, &CBatchRenameDlg::OnCustomDrawList)
+    ON_WM_MOUSEMOVE()
+    ON_WM_LBUTTONUP()
     ON_COMMAND(IDM_FILE_MARK_DELETE, &CBatchRenameDlg::OnFileMarkDelete)
     ON_COMMAND(IDM_FILE_UNMARK_DELETE, &CBatchRenameDlg::OnFileUnmarkDelete)
     ON_COMMAND(IDM_FILE_CHANGE_EXT, &CBatchRenameDlg::OnFileChangeExt)
@@ -165,8 +177,9 @@ BOOL CBatchRenameDlg::OnInitDialog()
         CRect rcList;
         pFileList->GetClientRect(&rcList);
         int totalWidth = rcList.Width() - ::GetSystemMetrics(SM_CXVSCROLL) - 4;
-        pFileList->InsertColumn(0, _T("原文件名"), LVCFMT_LEFT, totalWidth * 2 / 5);
-        pFileList->InsertColumn(1, _T("新文件名/状态"), LVCFMT_LEFT, totalWidth * 3 / 5 - totalWidth / 12);
+        pFileList->InsertColumn(0, _T("序号"), LVCFMT_CENTER, totalWidth * 1 / 15);
+        pFileList->InsertColumn(1, _T("原文件名"), LVCFMT_LEFT, totalWidth * 4.5 / 10);
+        pFileList->InsertColumn(2, _T("新文件名/状态"), LVCFMT_LEFT, totalWidth * 4.5 / 10 - totalWidth / 12 + 80);
     }
 
     // Initialize folder list
@@ -921,6 +934,378 @@ void CBatchRenameDlg::OnFileUntrack()
     GetDlgItem(IDC_BTN_RENAME_EXECUTE)->EnableWindow(TRUE);
 }
 
+// ========== Custom ordering (move up/down/top/bottom + drag) ==========
+
+std::vector<int> CBatchRenameDlg_GetSelectedIndices(CListCtrl* pList)
+{
+    std::vector<int> indices;
+    if (!pList) return indices;
+    POSITION pos = pList->GetFirstSelectedItemPosition();
+    while (pos)
+    {
+        int idx = pList->GetNextSelectedItem(pos);
+        indices.push_back(idx);
+    }
+    // Sort ascending so we can process moves deterministically
+    std::sort(indices.begin(), indices.end());
+    return indices;
+}
+
+void CBatchRenameDlg::ReselectItems(const std::vector<int>& indices)
+{
+    CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST_RENAME));
+    if (!pList) return;
+    pList->SetItemState(-1, 0, LVIS_SELECTED);
+    for (int idx : indices)
+    {
+        if (idx >= 0 && idx < pList->GetItemCount())
+        {
+            pList->SetItemState(idx, LVIS_SELECTED, LVIS_SELECTED);
+            pList->EnsureVisible(idx, FALSE);
+        }
+    }
+}
+
+void CBatchRenameDlg::OnFileMoveUp()
+{
+    CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST_RENAME));
+    if (!pList) return;
+    auto sel = CBatchRenameDlg_GetSelectedIndices(pList);
+    if (sel.empty()) return;
+
+    // Move each selected item up by one slot. Process from top so each
+    // swap only affects adjacent pairs.
+    for (int idx : sel)
+    {
+        if (idx <= 0) continue;
+        if (idx >= static_cast<int>(m_entries.size())) continue;
+        std::swap(m_entries[idx], m_entries[idx - 1]);
+    }
+
+    ApplyRules();
+    RefreshFileList();
+
+    // Re-select items at their new positions (each moved up by 1)
+    std::vector<int> newSel;
+    for (int idx : sel)
+    {
+        int newPos = (idx > 0) ? idx - 1 : 0;
+        newSel.push_back(newPos);
+    }
+    ReselectItems(newSel);
+    m_bPreviewDone = true;
+    GetDlgItem(IDC_BTN_RENAME_EXECUTE)->EnableWindow(TRUE);
+}
+
+void CBatchRenameDlg::OnFileMoveDown()
+{
+    CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST_RENAME));
+    if (!pList) return;
+    auto sel = CBatchRenameDlg_GetSelectedIndices(pList);
+    if (sel.empty()) return;
+    int nCount = static_cast<int>(m_entries.size());
+
+    // Process from bottom to top so adjacent swaps don't interfere
+    for (auto it = sel.rbegin(); it != sel.rend(); ++it)
+    {
+        int idx = *it;
+        if (idx < 0 || idx >= nCount - 1) continue;
+        std::swap(m_entries[idx], m_entries[idx + 1]);
+    }
+
+    ApplyRules();
+    RefreshFileList();
+
+    std::vector<int> newSel;
+    for (int idx : sel)
+    {
+        int newPos = (idx < nCount - 1) ? idx + 1 : nCount - 1;
+        newSel.push_back(newPos);
+    }
+    ReselectItems(newSel);
+    m_bPreviewDone = true;
+    GetDlgItem(IDC_BTN_RENAME_EXECUTE)->EnableWindow(TRUE);
+}
+
+void CBatchRenameDlg::OnFileMoveToUp()
+{
+    CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST_RENAME));
+    if (!pList) return;
+    auto sel = CBatchRenameDlg_GetSelectedIndices(pList);
+    if (sel.empty()) return;
+
+    int nCurFirst = sel.front() + 1;  // 1-based current position of first selected item
+    int nMaxTarget = nCurFirst - 1;   // must be strictly before current position
+    if (nMaxTarget < 1)
+    {
+        MessageBox(_T("选中项已在最前，无法继续前移。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+
+    CString strPrompt;
+    strPrompt.Format(_T("请输入移动后第一项的标号 (1 - %d)："), nMaxTarget);
+    CInputDialog dlg(strPrompt, _T("前移到"), _T("1"));
+    if (dlg.DoModal() != IDOK) return;
+
+    CString strInput = dlg.GetInput();
+    strInput.Trim();
+    if (strInput.IsEmpty()) return;
+
+    int nTarget = _ttoi(strInput);
+    if (nTarget < 1 || nTarget > nMaxTarget)
+    {
+        CString msg;
+        msg.Format(_T("请输入 1 到 %d 之间的数字。"), nMaxTarget);
+        MessageBox(msg, _T("提示"), MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+
+    MoveSelectedItemsTo(nTarget - 1);
+}
+
+void CBatchRenameDlg::OnFileMoveToDown()
+{
+    CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST_RENAME));
+    if (!pList) return;
+    auto sel = CBatchRenameDlg_GetSelectedIndices(pList);
+    if (sel.empty()) return;
+    int nCount = static_cast<int>(m_entries.size());
+    int nSelCount = static_cast<int>(sel.size());
+
+    int nCurFirst = sel.front() + 1;  // 1-based current position of first selected item
+    int nMinTarget = nCurFirst + 1;   // must be strictly after current position
+
+    // The block of selected items occupies [nTarget, nTarget + nSelCount - 1],
+    // so the last item must fit: nTarget + nSelCount - 1 <= nCount
+    int nMaxTarget = nCount - nSelCount + 1;
+
+    if (nMinTarget > nMaxTarget)
+    {
+        MessageBox(_T("选中项已在最后，无法继续后移。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+
+    CString strPrompt;
+    strPrompt.Format(_T("请输入移动后第一项的标号 (%d - %d)："), nMinTarget, nMaxTarget);
+    CString strDefault;
+    strDefault.Format(_T("%d"), nMaxTarget);
+    CInputDialog dlg(strPrompt, _T("后移到"), strDefault);
+    if (dlg.DoModal() != IDOK) return;
+
+    CString strInput = dlg.GetInput();
+    strInput.Trim();
+    if (strInput.IsEmpty()) return;
+
+    int nTarget = _ttoi(strInput);
+    if (nTarget < nMinTarget || nTarget > nMaxTarget)
+    {
+        CString msg;
+        msg.Format(_T("请输入 %d 到 %d 之间的数字。"), nMinTarget, nMaxTarget);
+        MessageBox(msg, _T("提示"), MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+
+    MoveSelectedItemsTo(nTarget - 1);
+}
+
+void CBatchRenameDlg::MoveSelectedItemsTo(int nTargetIndex)
+{
+    CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST_RENAME));
+    if (!pList) return;
+    auto sel = CBatchRenameDlg_GetSelectedIndices(pList);
+    if (sel.empty()) return;
+
+    int nCount = static_cast<int>(m_entries.size());
+    if (nTargetIndex < 0 || nTargetIndex > nCount) return;
+
+    // Collect selected entries
+    std::vector<RenameEntry> picked;
+    for (int idx : sel)
+    {
+        if (idx >= 0 && idx < static_cast<int>(m_entries.size()))
+            picked.push_back(m_entries[idx]);
+    }
+    // Remove them from the vector (back-to-front)
+    for (auto it = sel.rbegin(); it != sel.rend(); ++it)
+    {
+        int idx = *it;
+        if (idx >= 0 && idx < static_cast<int>(m_entries.size()))
+            m_entries.erase(m_entries.begin() + idx);
+    }
+
+    // Adjust target index: if target was after removed block, decrement
+    int adjusted = nTargetIndex;
+    for (int idx : sel)
+    {
+        if (idx < nTargetIndex) adjusted--;
+    }
+    if (adjusted < 0) adjusted = 0;
+    if (adjusted > static_cast<int>(m_entries.size())) adjusted = static_cast<int>(m_entries.size());
+
+    m_entries.insert(m_entries.begin() + adjusted, picked.begin(), picked.end());
+
+    ApplyRules();
+    RefreshFileList();
+
+    std::vector<int> newSel;
+    for (size_t i = 0; i < picked.size(); i++)
+        newSel.push_back(adjusted + static_cast<int>(i));
+    ReselectItems(newSel);
+    m_bPreviewDone = true;
+    GetDlgItem(IDC_BTN_RENAME_EXECUTE)->EnableWindow(TRUE);
+}
+
+void CBatchRenameDlg::OnLvnBeginDrag(NMHDR* pNMHDR, LRESULT* pResult)
+{
+    LPNMLISTVIEW pNMLV = reinterpret_cast<LPNMLISTVIEW>(pNMHDR);
+    CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST_RENAME));
+    if (!pList) return;
+
+    int nSel = pList->GetSelectedCount();
+    if (nSel == 0) { *pResult = 0; return; }
+
+    m_nDragSourceIndex = pNMLV->iItem;
+    m_nDropTargetIndex = -1;
+    m_nDropLineY = -1;
+    m_bDragging = true;
+
+    // No drag image is created: only the insertion line is shown during drag.
+    pList->SetFocus();
+    SetCapture();
+
+    *pResult = 1;
+}
+
+void CBatchRenameDlg::OnMouseMove(UINT nFlags, CPoint point)
+{
+    if (m_bDragging)
+    {
+        CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST_RENAME));
+        if (pList)
+        {
+            CPoint ptList = point;
+            ClientToScreen(&ptList);
+            pList->ScreenToClient(&ptList);
+
+            // Compute the insertion line position: if cursor is in the
+            // upper half of an item, the line is at the top of that item;
+            // if in the lower half, the line is at the bottom (i.e. top of next).
+            int nHover = pList->HitTest(ptList);
+            int nItemCount = pList->GetItemCount();
+            int nNewLineY = -1; // client-space Y of insertion line
+            int nNewTarget = -1;
+
+            if (nHover >= 0)
+            {
+                CRect rcItem;
+                pList->GetItemRect(nHover, &rcItem, LVIR_BOUNDS);
+                if (ptList.y < rcItem.CenterPoint().y)
+                {
+                    nNewLineY = rcItem.top;
+                    nNewTarget = nHover;
+                }
+                else
+                {
+                    nNewLineY = rcItem.bottom;
+                    nNewTarget = nHover + 1;
+                }
+            }
+            else if (nItemCount > 0)
+            {
+                // Below the last item: insert at the end
+                CRect rcLast;
+                pList->GetItemRect(nItemCount - 1, &rcLast, LVIR_BOUNDS);
+                if (ptList.y >= rcLast.bottom)
+                {
+                    nNewLineY = rcLast.bottom;
+                    nNewTarget = nItemCount;
+                }
+            }
+
+            // Convert to screen space for drawing during custom draw
+            int nNewLineScreenY = -1;
+            if (nNewLineY >= 0)
+            {
+                CPoint ptLine(0, nNewLineY);
+                pList->ClientToScreen(&ptLine);
+                nNewLineScreenY = ptLine.y;
+            }
+
+            if (nNewLineScreenY != m_nDropLineY)
+            {
+                m_nDropLineY = nNewLineScreenY;
+                m_nDropTargetIndex = nNewTarget;
+                // Force repaint to show the updated insertion line
+                pList->Invalidate();
+            }
+        }
+    }
+    CDialogEx::OnMouseMove(nFlags, point);
+}
+
+void CBatchRenameDlg::OnLButtonUp(UINT nFlags, CPoint point)
+{
+    if (m_bDragging)
+    {
+        ReleaseCapture();
+
+        CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST_RENAME));
+        if (pList && m_nDropTargetIndex >= 0)
+        {
+            MoveSelectedItemsTo(m_nDropTargetIndex);
+        }
+
+        m_bDragging = false;
+        m_nDragSourceIndex = -1;
+        m_nDropTargetIndex = -1;
+        m_nDropLineY = -1;
+        if (pList) pList->Invalidate();
+    }
+    CDialogEx::OnLButtonUp(nFlags, point);
+}
+
+void CBatchRenameDlg::OnCustomDrawList(NMHDR* pNMHDR, LRESULT* pResult)
+{
+    LPNMLVCUSTOMDRAW pCD = reinterpret_cast<LPNMLVCUSTOMDRAW>(pNMHDR);
+    *pResult = CDRF_DODEFAULT;
+
+    if (pCD->nmcd.dwDrawStage == CDDS_PREPAINT)
+    {
+        *pResult = CDRF_NOTIFYPOSTPAINT;
+        return;
+    }
+
+    if (pCD->nmcd.dwDrawStage == CDDS_POSTPAINT)
+    {
+        // Draw the insertion line after the list has painted itself
+        if (!m_bDragging || m_nDropLineY < 0) return;
+
+        CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST_RENAME));
+        if (!pList) return;
+
+        CDC dc;
+        dc.Attach(pCD->nmcd.hdc);
+
+        // Convert screen-space Y back to list-client space
+        CPoint ptLine(0, m_nDropLineY);
+        pList->ScreenToClient(&ptLine);
+        int nY = ptLine.y;
+
+        // Get client rect to span the full width of the list
+        CRect rcClient;
+        pList->GetClientRect(&rcClient);
+
+        // Draw a 2px thick blue insertion line across the list
+        CPen pen(PS_SOLID, 2, RGB(0, 120, 215));
+        CPen* pOldPen = dc.SelectObject(&pen);
+        dc.MoveTo(rcClient.left, nY);
+        dc.LineTo(rcClient.right, nY);
+        dc.SelectObject(pOldPen);
+
+        dc.Detach();
+    }
+}
+
 void CBatchRenameDlg::OnBnClickedTrackClear()
 {
     if (m_manualTrackedSet.empty()) return;
@@ -1281,9 +1666,19 @@ void CBatchRenameDlg::RefreshFileList()
 		topPath = m_entries[nTopIndex].fullPath;
 
 	pList->DeleteAllItems();
+	int nDisplayIdx = 0;
 	for (size_t i = 0; i < m_entries.size(); i++)
 	{
-		int idx = pList->InsertItem(static_cast<int>(i), m_entries[i].oldName);
+		// Skipped entries (ignored or marked-delete) do not consume a serial number
+		bool bSkipSerial = m_entries[i].bIgnored || m_entries[i].bMarkedDelete;
+		CString strIdx;
+		if (bSkipSerial)
+			strIdx = _T("-");
+		else
+			strIdx.Format(_T("%d"), ++nDisplayIdx);
+
+		int idx = pList->InsertItem(static_cast<int>(i), strIdx);
+		pList->SetItemText(idx, 1, m_entries[i].oldName);
 		CString status;
 		if (m_entries[i].bIgnored)
 			status = _T("已忽略");
@@ -1291,7 +1686,7 @@ void CBatchRenameDlg::RefreshFileList()
 			status = _T("【跟踪】") + m_entries[i].newName;
 		else
 			status = m_entries[i].newName;
-		pList->SetItemText(idx, 1, status);
+		pList->SetItemText(idx, 2, status);
 	}
 
 	// Restore scroll position: find the same file and put it back at the top
@@ -1492,6 +1887,24 @@ void CBatchRenameDlg::OnFileListRightClick(NMHDR* /*pNMHDR*/, LRESULT* pResult)
         menu.AppendMenu(MF_STRING, IDM_FILE_CHANGE_EXT, _T("修改后缀"));
         menu.AppendMenu(MF_STRING, IDM_FILE_RESTORE_EXT, _T("恢复原后缀名"));
         menu.AppendMenu(MF_SEPARATOR);
+
+        // Submenu: move up
+        CMenu menuUp;
+        menuUp.CreatePopupMenu();
+        menuUp.AppendMenu(MF_STRING, IDM_FILE_MOVE_UP, _T("前移1个"));
+        menuUp.AppendMenu(MF_STRING, IDM_FILE_MOVE_TO_UP, _T("前移到..."));
+        menu.AppendMenu(MF_POPUP, reinterpret_cast<UINT_PTR>(menuUp.GetSafeHmenu()), _T("前移"));
+        menuUp.Detach();
+
+        // Submenu: move down
+        CMenu menuDown;
+        menuDown.CreatePopupMenu();
+        menuDown.AppendMenu(MF_STRING, IDM_FILE_MOVE_DOWN, _T("后移1个"));
+        menuDown.AppendMenu(MF_STRING, IDM_FILE_MOVE_TO_DOWN, _T("后移到..."));
+        menu.AppendMenu(MF_POPUP, reinterpret_cast<UINT_PTR>(menuDown.GetSafeHmenu()), _T("后移"));
+        menuDown.Detach();
+
+        menu.AppendMenu(MF_SEPARATOR);
         menu.AppendMenu(MF_STRING, IDM_FILE_EXPLORE, _T("在资源管理器中定位"));
     }
     menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, this);
@@ -1511,11 +1924,11 @@ void CBatchRenameDlg::OnFileMarkDelete()
             if (i < static_cast<int>(m_entries.size()))
             {
                 m_entries[i].bMarkedDelete = true;
-                m_entries[i].newName = _T("被删除");
-                pList->SetItemText(i, 1, _T("被删除"));
             }
         }
     }
+    ApplyRules();
+    RefreshFileList();
     m_bPreviewDone = true;
     GetDlgItem(IDC_BTN_RENAME_EXECUTE)->EnableWindow(TRUE);
 }
@@ -1533,11 +1946,13 @@ void CBatchRenameDlg::OnFileUnmarkDelete()
             if (i < static_cast<int>(m_entries.size()))
             {
                 m_entries[i].bMarkedDelete = false;
-                m_entries[i].newName = m_entries[i].oldName;
-                pList->SetItemText(i, 1, m_entries[i].oldName);
             }
         }
     }
+    ApplyRules();
+    RefreshFileList();
+    m_bPreviewDone = true;
+    GetDlgItem(IDC_BTN_RENAME_EXECUTE)->EnableWindow(TRUE);
 }
 
 void CBatchRenameDlg::OnCheckDeleteInvert()

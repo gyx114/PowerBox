@@ -403,9 +403,6 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 		}
 	}
 
-	// Auto-open sticky note on startup (deferred to after main dialog is fully initialized)
-	PostMessage(WM_COMMAND, ID_TOOLS_STICKY_NOTE);
-
 	// Global hotkey
 	CString strTitle;
 	GetWindowText(strTitle);
@@ -422,6 +419,21 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 		pSlider->SetPos(100);
 		if (pEditVol) pEditVol->SetWindowText(_T("100"));
 		CVolumeManager::FetchVolumeAsync(m_hWnd);
+	}
+
+	// Auto-create sticky note in collapsed state at startup
+	if (!m_pStickyNoteDlg || !::IsWindow(m_pStickyNoteDlg->m_hWnd))
+	{
+		m_pStickyNoteDlg = new CStickyNoteDlg(nullptr);
+		m_pStickyNoteDlg->Create(IDD_STICKY_NOTE_DLG, nullptr);
+		CRect rcDlg;
+		m_pStickyNoteDlg->GetWindowRect(&rcDlg);
+		int screenW = GetSystemMetrics(SM_CXSCREEN);
+		int x = screenW * 3 / 5;
+		int y = 10;
+		m_pStickyNoteDlg->SetWindowPos(nullptr, x, y, 0, 0, SWP_NOZORDER | SWP_NOSIZE);
+		m_pStickyNoteDlg->ShowWindow(SW_SHOW);
+		// The dialog will auto-collapse after a short delay via its own timer
 	}
 
 	// Global hotkey

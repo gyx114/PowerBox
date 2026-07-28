@@ -41,8 +41,10 @@ private:
 	void LoadNote();
 	void SaveNote();
 	void ResizeEdit();
+public:
 	void CollapseWindow();
 	void ExpandWindow();
+private:
 
 	afx_msg void OnBnClickedBrowse();
 	afx_msg void OnEnChangeEdit();
@@ -50,4 +52,5 @@ private:
 	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
 	afx_msg void OnNcLButtonDblClk(UINT nHitTest, CPoint point);
 	afx_msg void OnNcRButtonUp(UINT nHitTest, CPoint point);
+	afx_msg void OnTimer(UINT_PTR nIDEvent);
 };

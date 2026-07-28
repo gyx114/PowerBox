@@ -99,6 +99,16 @@ private:
     afx_msg void OnFileUnignore();
     afx_msg void OnFileTrack();
     afx_msg void OnFileUntrack();
+    afx_msg void OnFileMoveUp();
+    afx_msg void OnFileMoveDown();
+    afx_msg void OnFileMoveToUp();
+    afx_msg void OnFileMoveToDown();
+    afx_msg void OnLvnBeginDrag(NMHDR* pNMHDR, LRESULT* pResult);
+    afx_msg void OnMouseMove(UINT nFlags, CPoint point);
+    afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
+    afx_msg void OnCustomDrawList(NMHDR* pNMHDR, LRESULT* pResult);
+    void MoveSelectedItemsTo(int nTargetIndex);
+    void ReselectItems(const std::vector<int>& indices);
     std::vector<RenameEntry> m_entries;
     std::set<std::filesystem::path> m_manualIgnoredSet;
     std::set<std::filesystem::path> m_manualUnignoredSet;
@@ -107,4 +117,10 @@ private:
     bool m_bPreviewDone{false};
     int m_nActiveTab{0};
     HWND m_hRegexGuideWnd{nullptr};
+
+    // Drag-and-drop reordering state
+    bool m_bDragging{false};
+    int m_nDragSourceIndex{-1};
+    int m_nDropTargetIndex{-1};
+    int m_nDropLineY{-1};  // screen-space Y of insertion line, -1 = none
 };

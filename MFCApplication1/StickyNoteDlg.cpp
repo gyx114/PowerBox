@@ -34,6 +34,7 @@ BEGIN_MESSAGE_MAP(CStickyNoteDlg, CDialogEx)
 	ON_WM_CLOSE()
 	ON_WM_SIZE()
 	ON_WM_SYSCOMMAND()
+	ON_WM_TIMER()
 	ON_WM_NCLBUTTONDBLCLK()
 	ON_WM_NCRBUTTONUP()
 	ON_BN_CLICKED(IDC_BTN_STICKY_BROWSE, &CStickyNoteDlg::OnBnClickedBrowse)
@@ -199,7 +200,20 @@ BOOL CStickyNoteDlg::OnInitDialog()
 	// Load saved note
 	LoadNote();
 
+	// Show normally first, then collapse after a delay so the window is fully painted
+	SetTimer(1, 300, nullptr);
+
 	return TRUE;
+}
+
+void CStickyNoteDlg::OnTimer(UINT_PTR nIDEvent)
+{
+	if (nIDEvent == 1)
+	{
+		KillTimer(1);
+		CollapseWindow();
+	}
+	CDialogEx::OnTimer(nIDEvent);
 }
 
 void CStickyNoteDlg::OnBnClickedBrowse()
