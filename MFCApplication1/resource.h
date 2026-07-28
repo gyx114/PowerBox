@@ -1,6 +1,6 @@
 //{{NO_DEPENDENCIES}}
-// Microsoft Visual C++ Éú³ÉµÄ°üº¬ÎÄ¼þ¡£
-// ¹© MFCApplication1.rc Ê¹ÓÃ
+// Microsoft Visual C++ ï¿½ï¿½ï¿½ÉµÄ°ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½
+// ï¿½ï¿½ MFCApplication1.rc Ê¹ï¿½ï¿½
 //
 #define IDM_ABOUTBOX                    0x0010
 #define IDD_ABOUTBOX                    100
@@ -249,7 +249,20 @@
 #define IDC_BTN_FILELOCK_REFRESH        1240
 #define IDC_BTN_FILELOCK_CLEAR          1241
 #define IDC_STATIC_FILELOCK_HINT        1242
-#define IDC_BTN_FILELOCK_REFRESH2       1243
+#define IDC_TAB_QUICK                   1243
+#define IDC_STATIC_QUICK_SHUTDOWN       1245
+#define IDC_STATIC_QUICK_VOLUME         1246
+#define IDC_STATIC_QUICK_SYSMGMT        1247
+#define IDC_STATIC_QUICK_CMDLINE        1248
+#define IDC_STATIC_QUICK_RUNCMD         1249
+#define IDC_STATIC_QUICK_HOUR           1250
+#define IDC_STATIC_QUICK_MIN            1251
+#define IDC_STATIC_QUICK_SEC            1252
+#define IDC_STATIC_QUICK_SEP1           1253
+#define IDC_STATIC_QUICK_SEP2           1254
+#define IDC_STATIC_QUICK_SEP3           1255
+#define IDC_STATIC_QUICK_SEP4           1256
+#define IDC_BTN_FILELOCK_REFRESH2       1244
 #define ID_FILE_SETTINGS                32775
 #define ID_FILE_EXIT                    32776
 #define ID_HELP_ABOUT                   32777
@@ -291,7 +304,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        150
 #define _APS_NEXT_COMMAND_VALUE         32821
-#define _APS_NEXT_CONTROL_VALUE         1243
+#define _APS_NEXT_CONTROL_VALUE         1257
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

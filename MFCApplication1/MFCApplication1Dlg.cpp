@@ -108,6 +108,7 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
     ON_NOTIFY(TCN_SELCHANGE, IDC_TAB1, &CMFCApplication1Dlg::OnTcnSelchangeTab1)
+    ON_NOTIFY(TCN_SELCHANGE, IDC_TAB_QUICK, &CMFCApplication1Dlg::OnTcnSelchangeQuickTab)
     ON_WM_CONTEXTMENU()
     ON_COMMAND(32771, &CMFCApplication1Dlg::OnKillProcess)
     ON_COMMAND(IDM_KILL_SAME_NAME, &CMFCApplication1Dlg::OnKillSameName)
@@ -279,12 +280,14 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 	InitWindowTab();
 	InitFileTab();
 	InitGitTab();
+	InitQuickTab();
 
 	// Update control visibility based on current selected tab
 	int nCur = 0;
 	CTabCtrl* pTab = static_cast<CTabCtrl*>(GetDlgItem(IDC_TAB1));
 	if (pTab) nCur = pTab->GetCurSel();
 	UpdateTabVisibility(nCur);
+	UpdateQuickTab(0);
 
 	// Load initial data
 	if (nCur == 0)
@@ -357,10 +360,6 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 	CButton* pCheckMin = static_cast<CButton*>(GetDlgItem(IDC_CHECK2));
 	if (pCheckMin) pCheckMin->SetCheck(m_bMinimizeOnClose ? BST_CHECKED : BST_UNCHECKED);
 
-	// Non-admin PowerShell checkbox checked by default
-	CButton* pCheck6 = static_cast<CButton*>(GetDlgItem(IDC_CHECK6));
-	if (pCheck6) pCheck6->SetCheck(BST_CHECKED);
-
 	// Clipboard listener
 	::AddClipboardFormatListener(m_hWnd);
 
@@ -427,6 +426,63 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 
 	// Global hotkey
 	return TRUE;
+}
+
+// ========== Right-side quick-action tab ==========
+
+void CMFCApplication1Dlg::InitQuickTab()
+{
+    CTabCtrl* pTab = static_cast<CTabCtrl*>(GetDlgItem(IDC_TAB_QUICK));
+    if (!pTab) return;
+
+    pTab->InsertItem(0, _T("常用"));
+    pTab->InsertItem(1, _T("系统"));
+    pTab->InsertItem(2, _T("工具"));
+
+    pTab->SetCurSel(0);
+}
+
+void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
+{
+    static const int kCommonIds[] = {
+        IDC_BUTTON4, IDC_BUTTON5, IDC_BUTTON8, IDC_BUTTON22, IDC_BUTTON7, IDC_BUTTON6,
+        IDC_BUTTON9, IDC_BUTTON11, IDC_BUTTON21, IDC_BUTTON10, IDC_BUTTON29
+    };
+    static const int kSystemIds[] = {
+        IDC_STATIC_QUICK_SHUTDOWN, IDC_COMBO1, IDC_BUTTON1, IDC_BUTTON2,
+        IDC_STATIC_QUICK_HOUR, IDC_EDIT1,
+        IDC_STATIC_QUICK_MIN, IDC_EDIT2,
+        IDC_STATIC_QUICK_SEC, IDC_EDIT3,
+        IDC_STATIC_QUICK_SEP1,
+        IDC_STATIC_QUICK_VOLUME, IDC_SLIDER1, IDC_EDIT5, IDC_BUTTON12, IDC_BUTTON13,
+        IDC_STATIC_QUICK_SEP2,
+        IDC_STATIC_QUICK_SYSMGMT, IDC_BUTTON20
+    };
+    static const int kToolIds[] = {
+        IDC_STATIC_QUICK_CMDLINE, IDC_BUTTON27, IDC_BUTTON28,
+        IDC_STATIC_QUICK_SEP3,
+        IDC_STATIC_QUICK_RUNCMD, IDC_EDIT6, IDC_BUTTON17, IDC_BUTTON18
+    };
+
+    auto showGroup = [&](const int* ids, int count, bool show) {
+        for (int i = 0; i < count; i++)
+        {
+            CWnd* pWnd = GetDlgItem(ids[i]);
+            if (pWnd) pWnd->ShowWindow(show ? SW_SHOW : SW_HIDE);
+        }
+    };
+
+    showGroup(kCommonIds, _countof(kCommonIds), nTab == 0);
+    showGroup(kSystemIds, _countof(kSystemIds), nTab == 1);
+    showGroup(kToolIds, _countof(kToolIds), nTab == 2);
+}
+
+void CMFCApplication1Dlg::OnTcnSelchangeQuickTab(NMHDR* pNMHDR, LRESULT* pResult)
+{
+    CTabCtrl* pTab = static_cast<CTabCtrl*>(GetDlgItem(IDC_TAB_QUICK));
+    if (pTab)
+        UpdateQuickTab(pTab->GetCurSel());
+    *pResult = 0;
 }
 
 // ========== Window handling new features ==========

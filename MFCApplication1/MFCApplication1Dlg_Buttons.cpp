@@ -616,24 +616,22 @@ void CMFCApplication1Dlg::OnBnClickedCheck5()
 
 void CMFCApplication1Dlg::OnBnClickedCheck6()
 {
-    // No special UI action required when the checkbox is toggled. The
-    // launch behavior is handled when the user clicks IDC_BUTTON27.
 }
 
 void CMFCApplication1Dlg::OnBnClickedButton27()
 {
-    // Launch PowerShell. If IDC_CHECK6 is checked, launch as the shell
-    // (interactive) user (typically non-elevated). If unchecked, request
-    // elevation via ShellExecute "runas".
-    CButton* pCheck6 = (CButton*)GetDlgItem(IDC_CHECK6);
-    bool nonElevated = true;
-    if (pCheck6 && pCheck6->GetCheck() == BST_UNCHECKED)
-        nonElevated = false;
-
     CString exe = _T("powershell.exe");
-    CString params = _T("-NoExit"); // keep window open
+    CString params = _T("-NoExit");
 
-    if (nonElevated)
+    int nResult = MessageBox(
+        _T("是否以管理员身份运行 PowerShell？\n\n是 - 管理员权限\n否 - 普通权限"),
+        _T("启动 PowerShell"),
+        MB_YESNOCANCEL | MB_ICONQUESTION | MB_DEFBUTTON2);
+
+    if (nResult == IDCANCEL)
+        return;
+
+    if (nResult == IDNO)
     {
         CString err;
         if (!LaunchProcessAsShellUser(exe, params, &err))

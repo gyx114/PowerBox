@@ -84,7 +84,9 @@ protected:
 	void InitWindowTab();
 	void InitFileTab();
 	void InitGitTab();
+	void InitQuickTab();
 	void UpdateTabVisibility(int nTab);
+	void UpdateQuickTab(int nTab);
 
 	// Generated message map functions
 	virtual BOOL OnInitDialog();
@@ -92,6 +94,7 @@ protected:
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
 	afx_msg void OnTcnSelchangeTab1(NMHDR *pNMHDR, LRESULT *pResult);
+	afx_msg void OnTcnSelchangeQuickTab(NMHDR* pNMHDR, LRESULT* pResult);
 	afx_msg void OnContextMenu(CWnd* pWnd, CPoint point);
 	afx_msg void OnKillProcess();
 	afx_msg void OnKillSameName();
