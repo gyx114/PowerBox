@@ -234,9 +234,6 @@ void CSettingsDlg::LoadVendorKey(const CString& vendor)
 {
     CString keyName = _T("ApiKey_") + vendor;
     CString key = AfxGetApp()->GetProfileString(_T("AI"), keyName, _T(""));
-    // Fallback to old key name for backward compatibility
-    if (key.IsEmpty())
-        key = AfxGetApp()->GetProfileString(_T("AI"), _T("ApiKey"), _T(""));
     SetDlgItemText(IDC_EDIT_AI_KEY_CFG, key);
 }
 

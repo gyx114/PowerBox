@@ -1566,14 +1566,13 @@ void CMFCApplication1Dlg::OnBnClickedAiSend()
 
     CString vendor = AfxGetApp()->GetProfileString(_T("AI"), _T("Vendor"), _T("DeepSeek"));
     CString apiKey = AfxGetApp()->GetProfileString(_T("AI"), _T("ApiKey_") + vendor, _T(""));
-    // Fallback to old key name for backward compatibility
-    if (apiKey.IsEmpty())
-        apiKey = AfxGetApp()->GetProfileString(_T("AI"), _T("ApiKey"), _T(""));
     CString model = AfxGetApp()->GetProfileString(_T("AI"), _T("Model"), _T(""));
 
     if (apiKey.IsEmpty())
     {
-        SetAiBrowserHtml(BuildAiHtmlPage(_T("<div style='color:red;'>[Error] Please configure API Key in File > Settings > AI Assistant.</div>")));
+        CString msg;
+        msg.Format(_T("<div style='color:red;'>[Error] No API Key configured for %s. Please go to File > Settings > AI Assistant to configure it.</div>"), vendor.GetString());
+        SetAiBrowserHtml(BuildAiHtmlPage(msg));
         m_aiHistory.pop_back();
         return;
     }
