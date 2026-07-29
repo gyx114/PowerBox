@@ -14,6 +14,7 @@ struct RenameEntry {
         CString customExt;
         bool bIgnored{false};
         bool bTracked{false};
+        bool bAiGenerated{false};
     };
 
 struct FolderEntry {
@@ -103,6 +104,8 @@ private:
     afx_msg void OnFileMoveDown();
     afx_msg void OnFileMoveToUp();
     afx_msg void OnFileMoveToDown();
+    afx_msg void OnBnClickedAiAssistant();
+    afx_msg void OnFileAiAnalyze();
     afx_msg void OnLvnBeginDrag(NMHDR* pNMHDR, LRESULT* pResult);
     afx_msg void OnMouseMove(UINT nFlags, CPoint point);
     afx_msg void OnLButtonUp(UINT nFlags, CPoint point);

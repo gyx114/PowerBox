@@ -218,6 +218,7 @@ if exist "$(OutDir)Unmerged" rmdir /s /q "$(OutDir)Unmerged"
     <ClInclude Include="AutoClickerSpeedDlg.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="BatchRenameDlg.h" />
+    <ClInclude Include="BatchRenameAIDlg.h" />
     <ClInclude Include="RegexGuideDlg.h" />
     <ClInclude Include="MFCApplication1.h" />
     <ClInclude Include="MFCApplication1Dlg.h" />
@@ -241,6 +242,7 @@ if exist "$(OutDir)Unmerged" rmdir /s /q "$(OutDir)Unmerged"
     <ClCompile Include="AIApiClient.cpp" />
     <ClCompile Include="AutoClickerSpeedDlg.cpp" />
     <ClCompile Include="BatchRenameDlg.cpp" />
+    <ClCompile Include="BatchRenameAIDlg.cpp" />
     <ClCompile Include="RegexGuideDlg.cpp" />
     <ClCompile Include="MFCApplication1.cpp" />
     <ClCompile Include="MFCApplication1Dlg.cpp" />

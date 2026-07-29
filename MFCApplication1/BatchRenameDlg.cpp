@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "framework.h"
 #include "BatchRenameDlg.h"
+#include "BatchRenameAIDlg.h"
 #include "RegexGuideDlg.h"
 #include "resource.h"
 #include <algorithm>
@@ -131,6 +132,7 @@ BEGIN_MESSAGE_MAP(CBatchRenameDlg, CDialogEx)
     ON_COMMAND(IDM_FILE_MOVE_DOWN, &CBatchRenameDlg::OnFileMoveDown)
     ON_COMMAND(IDM_FILE_MOVE_TO_UP, &CBatchRenameDlg::OnFileMoveToUp)
     ON_COMMAND(IDM_FILE_MOVE_TO_DOWN, &CBatchRenameDlg::OnFileMoveToDown)
+    ON_COMMAND(IDM_FILE_AI_ANALYZE, &CBatchRenameDlg::OnFileAiAnalyze)
     ON_NOTIFY(NM_RCLICK, IDC_LIST_RENAME, &CBatchRenameDlg::OnFileListRightClick)
     ON_NOTIFY(LVN_BEGINDRAG, IDC_LIST_RENAME, &CBatchRenameDlg::OnLvnBeginDrag)
     ON_NOTIFY(NM_CUSTOMDRAW, IDC_LIST_RENAME, &CBatchRenameDlg::OnCustomDrawList)
@@ -151,6 +153,7 @@ BEGIN_MESSAGE_MAP(CBatchRenameDlg, CDialogEx)
     ON_BN_CLICKED(IDC_CHECK_TRACK_MATCH, &CBatchRenameDlg::OnTrackRuleChanged)
     ON_BN_CLICKED(IDC_CHECK_TRACK_REGEX, &CBatchRenameDlg::OnTrackRuleChanged)
     ON_BN_CLICKED(IDC_BTN_TRACK_CLEAR, &CBatchRenameDlg::OnBnClickedTrackClear)
+    ON_BN_CLICKED(IDC_BTN_AI_ASSISTANT, &CBatchRenameDlg::OnBnClickedAiAssistant)
     ON_WM_DROPFILES()
     ON_WM_CLOSE()
 END_MESSAGE_MAP()
@@ -251,7 +254,8 @@ void CBatchRenameDlg::ShowTab(int nTab)
         IDC_CHECK_TRACK_EXT, IDC_EDIT_TRACK_EXT,
         IDC_CHECK_TRACK_MATCH, IDC_EDIT_TRACK_PATTERN,
         IDC_CHECK_TRACK_REGEX, IDC_BTN_TRACK_CLEAR,
-        IDC_STATIC_TRACK_GROUP
+        IDC_STATIC_TRACK_GROUP,
+        IDC_BTN_AI_ASSISTANT
     };
     constexpr int nFileIDs = sizeof(fileIDs) / sizeof(fileIDs[0]);
 
@@ -1538,7 +1542,7 @@ void CBatchRenameDlg::ApplyRules()
     int activeCount = 0;
     for (size_t i = 0; i < m_entries.size(); i++)
     {
-        if (!m_entries[i].bIgnored && !m_entries[i].bMarkedDelete)
+        if (!m_entries[i].bIgnored && !m_entries[i].bMarkedDelete && !m_entries[i].bAiGenerated)
             activeCount++;
     }
 
@@ -1560,6 +1564,10 @@ void CBatchRenameDlg::ApplyRules()
             m_entries[i].bMarkedDelete = false;
             continue;
         }
+
+        // AI-generated files: preserve the AI-generated name, skip rule-based generation
+        if (m_entries[i].bAiGenerated)
+            continue;
 
         // Match delete check
         if (bDeleteMatch && !deletePattern.IsEmpty())
@@ -1684,6 +1692,8 @@ void CBatchRenameDlg::RefreshFileList()
 			status = _T("已忽略");
 		else if (m_entries[i].bTracked)
 			status = _T("【跟踪】") + m_entries[i].newName;
+		else if (m_entries[i].bAiGenerated)
+			status = _T("【AI】") + m_entries[i].newName;
 		else
 			status = m_entries[i].newName;
 		pList->SetItemText(idx, 2, status);
@@ -1906,6 +1916,8 @@ void CBatchRenameDlg::OnFileListRightClick(NMHDR* /*pNMHDR*/, LRESULT* pResult)
 
         menu.AppendMenu(MF_SEPARATOR);
         menu.AppendMenu(MF_STRING, IDM_FILE_EXPLORE, _T("在资源管理器中定位"));
+        menu.AppendMenu(MF_SEPARATOR);
+        menu.AppendMenu(MF_STRING, IDM_FILE_AI_ANALYZE, _T("AI解析文件名"));
     }
     menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, this);
     *pResult = 0;
@@ -1980,7 +1992,7 @@ void CBatchRenameDlg::OnFileUnmarkAll()
 
 void CBatchRenameDlg::OnFileResetAll()
 {
-    if (MessageBox(_T("确定要清除所有改动吗？\n将重置前缀、后缀、替换、序号、删除标记。"),
+    if (MessageBox(_T("确定要清除所有改动吗？\n将重置前缀、后缀、替换、序号、删除标记、AI 生成名称。"),
         _T("确认"), MB_YESNO | MB_ICONQUESTION) != IDYES)
         return;
 
@@ -2017,6 +2029,7 @@ void CBatchRenameDlg::OnFileResetAll()
         m_entries[i].bMarkedDelete = false;
         m_entries[i].bCustomExt = false;
         m_entries[i].customExt.Empty();
+        m_entries[i].bAiGenerated = false;
     }
 
     // Auto execute preview
@@ -2116,6 +2129,125 @@ void CBatchRenameDlg::OnFileRestoreExt()
     RefreshFileList();
     m_bPreviewDone = true;
     GetDlgItem(IDC_BTN_RENAME_EXECUTE)->EnableWindow(TRUE);
+}
+
+// AI assistant: open dialog with all non-ignored files
+void CBatchRenameDlg::OnBnClickedAiAssistant()
+{
+    if (m_entries.empty())
+    {
+        MessageBox(_T("请先选择文件夹加载文件列表。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+
+    // Build file list (non-ignored, non-deleted files only)
+    std::vector<std::pair<CString, std::filesystem::path>> files;
+    for (const auto& entry : m_entries)
+    {
+        if (!entry.bIgnored && !entry.bMarkedDelete)
+            files.push_back({ entry.oldName, entry.fullPath });
+    }
+
+    if (files.empty())
+    {
+        MessageBox(_T("没有可重命名的文件（所有文件已忽略或标记删除）。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+
+    CBatchRenameAIDlg dlg(files, this);
+    if (dlg.DoModal() != IDOK)
+        return;
+
+    const auto& mappings = dlg.GetMappings();
+    if (mappings.empty())
+        return;
+
+    // Apply AI-generated mappings to m_entries
+    int appliedCount = 0;
+    for (const auto& mapping : mappings)
+    {
+        for (auto& entry : m_entries)
+        {
+            if (entry.oldName == mapping.oldName)
+            {
+                entry.newName = mapping.newName;
+                entry.bAiGenerated = true;
+                appliedCount++;
+                break;
+            }
+        }
+    }
+
+    // Refresh the list
+    RefreshFileList();
+    m_bPreviewDone = true;
+    GetDlgItem(IDC_BTN_RENAME_EXECUTE)->EnableWindow(TRUE);
+
+    CString msg;
+    msg.Format(_T("AI 已为 %d 个文件生成新名称，请预览确认后点击「执行」。"), appliedCount);
+    MessageBox(msg, _T("AI 助手"), MB_OK | MB_ICONINFORMATION);
+}
+
+// AI analyze: open dialog with only selected files
+void CBatchRenameDlg::OnFileAiAnalyze()
+{
+    CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST_RENAME));
+    if (!pList) return;
+
+    // Collect selected files
+    std::vector<std::pair<CString, std::filesystem::path>> files;
+    int nCount = pList->GetItemCount();
+    for (int i = 0; i < nCount; i++)
+    {
+        if (pList->GetItemState(i, LVIS_SELECTED) & LVIS_SELECTED)
+        {
+            if (i < static_cast<int>(m_entries.size()))
+            {
+                auto& entry = m_entries[i];
+                if (!entry.bIgnored && !entry.bMarkedDelete)
+                    files.push_back({ entry.oldName, entry.fullPath });
+            }
+        }
+    }
+
+    if (files.empty())
+    {
+        MessageBox(_T("请先选择要分析的文件。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+
+    CBatchRenameAIDlg dlg(files, this);
+    if (dlg.DoModal() != IDOK)
+        return;
+
+    const auto& mappings = dlg.GetMappings();
+    if (mappings.empty())
+        return;
+
+    // Apply AI-generated mappings to m_entries
+    int appliedCount = 0;
+    for (const auto& mapping : mappings)
+    {
+        for (auto& entry : m_entries)
+        {
+            if (entry.oldName == mapping.oldName)
+            {
+                entry.newName = mapping.newName;
+                entry.bAiGenerated = true;
+                appliedCount++;
+                break;
+            }
+        }
+    }
+
+    // Refresh the list
+    RefreshFileList();
+    m_bPreviewDone = true;
+    GetDlgItem(IDC_BTN_RENAME_EXECUTE)->EnableWindow(TRUE);
+
+    CString msg;
+    msg.Format(_T("AI 已为 %d 个文件生成新名称，请预览确认后点击「执行」。"), appliedCount);
+    MessageBox(msg, _T("AI 助手"), MB_OK | MB_ICONINFORMATION);
 }
 
 void CBatchRenameDlg::OnCancel()

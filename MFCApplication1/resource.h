@@ -24,6 +24,7 @@
 #define IDD_ENVVAR_INPUT_DLG            147
 #define IDD_ENVVAR_PATH_DLG             148
 #define IDD_FILELOCK_DLG                149
+#define IDD_BATCH_RENAME_AI_DLG         150
 #define IDC_TAB1                        1000
 #define IDC_LIST1                       1001
 #define IDC_LIST2                       1002
@@ -315,13 +316,22 @@
 #define ID_TOOLS_ENVVAR                 32819
 #define ID_TOOLS_FILELOCK               32820
 
+// AI rename dialog controls
+#define IDC_AI_DESC                     1272
+#define IDC_AI_SEND                     1273
+#define IDC_AI_PREVIEW                  1274
+#define IDC_AI_APPLY                    1275
+#define IDC_AI_STATUS                   1276
+#define IDC_BTN_AI_ASSISTANT            1277
+#define IDM_FILE_AI_ANALYZE             32837
+
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        150
-#define _APS_NEXT_COMMAND_VALUE         32837
-#define _APS_NEXT_CONTROL_VALUE         1271
+#define _APS_NEXT_RESOURCE_VALUE        151
+#define _APS_NEXT_COMMAND_VALUE         32838
+#define _APS_NEXT_CONTROL_VALUE         1278
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
