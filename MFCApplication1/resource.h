@@ -279,6 +279,7 @@
 #define IDC_STATIC_AI_KEY_CFG           1268
 #define IDC_EDIT_AI_KEY_CFG             1269
 #define IDC_BUTTON_AI_KEY_SHOW          1270
+#define IDC_AI_BROWSER                  1271
 #define ID_FILE_SETTINGS                32775
 #define ID_FILE_EXIT                    32776
 #define ID_HELP_ABOUT                   32777

@@ -112,4 +112,6 @@ private:
 	afx_msg void OnMenuToggle();
 	afx_msg void OnMenuLocate();
 	afx_msg void OnMenuCustomParse();
+	afx_msg void OnMenuAiAnalyze();
+	afx_msg LRESULT OnAiResponse(WPARAM wParam, LPARAM lParam);
 };

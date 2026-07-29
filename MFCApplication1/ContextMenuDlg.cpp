@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <set>
 #include "GuidInfosDic.h"
+#include "AIApiClient.h"
 
 #include <shlwapi.h>
 #include <shlobj.h>
@@ -79,6 +80,7 @@ protected:
 #define ID_MENU_CM_LOCATE       50021
 
 #define ID_MENU_CM_CUSTOMPARSE  50023
+#define ID_MENU_CM_AI_ANALYZE  50024
 
 IMPLEMENT_DYNAMIC(CContextMenuDlg, CDialogEx)
 
@@ -113,7 +115,9 @@ BEGIN_MESSAGE_MAP(CContextMenuDlg, CDialogEx)
 	ON_COMMAND(ID_MENU_CM_DELETE, &CContextMenuDlg::OnMenuDelete)
 	ON_COMMAND(ID_MENU_CM_LOCATE, &CContextMenuDlg::OnMenuLocate)
 	ON_COMMAND(ID_MENU_CM_CUSTOMPARSE, &CContextMenuDlg::OnMenuCustomParse)
+	ON_COMMAND(ID_MENU_CM_AI_ANALYZE, &CContextMenuDlg::OnMenuAiAnalyze)
 	ON_BN_CLICKED(IDC_BTN_CM_EXTENSION, &CContextMenuDlg::OnBnClickedExtension)
+	ON_MESSAGE(WM_AI_RESPONSE, &CContextMenuDlg::OnAiResponse)
 END_MESSAGE_MAP()
 
 BOOL CContextMenuDlg::PreTranslateMessage(MSG* pMsg)
@@ -2194,6 +2198,7 @@ void CContextMenuDlg::OnNMRClickList(NMHDR* pNMHDR, LRESULT* pResult)
 	menu.AppendMenu(MF_STRING, ID_MENU_CM_TOGGLE, bEnabled ? _T("禁用") : _T("启用"));
 	menu.AppendMenu(MF_SEPARATOR);
 	menu.AppendMenu(MF_STRING, ID_MENU_CM_CUSTOMPARSE, _T("自定义解析"));
+	menu.AppendMenu(MF_STRING, ID_MENU_CM_AI_ANALYZE, _T("AI解析"));
 	menu.AppendMenu(MF_SEPARATOR);
 	menu.AppendMenu(MF_STRING, ID_MENU_CM_DELETE, _T("禁用选中"));
 	menu.AppendMenu(MF_STRING, ID_MENU_CM_LOCATE, _T("定位(注册表)"));
@@ -3201,10 +3206,85 @@ void CContextMenuDlg::RebuildDictionary()
 
 void CContextMenuDlg::OnBnClickedRebuild()
 {
-	CString msg = _T("将扫描所有已注册的 ShellEx CLSID，并通过注册表和 COM 接口解析其显示名称。\n");
-	msg += _T("此过程可能需要几秒钟，是否继续？");
-	if (MessageBox(msg, _T("重建字典"), MB_ICONINFORMATION | MB_YESNO) != IDYES)
-		return;
+    CString msg = _T("将扫描所有已注册的 ShellEx CLSID，并通过注册表和 COM 接口解析其显示名称。\n");
+    msg += _T("此过程可能需要几秒钟，是否继续？");
+    if (MessageBox(msg, _T("重建字典"), MB_ICONINFORMATION | MB_YESNO) != IDYES)
+        return;
 
-	RebuildDictionary();
+    RebuildDictionary();
+}
+
+void CContextMenuDlg::OnMenuAiAnalyze()
+{
+    CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_CM_ENTRIES);
+    if (!pList) return;
+
+    POSITION pos = pList->GetFirstSelectedItemPosition();
+    if (!pos) return;
+
+    int idx = pList->GetNextSelectedItem(pos);
+    if (idx < 0 || idx >= (int)m_entries.size()) return;
+
+    const MenuEntry& entry = m_entries[idx];
+
+    // Build prompt for AI to analyze the menu item
+    CString prompt;
+    prompt.Format(
+        _T("分析Windows右键菜单注册表项:\n")
+        _T("- 场景: %s\n")
+        _T("- 键名: %s\n")
+        _T("- 显示名: %s\n")
+        _T("- 命令: %s\n")
+        _T("- 类型: %s\n")
+        _T("请推测这是哪个软件的右键菜单项，具体功能是什么。回答不超过30字。"),
+        entry.location,
+        entry.keyName,
+        entry.displayName,
+        entry.command,
+        entry.bIsShellEx ? _T("Shell扩展(COM)") : _T("静态动词"));
+
+    // Get AI config
+    CString vendor = AfxGetApp()->GetProfileString(_T("AI"), _T("Vendor"), _T("DeepSeek"));
+    CString apiKey = AfxGetApp()->GetProfileString(_T("AI"), _T("ApiKey_") + vendor, _T(""));
+    if (apiKey.IsEmpty())
+        apiKey = AfxGetApp()->GetProfileString(_T("AI"), _T("ApiKey"), _T(""));
+    CString model = AfxGetApp()->GetProfileString(_T("AI"), _T("Model"), _T(""));
+
+    if (apiKey.IsEmpty())
+    {
+        MessageBox(_T("请先在 File > Settings > AI Assistant 中配置 API Key。"), _T("AI解析"), MB_ICONINFORMATION);
+        return;
+    }
+
+    // Disable the list to indicate processing
+    pList->EnableWindow(FALSE);
+
+    std::vector<std::pair<CString, CString>> messages;
+    messages.push_back({ _T("user"), prompt });
+
+    CAIApiClient::SendAsync(messages, vendor, apiKey, model, m_hWnd);
+}
+
+LRESULT CContextMenuDlg::OnAiResponse(WPARAM wParam, LPARAM lParam)
+{
+    CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_CM_ENTRIES);
+    if (pList) pList->EnableWindow(TRUE);
+
+    CString* pResult = reinterpret_cast<CString*>(lParam);
+    if (!pResult) return 0;
+
+    CString response = *pResult;
+    delete pResult;
+
+    bool bSuccess = (wParam == 1);
+    if (bSuccess)
+    {
+        MessageBox(response, _T("AI解析结果"), MB_ICONINFORMATION);
+    }
+    else
+    {
+        MessageBox(_T("AI解析失败: ") + response, _T("AI解析"), MB_ICONWARNING);
+    }
+
+    return 0;
 }

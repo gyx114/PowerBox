@@ -35,6 +35,8 @@
 #include <stdio.h>
 #include <string>
 #include <afxole.h>
+#include <MsHTML.h>
+#include <ExDisp.h>
 #pragma comment(lib, "Ole32.lib")
 
 #include <windows.h>
@@ -235,6 +237,9 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_BN_CLICKED(IDC_BUTTON_AI_SEND, &CMFCApplication1Dlg::OnBnClickedAiSend)
     ON_BN_CLICKED(IDC_BUTTON_AI_CLEAR, &CMFCApplication1Dlg::OnBnClickedAiClear)
     ON_MESSAGE(WM_AI_RESPONSE, &CMFCApplication1Dlg::OnAiResponse)
+    ON_MESSAGE(WM_AI_STREAM_CHUNK, &CMFCApplication1Dlg::OnAiStreamChunk)
+    ON_MESSAGE(WM_AI_STREAM_DONE, &CMFCApplication1Dlg::OnAiStreamDone)
+    ON_WM_TIMER()
 END_MESSAGE_MAP()
 
 
@@ -492,6 +497,13 @@ void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
     showGroup(kCommonIds, _countof(kCommonIds), nTab == 0);
     showGroup(kSystemIds, _countof(kSystemIds), nTab == 1);
     showGroup(kToolIds, _countof(kToolIds), nTab == 2);
+
+    // AI Assistant controls (right tab 0: Common)
+    static const int kAiIds[] = {
+        IDC_STATIC_AI_SEP, IDC_STATIC_AI_LABEL, IDC_COMBO_AI_VENDOR,
+        IDC_AI_BROWSER, IDC_EDIT_AI_INPUT, IDC_BUTTON_AI_SEND, IDC_BUTTON_AI_CLEAR
+    };
+    showGroup(kAiIds, _countof(kAiIds), nTab == 0);
 }
 
 void CMFCApplication1Dlg::OnTcnSelchangeQuickTab(NMHDR* pNMHDR, LRESULT* pResult)
@@ -1278,11 +1290,51 @@ void CMFCApplication1Dlg::InitAIControls()
         pCombo->SetCurSel(idx != CB_ERR ? idx : 0);
     }
 
-    // Set history edit to read-only
-    CEdit* pHistory = static_cast<CEdit*>(GetDlgItem(IDC_EDIT_AI_HISTORY));
-    if (pHistory)
+    // Create WebBrowser ActiveX control for AI chat rendering
+    // Follow the same pattern as MarkdownDlg which works reliably
+    CWnd* pPlaceholder = GetDlgItem(IDC_AI_BROWSER);
+    if (pPlaceholder)
     {
-        pHistory->SetReadOnly(TRUE);
+        CRect rc;
+        pPlaceholder->GetWindowRect(&rc);
+        ScreenToClient(&rc);
+        pPlaceholder->DestroyWindow();
+
+        // Match MarkdownDlg: WS_VISIBLE|WS_CHILD only, no WS_BORDER, no WS_EX_CLIENTEDGE
+        if (m_aiBrowser.CreateControl(CLSID_WebBrowser, nullptr,
+            WS_VISIBLE | WS_CHILD, rc, this, IDC_AI_BROWSER))
+        {
+            // Give the browser its real size immediately — a zero-size control
+            // will never render even if content is written to its document
+            m_aiBrowser.SetWindowPos(nullptr, rc.left, rc.top, rc.Width(), rc.Height(), SWP_NOZORDER);
+
+            LPUNKNOWN pUnk = m_aiBrowser.GetControlUnknown();
+            if (pUnk)
+            {
+                IWebBrowser2* pWeb2 = nullptr;
+                if (SUCCEEDED(pUnk->QueryInterface(IID_IWebBrowser2, (void**)&pWeb2)))
+                {
+                    BSTR bstrBlank = SysAllocString(L"about:blank");
+                    pWeb2->Navigate(bstrBlank, nullptr, nullptr, nullptr, nullptr);
+                    SysFreeString(bstrBlank);
+                    pWeb2->Release();
+                }
+            }
+
+            // Bring browser to front — tab control may cover it otherwise
+            m_aiBrowser.BringWindowToTop();
+
+            // Navigate("about:blank") is async — the document won't be ready yet.
+            // Use a retry timer until SetAiBrowserHtml succeeds.
+            // Preload a welcome message so the timer has actual content to write,
+            // matching MarkdownDlg's approach (always passes real content to SetBrowserHtml).
+            m_aiPendingHtml = BuildAiHtmlPage(
+                _T("<div style='color:#888;text-align:center;padding-top:20px;'>")
+                _T("AI Assistant Ready<br>")
+                _T("<span style='font-size:11px;'>Ask me anything about this toolbox!</span>")
+                _T("</div>"));
+            SetTimer(1, 100, nullptr);
+        }
     }
 }
 
@@ -1368,90 +1420,92 @@ CString CMFCApplication1Dlg::BuildSystemPrompt()
         _T("   - Run command input box: type exe path, URL, or cmd command, press Enter to execute\n")
         _T("   - 'Clear' button clears the command input\n\n")
 
-        _T("=== MENU BAR TOOLS (9 independent dialogs) ===\n\n")
+        _T("=== MENU BAR: 工具(&T) (9 tools in 4 sub-menus + 1 direct item) ===\n\n")
+        _T("Menu hierarchy: 工具 > 文本工具 / 图像工具 / 文件工具 / 系统工具 / 简易便签\n\n")
 
-        _T("1. 二维码生成\n")
-        _T("   - Enter text or URL, click '生成二维码' to create a QR code image\n")
-        _T("   - 'Copy' copies the QR image to clipboard; 'Save' exports as PNG or BMP\n")
-        _T("   - QR code has 4px white margin\n\n")
+        _T("文本工具(&T) sub-menu:\n")
+        _T("  1. Markdown 预览\n")
+        _T("     - Left editor panel + right rendered preview, splitter is draggable\n")
+        _T("     - 'Open' button or drag-drop .md files\n")
+        _T("     - Real-time preview updates as you type\n")
+        _T("     - Supports: headings, bold, italic, inline code, code blocks, links, blockquotes, strikethrough, lists, tables, horizontal rules\n")
+        _T("     - GitHub-style CSS rendering; max file size 10MB\n\n")
+        _T("  2. 编码转换\n")
+        _T("     - 'Open' or drag-drop a text file (txt, md, csv, log, etc.)\n")
+        _T("     - Auto-detects source encoding (BOM check → UTF-8 validation → GBK fallback)\n")
+        _T("     - Left panel shows source encoding interpretation; right panel shows target encoding interpretation\n")
+        _T("     - Supported encodings: UTF-8, UTF-8 BOM, UTF-16LE, UTF-16LE BOM, UTF-16BE, GBK, Big5, Shift-JIS, Latin-1\n")
+        _T("     - 'Save As' exports with target encoding; 'Overwrite' replaces original (moves original to Recycle Bin first)\n")
+        _T("     - Max file size 10MB\n\n")
 
-        _T("2. 截图OCR\n")
-        _T("   - Click '开始截图' to hide the window, then drag a screen region to capture\n")
-        _T("   - Automatically runs OCR on the captured area (small images are 2x upscaled for accuracy)\n")
-        _T("   - Language dropdown: Chinese, English, Japanese, Korean\n")
-        _T("   - 'Translate' button translates OCR result via MyMemory API (free, 10s timeout)\n")
-        _T("   - 'Copy' copies the translated text (or original OCR text if no translation)\n")
-        _T("   - Press ESC to cancel capture\n\n")
+        _T("图像工具(&I) sub-menu:\n")
+        _T("  3. 二维码生成\n")
+        _T("     - Enter text or URL, click '生成二维码' to create a QR code image\n")
+        _T("     - 'Copy' copies the QR image to clipboard; 'Save' exports as PNG or BMP\n")
+        _T("     - QR code has 4px white margin\n\n")
+        _T("  4. 截图OCR\n")
+        _T("     - Click '开始截图' to hide the window, then drag a screen region to capture\n")
+        _T("     - Automatically runs OCR on the captured area (small images are 2x upscaled for accuracy)\n")
+        _T("     - Language dropdown: Chinese, English, Japanese, Korean\n")
+        _T("     - '翻译 >>' button translates OCR result via MyMemory API (free, 10s timeout)\n")
+        _T("     - '复制结果' copies the translated text (or original OCR text if no translation)\n")
+        _T("     - Press ESC to cancel capture\n\n")
 
-        _T("3. 文件夹处理\n")
-        _T("   - Tab 1 'Folder Operations': list subfolders, rename/move/delete selected folders\n")
-        _T("   - Tab 2 'File Batch Processing':\n")
-        _T("     * Rename rules: add prefix/suffix, find & replace (regex supported)\n")
-        _T("     * Auto-numbering: start number, zero-padded, place before or after extension\n")
-        _T("     * Delete matching: regex-based file deletion to Recycle Bin, with invert option\n")
-        _T("     * Ignore rules: by extension or filename pattern (regex), manual ignore/unignore\n")
-        _T("     * Track rules: only process tracked files (overrides ignore)\n")
-        _T("   - File list supports drag-and-drop reordering with blue insertion line\n")
-        _T("   - Right-click menu: ignore, track, mark for deletion, modify extension, forward/backward move, locate in Explorer\n")
-        _T("   - 'Preview' shows rename results; 'Execute' applies changes; 'Undo' reverts last rename\n")
-        _T("   - 'Reset All' clears all rules and marks; F5 refreshes the file list\n\n")
+        _T("文件工具(&F) sub-menu:\n")
+        _T("  5. 文件夹处理\n")
+        _T("     - Tab 1 'Folder Operations': list subfolders, rename/move/delete selected folders\n")
+        _T("     - Tab 2 'File Batch Processing':\n")
+        _T("       * Rename rules: add prefix/suffix, find & replace (regex supported)\n")
+        _T("       * Auto-numbering: start number, zero-padded, place before or after extension\n")
+        _T("       * Delete matching: regex-based file deletion to Recycle Bin, with invert option\n")
+        _T("       * Ignore rules: by extension or filename pattern (regex), manual ignore/unignore\n")
+        _T("       * Track rules: only process tracked files (overrides ignore)\n")
+        _T("     - File list supports drag-and-drop reordering with blue insertion line\n")
+        _T("     - Right-click menu: ignore, track, mark for deletion, modify extension, forward/backward move, locate in Explorer\n")
+        _T("     - 'Preview' shows rename results; 'Execute' applies changes; 'Undo' reverts last rename\n")
+        _T("     - 'Reset All' clears all rules and marks; F5 refreshes the file list\n\n")
 
-        _T("4. 简易便签\n")
-        _T("   - Auto-starts at application launch, positioned at right 3/5 of screen\n")
-        _T("   - Initially collapsed to title bar only; double-click title bar to expand\n")
-        _T("   - In expanded state: X button collapses to title bar; minimize button collapses to title bar\n")
-        _T("   - In collapsed state: X button exits; double-click title bar expands\n")
-        _T("   - Right-click title bar: 'Exit Sticky Note'\n")
-        _T("   - Content auto-saves to sticky_note.txt (UTF-8) in the configured save folder\n")
-        _T("   - 'Browse' button to change save folder\n\n")
+        _T("系统工具(&S) sub-menu:\n")
+        _T("  6. 右键菜单管理\n")
+        _T("     - Scan and manage Windows right-click context menu items\n")
+        _T("     - Scene dropdown: 28+ scenarios (All, File, Folder, Directory Background, Desktop, Drive, etc.)\n")
+        _T("     - 14 common extension presets (.jpg, .png, .txt, .pdf, etc.) + custom extension query\n")
+        _T("     - List shows: location, display name, type (Static/ShellEx), visibility, key name, command\n")
+        _T("     - Right-click: enable/disable items, custom name resolution, locate in registry\n")
+        _T("     - 'Folder Right-Click Menu' checkbox: add/remove this tool from folder context menu\n")
+        _T("     - 'Win11 Classic Menu' checkbox: toggle Win11 old/new right-click style (requires Explorer restart)\n")
+        _T("     - 'Rebuild Dictionary': query ShellEx display names via COM and cache them\n")
+        _T("     - 'Dictionary Path': configure custom dictionary folder; 'Open Dictionary' opens it in Explorer\n")
+        _T("     - F5 refreshes; disabled items use LegacyDisable + ProgrammaticAccessOnly mechanism\n\n")
+        _T("  7. 环境变量管理\n")
+        _T("     - Top list: system variables; bottom list: user variables\n")
+        _T("     - Search box: real-time filtering across both lists\n")
+        _T("     - 'Add': choose system or user scope, enter variable name and value\n")
+        _T("     - 'Edit' or double-click: PATH variable opens dedicated editor; others open simple input dialog\n")
+        _T("     - 'Delete': removes selected variable (with confirmation)\n")
+        _T("     - 'Export': save all variables to .txt or .env file\n")
+        _T("     - Right-click: edit, delete, copy name, copy value\n")
+        _T("     - PATH Editor: list entries as individual rows; add/remove/reorder (up/down) entries\n")
+        _T("     - Auto-backup: before any modification, current values are backed up to temp folder with timestamp\n")
+        _T("     - F5 refreshes; broadcasts WM_SETTINGCHANGE after modifications\n\n")
+        _T("  8. 文件占用查看\n")
+        _T("     - Drag and drop files to see which processes are locking them (uses Restart Manager API)\n")
+        _T("     - List shows: file path, process name, PID, process type, process path\n")
+        _T("     - 'End' terminates selected process; 'End All' terminates all listed processes\n")
+        _T("     - 'Locate' opens the process's folder in Explorer\n")
+        _T("     - 'Refresh' re-queries; 'Clear' empties the list\n")
+        _T("     - Double-click or right-click for context menu\n")
+        _T("     - Confirmation dialog before killing any process\n\n")
 
-        _T("5. Markdown 预览\n")
-        _T("   - Left editor panel + right rendered preview, splitter is draggable\n")
-        _T("   - 'Open' button or drag-drop .md files\n")
-        _T("   - Real-time preview updates as you type\n")
-        _T("   - Supports: headings, bold, italic, inline code, code blocks, links, blockquotes, strikethrough, lists, tables, horizontal rules\n")
-        _T("   - GitHub-style CSS rendering; max file size 10MB\n\n")
-
-        _T("6. 编码转换\n")
-        _T("   - 'Open' or drag-drop a text file (txt, md, csv, log, etc.)\n")
-        _T("   - Auto-detects source encoding (BOM check → UTF-8 validation → GBK fallback)\n")
-        _T("   - Left panel shows source encoding interpretation; right panel shows target encoding interpretation\n")
-        _T("   - Supported encodings: UTF-8, UTF-8 BOM, UTF-16LE, UTF-16LE BOM, UTF-16BE, GBK, Big5, Shift-JIS, Latin-1\n")
-        _T("   - 'Save As' exports with target encoding; 'Overwrite' replaces original (moves original to Recycle Bin first)\n")
-        _T("   - Max file size 10MB\n\n")
-
-        _T("7. 右键菜单管理\n")
-        _T("   - Scan and manage Windows right-click context menu items\n")
-        _T("   - Scene dropdown: 28+ scenarios (All, File, Folder, Directory Background, Desktop, Drive, etc.)\n")
-        _T("   - 14 common extension presets (.jpg, .png, .txt, .pdf, etc.) + custom extension query\n")
-        _T("   - List shows: location, display name, type (Static/ShellEx), visibility, key name, command\n")
-        _T("   - Right-click: enable/disable items, custom name resolution, locate in registry\n")
-        _T("   - 'Folder Right-Click Menu' checkbox: add/remove this tool from folder context menu\n")
-        _T("   - 'Win11 Classic Menu' checkbox: toggle Win11 old/new right-click style (requires Explorer restart)\n")
-        _T("   - 'Rebuild Dictionary': query ShellEx display names via COM and cache them\n")
-        _T("   - 'Dictionary Path': configure custom dictionary folder; 'Open Dictionary' opens it in Explorer\n")
-        _T("   - F5 refreshes; disabled items use LegacyDisable + ProgrammaticAccessOnly mechanism\n\n")
-
-        _T("8. 环境变量管理\n")
-        _T("   - Top list: system variables; bottom list: user variables\n")
-        _T("   - Search box: real-time filtering across both lists\n")
-        _T("   - 'Add': choose system or user scope, enter variable name and value\n")
-        _T("   - 'Edit' or double-click: PATH variable opens dedicated editor; others open simple input dialog\n")
-        _T("   - 'Delete': removes selected variable (with confirmation)\n")
-        _T("   - 'Export': save all variables to .txt or .env file\n")
-        _T("   - Right-click: edit, delete, copy name, copy value\n")
-        _T("   - PATH Editor: list entries as individual rows; add/remove/reorder (up/down) entries\n")
-        _T("   - Auto-backup: before any modification, current values are backed up to temp folder with timestamp\n")
-        _T("   - F5 refreshes; broadcasts WM_SETTINGCHANGE after modifications\n\n")
-
-        _T("9. 文件占用查看\n")
-        _T("   - Drag and drop files to see which processes are locking them (uses Restart Manager API)\n")
-        _T("   - List shows: file path, process name, PID, process type, process path\n")
-        _T("   - 'End' terminates selected process; 'End All' terminates all listed processes\n")
-        _T("   - 'Locate' opens the process's folder in Explorer\n")
-        _T("   - 'Refresh' re-queries; 'Clear' empties the list\n")
-        _T("   - Double-click or right-click for context menu\n")
-        _T("   - Confirmation dialog before killing any process\n\n")
+        _T("Direct menu item (not in a sub-menu):\n")
+        _T("  9. 简易便签\n")
+        _T("     - Auto-starts at application launch, positioned at right 3/5 of screen\n")
+        _T("     - Initially collapsed to title bar only; double-click title bar to expand\n")
+        _T("     - In expanded state: X button collapses to title bar; minimize button collapses to title bar\n")
+        _T("     - In collapsed state: X button exits; double-click title bar expands\n")
+        _T("     - Right-click title bar: 'Exit Sticky Note'\n")
+        _T("     - Content auto-saves to sticky_note.txt (UTF-8) in the configured save folder\n")
+        _T("     - 'Browse' button to change save folder\n\n")
 
         _T("=== OTHER FEATURES ===\n\n")
         _T("   - Auto-clicker: check 'Auto Clicker' box to enable; press start key to begin clicking, stop key to stop\n")
@@ -1505,32 +1559,21 @@ void CMFCApplication1Dlg::OnBnClickedAiSend()
 
     m_aiHistory.push_back({ _T("user"), userMsg });
 
-    CEdit* pHistory = static_cast<CEdit*>(GetDlgItem(IDC_EDIT_AI_HISTORY));
-    if (pHistory)
-    {
-        CString current;
-        pHistory->GetWindowText(current);
-        current += _T("You: ") + userMsg + _T("\r\n");
-        pHistory->SetWindowText(current);
-        int nLen = pHistory->GetWindowTextLength();
-        pHistory->SetSel(nLen, nLen);
-    }
+    // Display user message in browser
+    CString body = _T("<div style='color:#888;margin-bottom:4px;'>You: ")
+        + CMarkdownDlg::EscapeHtml(userMsg) + _T("</div>");
+    SetAiBrowserHtml(BuildAiHtmlPage(body));
 
     CString vendor = AfxGetApp()->GetProfileString(_T("AI"), _T("Vendor"), _T("DeepSeek"));
-    CString apiKey = AfxGetApp()->GetProfileString(_T("AI"), _T("ApiKey"), _T(""));
+    CString apiKey = AfxGetApp()->GetProfileString(_T("AI"), _T("ApiKey_") + vendor, _T(""));
+    // Fallback to old key name for backward compatibility
+    if (apiKey.IsEmpty())
+        apiKey = AfxGetApp()->GetProfileString(_T("AI"), _T("ApiKey"), _T(""));
     CString model = AfxGetApp()->GetProfileString(_T("AI"), _T("Model"), _T(""));
 
     if (apiKey.IsEmpty())
     {
-        if (pHistory)
-        {
-            CString current;
-            pHistory->GetWindowText(current);
-            current += _T("AI: [Error] Please configure API Key in File > Settings > AI Assistant.\r\n");
-            pHistory->SetWindowText(current);
-            int nLen = pHistory->GetWindowTextLength();
-            pHistory->SetSel(nLen, nLen);
-        }
+        SetAiBrowserHtml(BuildAiHtmlPage(_T("<div style='color:red;'>[Error] Please configure API Key in File > Settings > AI Assistant.</div>")));
         m_aiHistory.pop_back();
         return;
     }
@@ -1538,22 +1581,22 @@ void CMFCApplication1Dlg::OnBnClickedAiSend()
     CWnd* pSend = GetDlgItem(IDC_BUTTON_AI_SEND);
     if (pSend) pSend->EnableWindow(FALSE);
 
-    CAIApiClient::SendAsync(m_aiHistory, vendor, apiKey, model, m_hWnd);
+    // Use streaming API
+    m_aiStreamingContent.Empty();
+    CAIApiClient::SendAsyncStreaming(m_aiHistory, vendor, apiKey, model, m_hWnd);
 }
 
 void CMFCApplication1Dlg::OnBnClickedAiClear()
 {
     m_aiHistory.clear();
-    CEdit* pHistory = static_cast<CEdit*>(GetDlgItem(IDC_EDIT_AI_HISTORY));
-    if (pHistory)
-        pHistory->SetWindowText(_T(""));
+    m_aiStreamingContent.Empty();
+    m_aiPendingHtml.Empty();
+    SetAiBrowserHtml(BuildAiHtmlPage(_T("")));
 }
 
 LRESULT CMFCApplication1Dlg::OnAiResponse(WPARAM wParam, LPARAM lParam)
 {
-    CWnd* pSend = GetDlgItem(IDC_BUTTON_AI_SEND);
-    if (pSend) pSend->EnableWindow(TRUE);
-
+    // Kept for backward compatibility (e.g. ContextMenuDlg AI analysis)
     CString* pResult = reinterpret_cast<CString*>(lParam);
     if (!pResult) return 0;
 
@@ -1561,7 +1604,6 @@ LRESULT CMFCApplication1Dlg::OnAiResponse(WPARAM wParam, LPARAM lParam)
     delete pResult;
 
     bool bSuccess = (wParam == 1);
-
     if (bSuccess)
     {
         m_aiHistory.push_back({ _T("assistant"), response });
@@ -1572,18 +1614,169 @@ LRESULT CMFCApplication1Dlg::OnAiResponse(WPARAM wParam, LPARAM lParam)
             m_aiHistory.pop_back();
     }
 
-    CEdit* pHistory = static_cast<CEdit*>(GetDlgItem(IDC_EDIT_AI_HISTORY));
-    if (pHistory)
-    {
-        CString current;
-        pHistory->GetWindowText(current);
-        current += _T("AI: ") + response + _T("\r\n");
-        pHistory->SetWindowText(current);
-        int nLen = pHistory->GetWindowTextLength();
-        pHistory->SetSel(nLen, nLen);
-    }
+    // Render Markdown response as HTML
+    CString body = _T("<div style='color:#c8c8c8;margin-bottom:4px;'>AI:</div>") + CMarkdownDlg::MarkdownToBody(response);
+    SetAiBrowserHtml(BuildAiHtmlPage(body));
+
+    CWnd* pSend = GetDlgItem(IDC_BUTTON_AI_SEND);
+    if (pSend) pSend->EnableWindow(TRUE);
 
     return 0;
+}
+
+LRESULT CMFCApplication1Dlg::OnAiStreamChunk(WPARAM /*wParam*/, LPARAM lParam)
+{
+    CString* pChunk = reinterpret_cast<CString*>(lParam);
+    if (!pChunk) return 0;
+
+    m_aiStreamingContent += *pChunk;
+    delete pChunk;
+
+    // Render accumulated Markdown as HTML
+    CString body = _T("<div style='color:#c8c8c8;margin-bottom:4px;'>AI:</div>") + CMarkdownDlg::MarkdownToBody(m_aiStreamingContent);
+    SetAiBrowserHtml(BuildAiHtmlPage(body));
+
+    return 0;
+}
+
+LRESULT CMFCApplication1Dlg::OnAiStreamDone(WPARAM wParam, LPARAM lParam)
+{
+    CWnd* pSend = GetDlgItem(IDC_BUTTON_AI_SEND);
+    if (pSend) pSend->EnableWindow(TRUE);
+
+    CString* pResult = reinterpret_cast<CString*>(lParam);
+    bool bSuccess = (wParam == 1);
+
+    if (bSuccess && pResult)
+    {
+        m_aiHistory.push_back({ _T("assistant"), *pResult });
+
+        // Final render with full content
+        CString body = _T("<div style='color:#c8c8c8;margin-bottom:4px;'>AI:</div>") + CMarkdownDlg::MarkdownToBody(*pResult);
+        SetAiBrowserHtml(BuildAiHtmlPage(body));
+    }
+    else if (!bSuccess && pResult)
+    {
+        CString errBody = _T("<div style='color:red;'>") + CMarkdownDlg::EscapeHtml(*pResult) + _T("</div>");
+        SetAiBrowserHtml(BuildAiHtmlPage(errBody));
+        if (!m_aiHistory.empty() && m_aiHistory.back().first == _T("user"))
+            m_aiHistory.pop_back();
+    }
+
+    if (pResult) delete pResult;
+    return 0;
+}
+
+CString CMFCApplication1Dlg::BuildAiHtmlPage(const CString& bodyContent)
+{
+    return _T("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><style>")
+        _T("body{font-family:Consolas,'Microsoft YaHei',sans-serif;font-size:16px;")
+        _T("background:#1e1e1e;color:#d4d4d4;padding:8px;margin:0;line-height:1.5;}")
+        _T("code{background:#2d2d2d;padding:1px 4px;border-radius:3px;font-family:Consolas,monospace;}")
+        _T("pre{background:#2d2d2d;padding:8px;border-radius:4px;overflow-x:auto;}")
+        _T("pre code{background:none;padding:0;}")
+        _T("a{color:#569cd6;}")
+        _T("h1,h2,h3{color:#dcdcaa;margin:8px 0 4px;}")
+        _T("table{border-collapse:collapse;}")
+        _T("th,td{border:1px solid #444;padding:4px 8px;}")
+        _T("th{background:#2d2d2d;}")
+        _T("blockquote{border-left:3px solid #569cd6;margin:4px 0;padding-left:12px;color:#888;}")
+        _T("</style></head><body>") + bodyContent + _T("</body></html>");
+}
+
+bool CMFCApplication1Dlg::SetAiBrowserHtml(const CString& html)
+{
+    // Follow the same pattern as CMarkdownDlg::SetBrowserHtml which works reliably.
+    // The caller is responsible for providing a complete HTML document.
+    if (!m_aiBrowser.m_hWnd || !::IsWindow(m_aiBrowser.m_hWnd))
+    {
+        m_aiPendingHtml = html;
+        return false;
+    }
+
+    LPUNKNOWN pUnk = m_aiBrowser.GetControlUnknown();
+    if (!pUnk)
+    {
+        m_aiPendingHtml = html;
+        return false;
+    }
+
+    IWebBrowser2* pWeb2 = nullptr;
+    if (FAILED(pUnk->QueryInterface(IID_IWebBrowser2, (void**)&pWeb2)))
+    {
+        m_aiPendingHtml = html;
+        return false;
+    }
+
+    IDispatch* pDocDisp = nullptr;
+    if (FAILED(pWeb2->get_Document(&pDocDisp)) || !pDocDisp)
+    {
+        // Document not ready yet (Navigate is async)
+        pWeb2->Release();
+        m_aiPendingHtml = html;
+        return false;
+    }
+
+    IHTMLDocument2* pDoc = nullptr;
+    if (FAILED(pDocDisp->QueryInterface(IID_IHTMLDocument2, (void**)&pDoc)))
+    {
+        pDocDisp->Release();
+        pWeb2->Release();
+        m_aiPendingHtml = html;
+        return false;
+    }
+
+    BSTR bstrHtml = html.AllocSysString();
+    SAFEARRAY* psa = SafeArrayCreateVector(VT_VARIANT, 0, 1);
+    if (psa)
+    {
+        VARIANT* pv = nullptr;
+        if (SUCCEEDED(SafeArrayAccessData(psa, (void**)&pv)))
+        {
+            pv->vt = VT_BSTR;
+            pv->bstrVal = bstrHtml;
+            SafeArrayUnaccessData(psa);
+            pDoc->close();
+            pDoc->write(psa);
+            pDoc->close();
+        }
+        SafeArrayDestroy(psa);
+    }
+    else
+    {
+        SysFreeString(bstrHtml);
+    }
+
+    pDoc->Release();
+    pDocDisp->Release();
+    pWeb2->Release();
+    m_aiPendingHtml.Empty();
+    // Kill the readiness timer and mark ready - prevents timer from
+    // overwriting content written by streaming handlers
+    if (!m_aiBrowserReady)
+    {
+        m_aiBrowserReady = true;
+        KillTimer(1);
+    }
+    return true;
+}
+
+void CMFCApplication1Dlg::OnTimer(UINT_PTR nIDEvent)
+{
+    if (nIDEvent == 1)
+    {
+        if (m_aiBrowserReady)
+        {
+            KillTimer(1);
+            return;
+        }
+        // Retry until WebBrowser document is ready (about:blank is async)
+        if (SetAiBrowserHtml(m_aiPendingHtml.IsEmpty() ? CString(_T("")) : m_aiPendingHtml))
+        {
+            // SetAiBrowserHtml already kills timer and sets m_aiBrowserReady on success
+        }
+    }
+    CDialogEx::OnTimer(nIDEvent);
 }
 
 

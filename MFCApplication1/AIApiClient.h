@@ -9,6 +9,12 @@
 // LPARAM: pointer to CString (must be deleted by receiver)
 #define WM_AI_RESPONSE (WM_APP + 7)
 
+// Streaming messages: content chunks during streaming
+// WM_AI_STREAM_CHUNK: LPARAM = CString* (delta content, must be deleted by receiver)
+#define WM_AI_STREAM_CHUNK (WM_APP + 8)
+// WM_AI_STREAM_DONE: WPARAM = 1=success 0=error, LPARAM = CString* (error message or nullptr, deleted by receiver)
+#define WM_AI_STREAM_DONE  (WM_APP + 9)
+
 struct AIVendorConfig
 {
     CString name;
@@ -22,13 +28,17 @@ public:
     // Get available vendor configurations
     static const std::vector<AIVendorConfig>& GetVendors();
 
-    // Send chat completion request asynchronously
-    // messages: pairs of (role, content), e.g. ("system", "..."), ("user", "..."), ("assistant", "...")
-    // vendor: vendor name matching AIVendorConfig::name
-    // apiKey: API key
-    // model: model name (uses vendor default if empty)
-    // hwndNotify: HWND to receive WM_AI_RESPONSE on completion
+    // Send chat completion request asynchronously (non-streaming)
     static void SendAsync(
+        const std::vector<std::pair<CString, CString>>& messages,
+        const CString& vendor,
+        const CString& apiKey,
+        const CString& model,
+        HWND hwndNotify);
+
+    // Send chat completion request with SSE streaming
+    // Posts WM_AI_STREAM_CHUNK for each content delta, WM_AI_STREAM_DONE when complete
+    static void SendAsyncStreaming(
         const std::vector<std::pair<CString, CString>>& messages,
         const CString& vendor,
         const CString& apiKey,

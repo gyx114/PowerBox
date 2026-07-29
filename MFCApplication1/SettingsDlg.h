@@ -22,10 +22,14 @@ public:
     void OnBrowseScreenshot();
     void OnBrowseStickyDir();
     afx_msg void OnBnClickedAiKeyShow();
+    afx_msg void OnCbnSelchangeAiVendor();
 
 private:
     void BrowseFile(UINT id, LPCTSTR title);
     void BrowseFolder(UINT id, LPCTSTR title);
     void InitAIVendorCombo();
+    void LoadVendorKey(const CString& vendor);
+    void SaveVendorKey(const CString& vendor);
+    CString m_strCurrentVendor;
     DECLARE_MESSAGE_MAP()
 };

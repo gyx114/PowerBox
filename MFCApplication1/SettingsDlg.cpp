@@ -31,6 +31,7 @@ BEGIN_MESSAGE_MAP(CSettingsDlg, CDialogEx)
     ON_BN_CLICKED(IDC_BROWSE_SCREENSHOT, &CSettingsDlg::OnBrowseScreenshot)
     ON_BN_CLICKED(IDC_BROWSE_STICKY_DIR, &CSettingsDlg::OnBrowseStickyDir)
     ON_BN_CLICKED(IDC_BUTTON_AI_KEY_SHOW, &CSettingsDlg::OnBnClickedAiKeyShow)
+    ON_CBN_SELCHANGE(IDC_COMBO_AI_VENDOR_CFG, &CSettingsDlg::OnCbnSelchangeAiVendor)
     ON_WM_CLOSE()
 END_MESSAGE_MAP()
 
@@ -86,8 +87,8 @@ BOOL CSettingsDlg::OnInitDialog()
 
     // AI config
     InitAIVendorCombo();
-    SetDlgItemText(IDC_EDIT_AI_KEY_CFG,
-        AfxGetApp()->GetProfileString(_T("AI"), _T("ApiKey"), _T("")));
+    m_strCurrentVendor = AfxGetApp()->GetProfileString(_T("AI"), _T("Vendor"), _T("DeepSeek"));
+    LoadVendorKey(m_strCurrentVendor);
 
     return TRUE;
 }
@@ -144,15 +145,14 @@ void CSettingsDlg::OnOK()
     AfxGetApp()->WriteProfileString(_T("AutoClicker"), _T("KeyStop"), strStop);
 
     // Save AI config
-    CString aiVendor, aiKey;
+    SaveVendorKey(m_strCurrentVendor);
     CComboBox* pCombo = static_cast<CComboBox*>(GetDlgItem(IDC_COMBO_AI_VENDOR_CFG));
     if (pCombo)
     {
+        CString aiVendor;
         pCombo->GetWindowText(aiVendor);
         AfxGetApp()->WriteProfileString(_T("AI"), _T("Vendor"), aiVendor);
     }
-    GetDlgItemText(IDC_EDIT_AI_KEY_CFG, aiKey);
-    AfxGetApp()->WriteProfileString(_T("AI"), _T("ApiKey"), aiKey);
 
     DestroyWindow();
 }
@@ -214,4 +214,37 @@ void CSettingsDlg::OnBnClickedAiKeyShow()
     pEdit->SetPasswordChar(bShowing ? 0 : _T('*'));
     SetDlgItemText(IDC_BUTTON_AI_KEY_SHOW, bShowing ? _T("隐藏") : _T("显示"));
     pEdit->Invalidate();
+}
+
+void CSettingsDlg::OnCbnSelchangeAiVendor()
+{
+    // Save current vendor's key before switching
+    SaveVendorKey(m_strCurrentVendor);
+
+    // Get new vendor
+    CComboBox* pCombo = static_cast<CComboBox*>(GetDlgItem(IDC_COMBO_AI_VENDOR_CFG));
+    if (!pCombo) return;
+    pCombo->GetWindowText(m_strCurrentVendor);
+
+    // Load new vendor's key
+    LoadVendorKey(m_strCurrentVendor);
+}
+
+void CSettingsDlg::LoadVendorKey(const CString& vendor)
+{
+    CString keyName = _T("ApiKey_") + vendor;
+    CString key = AfxGetApp()->GetProfileString(_T("AI"), keyName, _T(""));
+    // Fallback to old key name for backward compatibility
+    if (key.IsEmpty())
+        key = AfxGetApp()->GetProfileString(_T("AI"), _T("ApiKey"), _T(""));
+    SetDlgItemText(IDC_EDIT_AI_KEY_CFG, key);
+}
+
+void CSettingsDlg::SaveVendorKey(const CString& vendor)
+{
+    if (vendor.IsEmpty()) return;
+    CString keyName = _T("ApiKey_") + vendor;
+    CString key;
+    GetDlgItemText(IDC_EDIT_AI_KEY_CFG, key);
+    AfxGetApp()->WriteProfileString(_T("AI"), keyName, key);
 }

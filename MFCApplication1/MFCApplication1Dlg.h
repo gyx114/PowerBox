@@ -303,9 +303,18 @@ public:
 
     // AI Assistant
     std::vector<std::pair<CString, CString>> m_aiHistory; // (role, content) pairs
+    CWnd m_aiBrowser;                     // WebBrowser ActiveX for Markdown rendering
+    bool m_aiBrowserReady{false};         // true when WebBrowser document is ready
+    CString m_aiPendingHtml;              // buffered HTML before browser is ready
+    CString m_aiStreamingContent;         // accumulated streaming content
     CString BuildSystemPrompt();
     void InitAIControls();
+    CString BuildAiHtmlPage(const CString& bodyContent);
+    bool SetAiBrowserHtml(const CString& html);
     afx_msg void OnBnClickedAiSend();
     afx_msg void OnBnClickedAiClear();
     afx_msg LRESULT OnAiResponse(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnAiStreamChunk(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnAiStreamDone(WPARAM wParam, LPARAM lParam);
+    afx_msg void OnTimer(UINT_PTR nIDEvent);
 };

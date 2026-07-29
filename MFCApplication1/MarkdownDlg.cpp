@@ -859,3 +859,15 @@ CString CMarkdownDlg::MarkdownToHtml(const CString& markdown)
 	html += _T("</body></html>");
 	return html;
 }
+
+CString CMarkdownDlg::MarkdownToBody(const CString& markdown)
+{
+    // Extract just the body content from MarkdownToHtml output
+    // so it can be embedded in a custom page (e.g. dark-themed AI chat)
+    CString fullHtml = MarkdownToHtml(markdown);
+    int bodyStart = fullHtml.Find(_T("<body>"));
+    int bodyEnd = fullHtml.Find(_T("</body>"));
+    if (bodyStart >= 0 && bodyEnd > bodyStart)
+        return fullHtml.Mid(bodyStart + 6, bodyEnd - bodyStart - 6);
+    return EscapeHtml(markdown); // fallback: just escape the raw text
+}

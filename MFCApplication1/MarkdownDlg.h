@@ -44,8 +44,11 @@ private:
 	void RefreshPreview();
 	void LoadFile(const CString& path);
 	bool SetBrowserHtml(const CString& html);
-	static CString MarkdownToHtml(const CString& markdown);
-	static CString EscapeHtml(const CString& text);
+public:
+    static CString MarkdownToHtml(const CString& markdown);
+    static CString MarkdownToBody(const CString& markdown);
+    static CString EscapeHtml(const CString& text);
+private:
 	static CString FormatInline(const CString& text);
 
 	afx_msg void OnSize(UINT nType, int cx, int cy);
