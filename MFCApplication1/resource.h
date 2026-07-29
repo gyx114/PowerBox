@@ -242,6 +242,8 @@
 #define IDC_BTN_CM_REBUILD              1233
 #define IDC_BTN_CM_DICTPATH             1234
 #define IDC_BTN_CM_DICTOPEN             1235
+#define IDC_EDIT_CM_EXTENSION           1257
+#define IDC_BTN_CM_EXTENSION            1258
 #define IDC_LIST_FILELOCK               1236
 #define IDC_BTN_FILELOCK_END            1237
 #define IDC_BTN_FILELOCK_ENDALL         1238

@@ -1,4 +1,4 @@
-﻿// ContextMenuDlg.cpp: implementation file
+// ContextMenuDlg.cpp: implementation file
 //
 
 #include "pch.h"
@@ -113,6 +113,7 @@ BEGIN_MESSAGE_MAP(CContextMenuDlg, CDialogEx)
 	ON_COMMAND(ID_MENU_CM_DELETE, &CContextMenuDlg::OnMenuDelete)
 	ON_COMMAND(ID_MENU_CM_LOCATE, &CContextMenuDlg::OnMenuLocate)
 	ON_COMMAND(ID_MENU_CM_CUSTOMPARSE, &CContextMenuDlg::OnMenuCustomParse)
+	ON_BN_CLICKED(IDC_BTN_CM_EXTENSION, &CContextMenuDlg::OnBnClickedExtension)
 END_MESSAGE_MAP()
 
 BOOL CContextMenuDlg::PreTranslateMessage(MSG* pMsg)
@@ -139,8 +140,8 @@ void CContextMenuDlg::InitLocations()
 	// Some scenes have additional paths scanned in ScanEntries().
 	m_scenes.push_back({ _T("全部"),                                 _T("") });
 	m_scenes.push_back({ _T("文件 (*)"),                             _T("*") });
-	m_scenes.push_back({ _T("文件夹 (Directory)"),                   _T("Directory") });
-	m_scenes.push_back({ _T("文件夹 (Folder)"),                      _T("Folder") });
+	m_scenes.push_back({ _T("文件夹 (所有文件夹)"),                   _T("Directory") });
+	m_scenes.push_back({ _T("文件夹 (虚拟文件夹)"),                   _T("Folder") });
 	m_scenes.push_back({ _T("目录背景"),                             _T("Directory\\Background") });
 	m_scenes.push_back({ _T("桌面背景"),                             _T("DesktopBackground") });
 	m_scenes.push_back({ _T("驱动器"),                               _T("Drive") });
@@ -152,6 +153,19 @@ void CContextMenuDlg::InitLocations()
 	m_scenes.push_back({ _T("exe文件"),                              _T("SystemFileAssociations\\.exe") });
 	m_scenes.push_back({ _T("未知文件"),                             _T("Unknown") });
 	m_scenes.push_back({ _T("快捷方式"),                             _T("lnkfile") });
+	m_scenes.push_back({ _T(".jpg / .jpeg (JPEG图片)"),          _T("SystemFileAssociations\\.jpg") });
+	m_scenes.push_back({ _T(".png (PNG图片)"),                    _T("SystemFileAssociations\\.png") });
+	m_scenes.push_back({ _T(".gif (GIF图片)"),                    _T("SystemFileAssociations\\.gif") });
+	m_scenes.push_back({ _T(".bmp (BMP图片)"),                    _T("SystemFileAssociations\\.bmp") });
+	m_scenes.push_back({ _T(".txt (文本文件)"),                   _T("SystemFileAssociations\\.txt") });
+	m_scenes.push_back({ _T(".pdf (PDF文档)"),                    _T("SystemFileAssociations\\.pdf") });
+	m_scenes.push_back({ _T(".doc / .docx (Word文档)"),           _T("SystemFileAssociations\\.doc") });
+	m_scenes.push_back({ _T(".mp4 (视频文件)"),                   _T("SystemFileAssociations\\.mp4") });
+	m_scenes.push_back({ _T(".mp3 (音频文件)"),                   _T("SystemFileAssociations\\.mp3") });
+	m_scenes.push_back({ _T(".zip / .rar (压缩文件)"),            _T("SystemFileAssociations\\.zip") });
+	m_scenes.push_back({ _T(".exe (可执行文件)"),                 _T("SystemFileAssociations\\.exe") });
+	m_scenes.push_back({ _T(".dll (库文件)"),                     _T("SystemFileAssociations\\.dll") });
+	m_scenes.push_back({ _T(".html / .htm (网页)"),               _T("SystemFileAssociations\\.html") });
 
 	CComboBox* pCombo = (CComboBox*)GetDlgItem(IDC_COMBO_CM_LOCATION);
 	if (pCombo)
@@ -1241,9 +1255,30 @@ void CContextMenuDlg::ScanEntries(const CString& filter)
 
 	// In "全部" mode (filter empty or "全部"), scan all scenes.
 	// In filtered mode, scan only the matching scene.
-	// ContextMenuManager: each scene is independent, no cross-scene dedup needed.
-	// We use cross-scene dedup for "全部" mode to avoid showing the same item twice.
+	// For extension-specific scenes (SystemFileAssociations\*), also scan "*"
+	// since all-file handlers also apply to specific extensions.
 	bool bScanAll = filter.IsEmpty() || filter == _T("全部");
+
+	// Find the matching scene
+	const Scene* pMatchScene = nullptr;
+	if (!bScanAll)
+	{
+		for (const auto& scene : m_scenes)
+		{
+			if (scene.name == filter)
+			{
+				pMatchScene = &scene;
+				break;
+			}
+		}
+	}
+
+	// If filtering by extension, also scan "*" (all file handlers)
+	bool bIsExtension = pMatchScene && pMatchScene->basePath.Find(_T("SystemFileAssociations\\")) == 0;
+	if (bIsExtension)
+	{
+		ScanScene(_T("*"), _T("文件 (*)"), seen);
+	}
 
 	for (const auto& scene : m_scenes)
 	{
@@ -1474,6 +1509,43 @@ void CContextMenuDlg::OnBnClickedRefresh()
 	}
 	ScanEntries(filter);
 	RefreshList();
+}
+
+void CContextMenuDlg::OnBnClickedExtension()
+{
+	CString ext;
+	GetDlgItemText(IDC_EDIT_CM_EXTENSION, ext);
+	ext.Trim();
+	if (ext.IsEmpty())
+	{
+		MessageBox(_T("请输入要查询的文件后缀，如 .mp4、.txt 等。"), _T("提示"), MB_ICONINFORMATION);
+		return;
+	}
+
+	// Normalize: ensure starts with "."
+	if (ext[0] != _T('.'))
+		ext = _T(".") + ext;
+	ext.MakeLower();
+
+	// Build the registry path
+	CString basePath = _T("SystemFileAssociations\\") + ext;
+
+	// Clear the combo selection (custom extension not in the list)
+	CComboBox* pCombo = (CComboBox*)GetDlgItem(IDC_COMBO_CM_LOCATION);
+	if (pCombo)
+		pCombo->SetCurSel(-1);
+
+	// Scan: include "*" (all-file handlers) + extension-specific handlers
+	m_entries.clear();
+	std::set<CString> seen;
+	ScanScene(_T("*"), _T("文件 (*)"), seen);
+	ScanScene(basePath, ext, seen);
+
+	RefreshList();
+
+	CString status;
+	status.Format(_T("查询后缀 %s：共找到 %d 个右键菜单项"), ext, (int)m_entries.size());
+	UpdateStatus(status);
 }
 
 void CContextMenuDlg::OnCbnSelchangeLocation()

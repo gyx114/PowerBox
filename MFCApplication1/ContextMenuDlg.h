@@ -106,6 +106,7 @@ private:
 	afx_msg void OnBnClickedCheckWin11Classic();
 	afx_msg void OnBnClickedRebuild();    // 重建字典
 	afx_msg void OnBnClickedDictPath();   // 字典路径
+	afx_msg void OnBnClickedExtension();  // 扩展名查询
 	afx_msg void OnNMRClickList(NMHDR* pNMHDR, LRESULT* pResult);
 	afx_msg void OnMenuDelete();
 	afx_msg void OnMenuToggle();
