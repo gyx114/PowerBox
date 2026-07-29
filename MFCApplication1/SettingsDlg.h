@@ -21,9 +21,11 @@ public:
     void OnBrowseDownload();
     void OnBrowseScreenshot();
     void OnBrowseStickyDir();
+    afx_msg void OnBnClickedAiKeyShow();
 
 private:
     void BrowseFile(UINT id, LPCTSTR title);
     void BrowseFolder(UINT id, LPCTSTR title);
+    void InitAIVendorCombo();
     DECLARE_MESSAGE_MAP()
 };

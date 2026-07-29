@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "framework.h"
 #include "SettingsDlg.h"
+#include "AIApiClient.h"
 #include "resource.h"
 
 CSettingsDlg::CSettingsDlg(CWnd* pParent /*= nullptr*/) : CDialogEx(IDD_SETTINGS_DIALOG, pParent) {}
@@ -29,6 +30,7 @@ BEGIN_MESSAGE_MAP(CSettingsDlg, CDialogEx)
     ON_BN_CLICKED(IDC_BROWSE_DOWNLOAD, &CSettingsDlg::OnBrowseDownload)
     ON_BN_CLICKED(IDC_BROWSE_SCREENSHOT, &CSettingsDlg::OnBrowseScreenshot)
     ON_BN_CLICKED(IDC_BROWSE_STICKY_DIR, &CSettingsDlg::OnBrowseStickyDir)
+    ON_BN_CLICKED(IDC_BUTTON_AI_KEY_SHOW, &CSettingsDlg::OnBnClickedAiKeyShow)
     ON_WM_CLOSE()
 END_MESSAGE_MAP()
 
@@ -81,6 +83,11 @@ BOOL CSettingsDlg::OnInitDialog()
         AfxGetApp()->WriteProfileString(_T("AutoClicker"), _T("KeyStop"), strKey);
     }
     SetDlgItemText(IDC_EDIT_CLICK_KEY_STOP, strKey);
+
+    // AI config
+    InitAIVendorCombo();
+    SetDlgItemText(IDC_EDIT_AI_KEY_CFG,
+        AfxGetApp()->GetProfileString(_T("AI"), _T("ApiKey"), _T("")));
 
     return TRUE;
 }
@@ -136,6 +143,17 @@ void CSettingsDlg::OnOK()
     AfxGetApp()->WriteProfileString(_T("AutoClicker"), _T("KeyStart"), strStart);
     AfxGetApp()->WriteProfileString(_T("AutoClicker"), _T("KeyStop"), strStop);
 
+    // Save AI config
+    CString aiVendor, aiKey;
+    CComboBox* pCombo = static_cast<CComboBox*>(GetDlgItem(IDC_COMBO_AI_VENDOR_CFG));
+    if (pCombo)
+    {
+        pCombo->GetWindowText(aiVendor);
+        AfxGetApp()->WriteProfileString(_T("AI"), _T("Vendor"), aiVendor);
+    }
+    GetDlgItemText(IDC_EDIT_AI_KEY_CFG, aiKey);
+    AfxGetApp()->WriteProfileString(_T("AI"), _T("ApiKey"), aiKey);
+
     DestroyWindow();
 }
 
@@ -166,4 +184,34 @@ void CSettingsDlg::BrowseFolder(UINT id, LPCTSTR title)
     CFolderPickerDialog dlg(NULL, 0, this);
     dlg.m_ofn.lpstrTitle = title;
     if (dlg.DoModal() == IDOK) SetDlgItemText(id, dlg.GetPathName());
+}
+
+void CSettingsDlg::InitAIVendorCombo()
+{
+    CComboBox* pCombo = static_cast<CComboBox*>(GetDlgItem(IDC_COMBO_AI_VENDOR_CFG));
+    if (!pCombo) return;
+
+    pCombo->ResetContent();
+    for (const auto& v : CAIApiClient::GetVendors())
+        pCombo->AddString(v.name);
+
+    CString savedVendor = AfxGetApp()->GetProfileString(_T("AI"), _T("Vendor"), _T("DeepSeek"));
+    int idx = pCombo->FindStringExact(-1, savedVendor);
+    if (idx != CB_ERR)
+        pCombo->SetCurSel(idx);
+    else
+        pCombo->SetCurSel(0);
+}
+
+void CSettingsDlg::OnBnClickedAiKeyShow()
+{
+    CEdit* pEdit = static_cast<CEdit*>(GetDlgItem(IDC_EDIT_AI_KEY_CFG));
+    if (!pEdit) return;
+
+    static bool bShowing = false;
+    bShowing = !bShowing;
+
+    pEdit->SetPasswordChar(bShowing ? 0 : _T('*'));
+    SetDlgItemText(IDC_BUTTON_AI_KEY_SHOW, bShowing ? _T("隐藏") : _T("显示"));
+    pEdit->Invalidate();
 }

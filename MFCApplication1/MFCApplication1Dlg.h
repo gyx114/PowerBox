@@ -8,8 +8,10 @@
 #include <stop_token>
 #include <string>
 #include <memory>
+#include <utility>
 #include "AutoClicker.h"
 #include "AutoClickerSpeedDlg.h"
+#include "AIApiClient.h"
 
 // Forward declarations for menu-launched dialogs
 class CQRCodeGenDlg;
@@ -298,4 +300,12 @@ public:
 
     // Sticky note dialog (modeless, auto-opened on startup)
     CStickyNoteDlg* m_pStickyNoteDlg{nullptr};
+
+    // AI Assistant
+    std::vector<std::pair<CString, CString>> m_aiHistory; // (role, content) pairs
+    CString BuildSystemPrompt();
+    void InitAIControls();
+    afx_msg void OnBnClickedAiSend();
+    afx_msg void OnBnClickedAiClear();
+    afx_msg LRESULT OnAiResponse(WPARAM wParam, LPARAM lParam);
 };

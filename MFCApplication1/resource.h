@@ -265,6 +265,20 @@
 #define IDC_STATIC_QUICK_SEP3           1255
 #define IDC_STATIC_QUICK_SEP4           1256
 #define IDC_BTN_FILELOCK_REFRESH2       1244
+// AI Assistant controls
+#define IDC_STATIC_AI_SEP               1259
+#define IDC_STATIC_AI_LABEL             1260
+#define IDC_COMBO_AI_VENDOR             1261
+#define IDC_EDIT_AI_HISTORY             1262
+#define IDC_EDIT_AI_INPUT               1263
+#define IDC_BUTTON_AI_SEND              1264
+#define IDC_BUTTON_AI_CLEAR             1265
+// AI config in settings dialog
+#define IDC_STATIC_AI_VENDOR_CFG        1266
+#define IDC_COMBO_AI_VENDOR_CFG         1267
+#define IDC_STATIC_AI_KEY_CFG           1268
+#define IDC_EDIT_AI_KEY_CFG             1269
+#define IDC_BUTTON_AI_KEY_SHOW          1270
 #define ID_FILE_SETTINGS                32775
 #define ID_FILE_EXIT                    32776
 #define ID_HELP_ABOUT                   32777
@@ -306,7 +320,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        150
 #define _APS_NEXT_COMMAND_VALUE         32837
-#define _APS_NEXT_CONTROL_VALUE         1257
+#define _APS_NEXT_CONTROL_VALUE         1271
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

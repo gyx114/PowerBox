@@ -231,6 +231,10 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_EN_CHANGE(IDC_EDIT_PROCESS_FILTER, &CMFCApplication1Dlg::OnProcessFilterChange)
     ON_BN_CLICKED(IDC_CHECK_PROCESS_REGEX, &CMFCApplication1Dlg::OnProcessFilterChange)
     ON_BN_CLICKED(IDC_BTN_PROCESS_REGEX_HELP, &CMFCApplication1Dlg::OnProcessRegexHelp)
+    // AI Assistant
+    ON_BN_CLICKED(IDC_BUTTON_AI_SEND, &CMFCApplication1Dlg::OnBnClickedAiSend)
+    ON_BN_CLICKED(IDC_BUTTON_AI_CLEAR, &CMFCApplication1Dlg::OnBnClickedAiClear)
+    ON_MESSAGE(WM_AI_RESPONSE, &CMFCApplication1Dlg::OnAiResponse)
 END_MESSAGE_MAP()
 
 
@@ -281,6 +285,7 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 	InitFileTab();
 	InitGitTab();
 	InitQuickTab();
+	InitAIControls();
 
 	// Update control visibility based on current selected tab
 	int nCur = 0;
@@ -671,6 +676,13 @@ BOOL CMFCApplication1Dlg::PreTranslateMessage(MSG* pMsg)
                 if (nID == IDC_EDIT6)
                 {
                     OnBnClickedButton17();
+                    return TRUE;
+                }
+
+                // AI input: send message
+                if (nID == IDC_EDIT_AI_INPUT)
+                {
+                    OnBnClickedAiSend();
                     return TRUE;
                 }
 
@@ -1248,6 +1260,330 @@ void CMFCApplication1Dlg::OnToolsFileLock()
 	}
 	pDlg->ShowWindow(SW_SHOW);
 	pDlg->SetForegroundWindow();
+}
+
+// ========== AI Assistant ==========
+
+void CMFCApplication1Dlg::InitAIControls()
+{
+    // Initialize vendor combo box
+    CComboBox* pCombo = static_cast<CComboBox*>(GetDlgItem(IDC_COMBO_AI_VENDOR));
+    if (pCombo)
+    {
+        pCombo->ResetContent();
+        for (const auto& v : CAIApiClient::GetVendors())
+            pCombo->AddString(v.name);
+        CString savedVendor = AfxGetApp()->GetProfileString(_T("AI"), _T("Vendor"), _T("DeepSeek"));
+        int idx = pCombo->FindStringExact(-1, savedVendor);
+        pCombo->SetCurSel(idx != CB_ERR ? idx : 0);
+    }
+
+    // Set history edit to read-only
+    CEdit* pHistory = static_cast<CEdit*>(GetDlgItem(IDC_EDIT_AI_HISTORY));
+    if (pHistory)
+    {
+        pHistory->SetReadOnly(TRUE);
+    }
+}
+
+CString CMFCApplication1Dlg::BuildSystemPrompt()
+{
+    return _T("You are an AI assistant integrated into a Windows MFC toolbox application. ")
+        _T("Your role is to help users understand and use this toolbox, troubleshoot issues, and answer related questions.\n\n")
+
+        _T("=== APPLICATION OVERVIEW ===\n\n")
+        _T("This is a multifunctional Windows toolbox with 6 left-side tab pages, ")
+        _T("3 right-side quick-action sub-tabs, and 9 tools accessible from the menu bar.\n")
+        _T("The application runs with administrator privileges and supports system tray minimization.\n\n")
+
+        _T("=== LEFT TAB PAGES (6 tabs, switchable via Alt+1~6 or View menu) ===\n\n")
+
+        _T("1. Process Management (Tab 1)\n")
+        _T("   - Displays all running processes: name, PID, full path, memory usage (KB)\n")
+        _T("   - Click column headers to sort ascending/descending (arrow indicators)\n")
+        _T("   - Filter box: type keywords to filter processes; check 'Regex' for regex filtering\n")
+        _T("   - Right-click a process: 'End Process' (WM_CLOSE then TerminateProcess) or 'End All Same-Name Processes'\n")
+        _T("   - Right-click a process: 'Open File Location' opens Explorer at the executable\n")
+        _T("   - F5 refreshes the process list\n")
+        _T("   - Help button opens regex reference guide\n\n")
+
+        _T("2. Startup Management (Tab 2)\n")
+        _T("   - Shows current user's startup items from HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\n")
+        _T("   - Displays startup name and command line\n")
+        _T("   - Right-click: 'Add Startup Item' (select .exe via file dialog), 'Delete Startup Item', 'Copy Path'\n")
+        _T("   - Double-click copies the startup item's command line\n")
+        _T("   - F5 refreshes the startup list\n\n")
+
+        _T("3. Clipboard (Tab 3)\n")
+        _T("   - Real-time clipboard monitoring: auto-records last 10 copied text items\n")
+        _T("   - Double-click any item to re-copy it to clipboard\n")
+        _T("   - Duplicate consecutive entries are automatically deduplicated\n\n")
+
+        _T("4. Window Handling (Tab 4)\n")
+        _T("   - 'Locate Window' button (or Ctrl+Alt+D): click a target window to capture its details\n")
+        _T("   - LIST5 shows window details: handle, title, process name, PID, executable path, position/size\n")
+        _T("   - LIST6 (topmost list): managed topmost windows; right-click to untopmost or delete\n")
+        _T("   - LIST7 (history list): previously located windows; right-click to topmost/untopmost or delete\n")
+        _T("   - Click items in LIST6/LIST7 to load their details into LIST5\n")
+        _T("   - Transparency slider: adjust selected window's opacity (10%-100%)\n")
+        _T("   - 'Force Kill Process': terminate the process owning the selected window\n")
+        _T("   - 'Window Screenshot': capture selected window as PNG, save to configured directory and clipboard\n")
+        _T("   - 'Window Topmost' checkbox: keep the toolbox itself always on top\n")
+        _T("   - Window menu: Locate, Un-topmost All, Close Window\n\n")
+
+        _T("5. File Management (Tab 5)\n")
+        _T("   - Drag and drop a file to display its path; auto-fills filename and extension for rename\n")
+        _T("   - Drag and drop a folder to open Batch Rename dialog\n")
+        _T("   - 'Make Copy': creates a copy in the same directory (auto-adds '_copy' suffix to avoid conflicts)\n")
+        _T("   - 'Rename': validates filename (no illegal characters), checks target doesn't exist, then renames\n")
+        _T("   - 'Delete': moves file to Recycle Bin (not permanent delete)\n")
+        _T("   - 'Copy To' / 'Move To': select destination folder, then copy or move the dragged file\n")
+        _T("   - 'Clear Path' button resets to default state\n\n")
+
+        _T("6. Git Toolbox (Tab 6)\n")
+        _T("   - Pre-loaded with 20 common Git commands (init, add, commit, push, pull, clone, status, branch, checkout, merge, log, restore, etc.)\n")
+        _T("   - Drag files/folders to set the Git working directory\n")
+        _T("   - Double-click a command to execute it in the working directory\n")
+        _T("   - Right-click to copy the command text\n")
+        _T("   - 'Git Bash' button opens Git Bash in the current working directory\n")
+        _T("   - Commands can be customized in config.ini under [GitCommands] section (Cmd1~Cmd99, format: 'Description|Command')\n\n")
+
+        _T("=== RIGHT SIDE QUICK ACTIONS (3 sub-tabs) ===\n\n")
+
+        _T("Common tab:\n")
+        _T("   - Quick launch: WeChat (Ctrl+Alt+W if running), QQ (Ctrl+Alt+X if running), Bilibili, Yuanbao, VS, VSCode\n")
+        _T("   - Open folders: Study, Downloads\n")
+        _T("   - Open URLs: MOOC, SDUCS, LeetCode, GitHub\n")
+        _T("   - Bilibili 'Next Track': sends ']' key to Bilibili player window, or global media next track\n\n")
+
+        _T("System tab:\n")
+        _T("   - Shutdown/Restart: dropdown with '1min restart', '3min shutdown', 'Custom time shutdown' (set H/M/S)\n")
+        _T("   - 'Execute' button triggers the shutdown/restart; 'Cancel' button aborts it\n")
+        _T("   - Volume: slider (0-100), input box (Enter to apply), 'Apply' button, 'Mute' (0%), '10%' button\n")
+        _T("   - 'Task Manager' button opens Windows Task Manager\n\n")
+
+        _T("Tools tab:\n")
+        _T("   - 'PowerShell': choose normal or admin mode\n")
+        _T("   - 'WSL': launch WSL terminal\n")
+        _T("   - Run command input box: type exe path, URL, or cmd command, press Enter to execute\n")
+        _T("   - 'Clear' button clears the command input\n\n")
+
+        _T("=== MENU BAR TOOLS (9 independent dialogs) ===\n\n")
+
+        _T("1. 二维码生成\n")
+        _T("   - Enter text or URL, click '生成二维码' to create a QR code image\n")
+        _T("   - 'Copy' copies the QR image to clipboard; 'Save' exports as PNG or BMP\n")
+        _T("   - QR code has 4px white margin\n\n")
+
+        _T("2. 截图OCR\n")
+        _T("   - Click '开始截图' to hide the window, then drag a screen region to capture\n")
+        _T("   - Automatically runs OCR on the captured area (small images are 2x upscaled for accuracy)\n")
+        _T("   - Language dropdown: Chinese, English, Japanese, Korean\n")
+        _T("   - 'Translate' button translates OCR result via MyMemory API (free, 10s timeout)\n")
+        _T("   - 'Copy' copies the translated text (or original OCR text if no translation)\n")
+        _T("   - Press ESC to cancel capture\n\n")
+
+        _T("3. 文件夹处理\n")
+        _T("   - Tab 1 'Folder Operations': list subfolders, rename/move/delete selected folders\n")
+        _T("   - Tab 2 'File Batch Processing':\n")
+        _T("     * Rename rules: add prefix/suffix, find & replace (regex supported)\n")
+        _T("     * Auto-numbering: start number, zero-padded, place before or after extension\n")
+        _T("     * Delete matching: regex-based file deletion to Recycle Bin, with invert option\n")
+        _T("     * Ignore rules: by extension or filename pattern (regex), manual ignore/unignore\n")
+        _T("     * Track rules: only process tracked files (overrides ignore)\n")
+        _T("   - File list supports drag-and-drop reordering with blue insertion line\n")
+        _T("   - Right-click menu: ignore, track, mark for deletion, modify extension, forward/backward move, locate in Explorer\n")
+        _T("   - 'Preview' shows rename results; 'Execute' applies changes; 'Undo' reverts last rename\n")
+        _T("   - 'Reset All' clears all rules and marks; F5 refreshes the file list\n\n")
+
+        _T("4. 简易便签\n")
+        _T("   - Auto-starts at application launch, positioned at right 3/5 of screen\n")
+        _T("   - Initially collapsed to title bar only; double-click title bar to expand\n")
+        _T("   - In expanded state: X button collapses to title bar; minimize button collapses to title bar\n")
+        _T("   - In collapsed state: X button exits; double-click title bar expands\n")
+        _T("   - Right-click title bar: 'Exit Sticky Note'\n")
+        _T("   - Content auto-saves to sticky_note.txt (UTF-8) in the configured save folder\n")
+        _T("   - 'Browse' button to change save folder\n\n")
+
+        _T("5. Markdown 预览\n")
+        _T("   - Left editor panel + right rendered preview, splitter is draggable\n")
+        _T("   - 'Open' button or drag-drop .md files\n")
+        _T("   - Real-time preview updates as you type\n")
+        _T("   - Supports: headings, bold, italic, inline code, code blocks, links, blockquotes, strikethrough, lists, tables, horizontal rules\n")
+        _T("   - GitHub-style CSS rendering; max file size 10MB\n\n")
+
+        _T("6. 编码转换\n")
+        _T("   - 'Open' or drag-drop a text file (txt, md, csv, log, etc.)\n")
+        _T("   - Auto-detects source encoding (BOM check → UTF-8 validation → GBK fallback)\n")
+        _T("   - Left panel shows source encoding interpretation; right panel shows target encoding interpretation\n")
+        _T("   - Supported encodings: UTF-8, UTF-8 BOM, UTF-16LE, UTF-16LE BOM, UTF-16BE, GBK, Big5, Shift-JIS, Latin-1\n")
+        _T("   - 'Save As' exports with target encoding; 'Overwrite' replaces original (moves original to Recycle Bin first)\n")
+        _T("   - Max file size 10MB\n\n")
+
+        _T("7. 右键菜单管理\n")
+        _T("   - Scan and manage Windows right-click context menu items\n")
+        _T("   - Scene dropdown: 28+ scenarios (All, File, Folder, Directory Background, Desktop, Drive, etc.)\n")
+        _T("   - 14 common extension presets (.jpg, .png, .txt, .pdf, etc.) + custom extension query\n")
+        _T("   - List shows: location, display name, type (Static/ShellEx), visibility, key name, command\n")
+        _T("   - Right-click: enable/disable items, custom name resolution, locate in registry\n")
+        _T("   - 'Folder Right-Click Menu' checkbox: add/remove this tool from folder context menu\n")
+        _T("   - 'Win11 Classic Menu' checkbox: toggle Win11 old/new right-click style (requires Explorer restart)\n")
+        _T("   - 'Rebuild Dictionary': query ShellEx display names via COM and cache them\n")
+        _T("   - 'Dictionary Path': configure custom dictionary folder; 'Open Dictionary' opens it in Explorer\n")
+        _T("   - F5 refreshes; disabled items use LegacyDisable + ProgrammaticAccessOnly mechanism\n\n")
+
+        _T("8. 环境变量管理\n")
+        _T("   - Top list: system variables; bottom list: user variables\n")
+        _T("   - Search box: real-time filtering across both lists\n")
+        _T("   - 'Add': choose system or user scope, enter variable name and value\n")
+        _T("   - 'Edit' or double-click: PATH variable opens dedicated editor; others open simple input dialog\n")
+        _T("   - 'Delete': removes selected variable (with confirmation)\n")
+        _T("   - 'Export': save all variables to .txt or .env file\n")
+        _T("   - Right-click: edit, delete, copy name, copy value\n")
+        _T("   - PATH Editor: list entries as individual rows; add/remove/reorder (up/down) entries\n")
+        _T("   - Auto-backup: before any modification, current values are backed up to temp folder with timestamp\n")
+        _T("   - F5 refreshes; broadcasts WM_SETTINGCHANGE after modifications\n\n")
+
+        _T("9. 文件占用查看\n")
+        _T("   - Drag and drop files to see which processes are locking them (uses Restart Manager API)\n")
+        _T("   - List shows: file path, process name, PID, process type, process path\n")
+        _T("   - 'End' terminates selected process; 'End All' terminates all listed processes\n")
+        _T("   - 'Locate' opens the process's folder in Explorer\n")
+        _T("   - 'Refresh' re-queries; 'Clear' empties the list\n")
+        _T("   - Double-click or right-click for context menu\n")
+        _T("   - Confirmation dialog before killing any process\n\n")
+
+        _T("=== OTHER FEATURES ===\n\n")
+        _T("   - Auto-clicker: check 'Auto Clicker' box to enable; press start key to begin clicking, stop key to stop\n")
+        _T("     Configurable interval (ms) and start/stop keys in Settings; speed adjustment window appears when active\n")
+        _T("   - Prevent auto-lock: check 'Prevent Lock' to keep screen on (SetThreadExecutionState)\n")
+        _T("   - Auto-start with Windows: check 'Auto Start' to add to registry Run key\n")
+        _T("   - 'Window Topmost' checkbox: keep toolbox always on top\n")
+        _T("   - 'Minimize to Tray' checkbox: X button minimizes to system tray instead of closing\n")
+        _T("   - System tray: double-click icon to restore; right-click for 'Show Window' or 'Exit'\n\n")
+
+        _T("=== KEYBOARD SHORTCUTS ===\n\n")
+        _T("   - Ctrl+Alt+Space: show/hide main window (global hotkey)\n")
+        _T("   - Alt+1~6: switch to left tab pages 1-6\n")
+        _T("   - Ctrl+Alt+D: start window locate mode\n")
+        _T("   - F5: refresh current tab's list (process, startup, or other)\n")
+        _T("   - Enter: apply volume / execute command when focus is in those input boxes\n\n")
+
+        _T("=== CONFIGURATION ===\n\n")
+        _T("   - File > Settings: configure all app paths (Bilibili, WeChat, QQ, VSCode, VS, Git Bash, Yuanbao), ")
+        _T("folder paths (Study, Downloads, Screenshot, Sticky Note), URLs (MOOC, SDUCS), ")
+        _T("auto-clicker interval and start/stop keys, AI vendor and API key\n")
+        _T("   - Config file: config.ini in the same directory as the executable\n")
+        _T("   - The AI vendor and API key can be configured in Settings > 'AI Assistant' section\n\n")
+
+        _T("When answering user questions:\n")
+        _T("   - Primary language: respond in Chinese by default, as the application UI is in Chinese\n")
+        _T("   - If the user asks in English, respond in English; if the user asks in other languages, respond in that language\n")
+        _T("   - If the user mixes languages, use the dominant language of their question\n")
+        _T("   - Be concise and direct; provide step-by-step instructions when needed\n")
+        _T("   - If the user asks about a feature you're unsure about, ask them to check the actual UI\n")
+        _T("   - If the user encounters an error, suggest checking the config.ini file and file permissions\n")
+        _T("   - This application requires administrator privileges for most operations\n");
+}
+
+void CMFCApplication1Dlg::OnBnClickedAiSend()
+{
+    CEdit* pInput = static_cast<CEdit*>(GetDlgItem(IDC_EDIT_AI_INPUT));
+    if (!pInput) return;
+
+    CString userMsg;
+    pInput->GetWindowText(userMsg);
+    userMsg.Trim();
+    if (userMsg.IsEmpty()) return;
+
+    pInput->SetWindowText(_T(""));
+
+    if (m_aiHistory.empty())
+    {
+        m_aiHistory.push_back({ _T("system"), BuildSystemPrompt() });
+    }
+
+    m_aiHistory.push_back({ _T("user"), userMsg });
+
+    CEdit* pHistory = static_cast<CEdit*>(GetDlgItem(IDC_EDIT_AI_HISTORY));
+    if (pHistory)
+    {
+        CString current;
+        pHistory->GetWindowText(current);
+        current += _T("You: ") + userMsg + _T("\r\n");
+        pHistory->SetWindowText(current);
+        int nLen = pHistory->GetWindowTextLength();
+        pHistory->SetSel(nLen, nLen);
+    }
+
+    CString vendor = AfxGetApp()->GetProfileString(_T("AI"), _T("Vendor"), _T("DeepSeek"));
+    CString apiKey = AfxGetApp()->GetProfileString(_T("AI"), _T("ApiKey"), _T(""));
+    CString model = AfxGetApp()->GetProfileString(_T("AI"), _T("Model"), _T(""));
+
+    if (apiKey.IsEmpty())
+    {
+        if (pHistory)
+        {
+            CString current;
+            pHistory->GetWindowText(current);
+            current += _T("AI: [Error] Please configure API Key in File > Settings > AI Assistant.\r\n");
+            pHistory->SetWindowText(current);
+            int nLen = pHistory->GetWindowTextLength();
+            pHistory->SetSel(nLen, nLen);
+        }
+        m_aiHistory.pop_back();
+        return;
+    }
+
+    CWnd* pSend = GetDlgItem(IDC_BUTTON_AI_SEND);
+    if (pSend) pSend->EnableWindow(FALSE);
+
+    CAIApiClient::SendAsync(m_aiHistory, vendor, apiKey, model, m_hWnd);
+}
+
+void CMFCApplication1Dlg::OnBnClickedAiClear()
+{
+    m_aiHistory.clear();
+    CEdit* pHistory = static_cast<CEdit*>(GetDlgItem(IDC_EDIT_AI_HISTORY));
+    if (pHistory)
+        pHistory->SetWindowText(_T(""));
+}
+
+LRESULT CMFCApplication1Dlg::OnAiResponse(WPARAM wParam, LPARAM lParam)
+{
+    CWnd* pSend = GetDlgItem(IDC_BUTTON_AI_SEND);
+    if (pSend) pSend->EnableWindow(TRUE);
+
+    CString* pResult = reinterpret_cast<CString*>(lParam);
+    if (!pResult) return 0;
+
+    CString response = *pResult;
+    delete pResult;
+
+    bool bSuccess = (wParam == 1);
+
+    if (bSuccess)
+    {
+        m_aiHistory.push_back({ _T("assistant"), response });
+    }
+    else
+    {
+        if (!m_aiHistory.empty() && m_aiHistory.back().first == _T("user"))
+            m_aiHistory.pop_back();
+    }
+
+    CEdit* pHistory = static_cast<CEdit*>(GetDlgItem(IDC_EDIT_AI_HISTORY));
+    if (pHistory)
+    {
+        CString current;
+        pHistory->GetWindowText(current);
+        current += _T("AI: ") + response + _T("\r\n");
+        pHistory->SetWindowText(current);
+        int nLen = pHistory->GetWindowTextLength();
+        pHistory->SetSel(nLen, nLen);
+    }
+
+    return 0;
 }
 
 
