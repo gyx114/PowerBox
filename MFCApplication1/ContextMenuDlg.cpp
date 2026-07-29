@@ -1755,10 +1755,43 @@ void CContextMenuDlg::SaveSelfContextMenuState(bool bEnable)
 				(cmd.GetLength() + 1) * sizeof(TCHAR));
 			RegCloseKey(hKey);
 		}
+
+		// Fix: ensure our new verb does NOT become the default double-click action.
+		// If HKCR\Directory\shell has no default value (or was set to "MFCApplication1"),
+		// Windows picks the first verb alphabetically, hijacking folder double-click.
+		HKEY hShell = nullptr;
+		if (RegOpenKeyEx(HKEY_CLASSES_ROOT, _T("Directory\\shell"), 0, KEY_READ | KEY_WRITE, &hShell) == ERROR_SUCCESS)
+		{
+			TCHAR szDefault[64] = { 0 };
+			DWORD cbDefault = sizeof(szDefault);
+			LONG lr = RegQueryValueEx(hShell, nullptr, nullptr, nullptr, (LPBYTE)szDefault, &cbDefault);
+			if (lr != ERROR_SUCCESS || szDefault[0] == 0 ||
+				_tcsicmp(szDefault, _T("MFCApplication1")) == 0)
+			{
+				// No default verb or hijacked by us — set to "none" so double-click falls back to "open"
+				const TCHAR* szNone = _T("none");
+				RegSetValueEx(hShell, nullptr, 0, REG_SZ, (LPBYTE)szNone, (DWORD)(sizeof(_T("none"))));
+			}
+			RegCloseKey(hShell);
+		}
 	}
 	else
 	{
 		DeleteRegistryKeyRecursive(HKEY_CLASSES_ROOT, baseKey);
+
+		// If we previously set the default to "none" to prevent hijacking, restore it
+		HKEY hShell = nullptr;
+		if (RegOpenKeyEx(HKEY_CLASSES_ROOT, _T("Directory\\shell"), 0, KEY_READ | KEY_WRITE, &hShell) == ERROR_SUCCESS)
+		{
+			TCHAR szDefault[64] = { 0 };
+			DWORD cbDefault = sizeof(szDefault);
+			if (RegQueryValueEx(hShell, nullptr, nullptr, nullptr, (LPBYTE)szDefault, &cbDefault) == ERROR_SUCCESS
+				&& _tcsicmp(szDefault, _T("none")) == 0)
+			{
+				RegDeleteValue(hShell, nullptr);
+			}
+			RegCloseKey(hShell);
+		}
 	}
 }
 
