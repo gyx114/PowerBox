@@ -23,6 +23,7 @@
 #include "ContextMenuDlg.h"
 #include "EnvVarDlg.h"
 #include "FileLockDlg.h"
+#include "ProcessScanDlg.h"
 #include <TlHelp32.h>
 #include <Shellapi.h>
 #include <Psapi.h>
@@ -242,6 +243,7 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_MESSAGE(WM_AI_RESPONSE, &CMFCApplication1Dlg::OnAiResponse)
     ON_MESSAGE(WM_AI_STREAM_CHUNK, &CMFCApplication1Dlg::OnAiStreamChunk)
     ON_MESSAGE(WM_AI_STREAM_DONE, &CMFCApplication1Dlg::OnAiStreamDone)
+    ON_MESSAGE(WM_PROCESS_SCAN_START, &CMFCApplication1Dlg::OnProcessScanStart)
     ON_WM_TIMER()
 END_MESSAGE_MAP()
 

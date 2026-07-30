@@ -283,6 +283,7 @@ public:
     // Process AI features
     afx_msg void OnBnClickedProcessAiScan();
     afx_msg void OnProcessAiAnalyze();
+    afx_msg LRESULT OnProcessScanStart(WPARAM wParam, LPARAM lParam);
     static bool GetProcessSignatureInfo(const CString& path, CString& outSigner, bool& outValid);
     static bool GetProcessVersionInfo(const CString& path, CString& outCompany, CString& outOriginalName);
     // Git list handlers

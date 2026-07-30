@@ -233,6 +233,14 @@ std::string CAIApiClient::SendRequestInternal(
     if (!hSession.IsValid())
         throw AiNetworkError("WinHttpOpen failed", GetLastError());
 
+    // Configure timeouts (ms): resolve, connect, send, receive
+    // Long receive timeout (600s) for large context generations
+    DWORD resolveTimeout = 10000;
+    DWORD connectTimeout = 15000;
+    DWORD sendTimeout    = 30000;
+    DWORD receiveTimeout = 600000;
+    WinHttpSetTimeouts(hSession, resolveTimeout, connectTimeout, sendTimeout, receiveTimeout);
+
     WinHttpHandle hConnect(WinHttpConnect(hSession, server, (INTERNET_PORT)port, 0));
     if (!hConnect.IsValid())
         throw AiNetworkError("WinHttpConnect failed", GetLastError());
@@ -278,20 +286,67 @@ std::string CAIApiClient::SendRequestInternal(
     // Read response body
     std::string response;
     DWORD dwSize = 0;
+    DWORD totalBytes = 0;
+    DWORD loopCount = 0;
     do
     {
         dwSize = 0;
         if (!WinHttpQueryDataAvailable(hRequest, &dwSize) || dwSize == 0)
+        {
+            // If totalBytes > 0 but loop exits, treat as normal end
+            // If totalBytes == 0, might be premature close; check GetLastError
+            if (totalBytes == 0)
+            {
+                DWORD err = GetLastError();
+                if (err != ERROR_SUCCESS && err != ERROR_IO_PENDING)
+                {
+                    char errBuf[256];
+                    sprintf_s(errBuf, "WinHttp: received %u bytes then error %u on QueryDataAvailable",
+                        totalBytes, (unsigned)err);
+                    throw AiNetworkError(errBuf, err);
+                }
+            }
             break;
+        }
 
         std::vector<char> buf(dwSize + 1);
         DWORD dwDownloaded = 0;
-        if (!WinHttpReadData(hRequest, buf.data(), dwSize, &dwDownloaded))
+        if (!WinHttpReadData(hRequest, buf.data(), dwSize, &dwDownloaded) || dwDownloaded == 0)
+        {
+            if (totalBytes == 0)
+            {
+                DWORD err = GetLastError();
+                char errBuf[256];
+                sprintf_s(errBuf, "WinHttp ReadData failed after %u bytes, error %u",
+                    totalBytes, (unsigned)err);
+                throw AiNetworkError(errBuf, err);
+            }
             break;
+        }
 
         buf[dwDownloaded] = '\0';
         response.append(buf.data(), dwDownloaded);
+        totalBytes += dwDownloaded;
+        loopCount++;
+
+        // Safety: cap at 50MB to avoid runaway memory
+        if (totalBytes > 50 * 1024 * 1024)
+        {
+            throw AiNetworkError("Response exceeds 50MB limit", 413);
+        }
     } while (dwSize > 0);
+
+    // Diagnostic: if statusCode was 200 but body empty, give detailed message
+    if (response.empty() && statusCode == 200)
+    {
+        char diag[256];
+        sprintf_s(diag,
+            "HTTP 200 OK but empty body (loops=%u, total=%u bytes). "
+            "Possible: response too large / context exceeded / server closed connection early. "
+            "Try reducing input size or switch to streaming mode.",
+            (unsigned)loopCount, (unsigned)totalBytes);
+        throw AiNetworkError(diag, (int)statusCode);
+    }
 
     // All handles auto-closed by RAII on scope exit
     return response;
@@ -514,6 +569,13 @@ void CAIApiClient::SendAsyncStreaming(
                 WINHTTP_NO_PROXY_BYPASS, 0));
             if (!hSession.IsValid())
                 throw AiNetworkError("WinHttpOpen failed", GetLastError());
+
+            // Configure timeouts (ms): resolve, connect, send, receive
+            DWORD resolveTimeout = 10000;
+            DWORD connectTimeout = 15000;
+            DWORD sendTimeout    = 30000;
+            DWORD receiveTimeout = 600000;
+            WinHttpSetTimeouts(hSession, resolveTimeout, connectTimeout, sendTimeout, receiveTimeout);
 
             WinHttpHandle hConnect(WinHttpConnect(hSession, server, (INTERNET_PORT)port, 0));
             if (!hConnect.IsValid())

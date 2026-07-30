@@ -16,8 +16,12 @@ CProcessScanDlg::CProcessScanDlg(CWnd* pParent)
 {
     m_listLeft = m_listTop = 0;
     m_listRightMargin = 0;
-    m_btnEndLeft = m_btnLocateLeft = m_btnEndAllLeft = 0;
+    m_btnEndLeft = m_btnLocateLeft = m_btnEndAllLeft = m_btnStartLeft = 0;
     m_btnWidth = m_btnHeight = 0;
+    m_labelLevelLeft = m_labelLevelTop = 0;
+    m_labelLevelWidth = m_labelLevelHeight = 0;
+    m_cmbLevelLeft = m_cmbLevelTop = 0;
+    m_cmbLevelWidth = m_cmbLevelHeight = 0;
     m_statusLeft = m_statusTop = 0;
     m_statusWidth = m_statusHeight = 0;
 }
@@ -31,10 +35,13 @@ void CProcessScanDlg::DoDataExchange(CDataExchange* pDX)
 
 BEGIN_MESSAGE_MAP(CProcessScanDlg, CDialogEx)
     ON_MESSAGE(WM_AI_RESPONSE, &CProcessScanDlg::OnAiResponse)
+    ON_MESSAGE(WM_AI_STREAM_CHUNK, &CProcessScanDlg::OnAiStreamChunk)
+    ON_MESSAGE(WM_AI_STREAM_DONE, &CProcessScanDlg::OnAiStreamDone)
     ON_WM_SIZE()
     ON_BN_CLICKED(IDC_BTN_SCAN_END, &CProcessScanDlg::OnBnClickedScanEnd)
     ON_BN_CLICKED(IDC_BTN_SCAN_LOCATE, &CProcessScanDlg::OnBnClickedScanLocate)
     ON_BN_CLICKED(IDC_BTN_SCAN_ENDALL, &CProcessScanDlg::OnBnClickedScanEndAll)
+    ON_BN_CLICKED(IDC_BTN_SCAN_START, &CProcessScanDlg::OnBnClickedScanStart)
     ON_NOTIFY(NM_RCLICK, IDC_LIST_SCAN_RESULTS, &CProcessScanDlg::OnNMRClickList)
     ON_COMMAND(IDM_SCAN_END, &CProcessScanDlg::OnMenuScanEnd)
     ON_COMMAND(IDM_SCAN_LOCATE, &CProcessScanDlg::OnMenuScanLocate)
@@ -68,6 +75,9 @@ BOOL CProcessScanDlg::OnInitDialog()
     CWnd* pBtnEnd = GetDlgItem(IDC_BTN_SCAN_END);
     CWnd* pBtnLocate = GetDlgItem(IDC_BTN_SCAN_LOCATE);
     CWnd* pBtnEndAll = GetDlgItem(IDC_BTN_SCAN_ENDALL);
+    CWnd* pBtnStart = GetDlgItem(IDC_BTN_SCAN_START);
+    CWnd* pLabelLevel = GetDlgItem(IDC_STATIC_SCAN_LEVEL_LABEL);
+    CWnd* pCmbLevelWnd = GetDlgItem(IDC_COMBO_SCAN_LEVEL);
     CWnd* pStatus = GetDlgItem(IDC_STATIC_SCAN_STATUS);
 
     m_listLeft = rcList.left;
@@ -77,6 +87,9 @@ BOOL CProcessScanDlg::OnInitDialog()
     if (pBtnEnd) { pBtnEnd->GetWindowRect(&rcBtn); ScreenToClient(&rcBtn); m_btnEndLeft = rcBtn.left; m_btnWidth = rcBtn.Width(); m_btnHeight = rcBtn.Height(); }
     if (pBtnLocate) { pBtnLocate->GetWindowRect(&rcBtn); ScreenToClient(&rcBtn); m_btnLocateLeft = rcBtn.left; }
     if (pBtnEndAll) { pBtnEndAll->GetWindowRect(&rcBtn); ScreenToClient(&rcBtn); m_btnEndAllLeft = rcBtn.left; }
+    if (pBtnStart) { pBtnStart->GetWindowRect(&rcBtn); ScreenToClient(&rcBtn); m_btnStartLeft = rcBtn.left; }
+    if (pLabelLevel) { pLabelLevel->GetWindowRect(&rcBtn); ScreenToClient(&rcBtn); m_labelLevelLeft = rcBtn.left; m_labelLevelTop = rcBtn.top; m_labelLevelWidth = rcBtn.Width(); m_labelLevelHeight = rcBtn.Height(); }
+    if (pCmbLevelWnd) { pCmbLevelWnd->GetWindowRect(&rcBtn); ScreenToClient(&rcBtn); m_cmbLevelLeft = rcBtn.left; m_cmbLevelTop = rcBtn.top; m_cmbLevelWidth = rcBtn.Width(); m_cmbLevelHeight = rcBtn.Height(); }
     if (pStatus) { pStatus->GetWindowRect(&rcBtn); ScreenToClient(&rcBtn); m_statusLeft = rcBtn.left; m_statusTop = rcBtn.top; m_statusWidth = rcBtn.Width(); m_statusHeight = rcBtn.Height(); }
 
     // Set initial column widths based on original list size from RC
@@ -93,7 +106,17 @@ BOOL CProcessScanDlg::OnInitDialog()
         }
     }
 
-    UpdateStatus(_T("正在扫描进程..."));
+    // Initialize scan level combo box
+    CComboBox* pCmbLevel = static_cast<CComboBox*>(GetDlgItem(IDC_COMBO_SCAN_LEVEL));
+    if (pCmbLevel)
+    {
+        pCmbLevel->AddString(_T("保守"));
+        pCmbLevel->AddString(_T("标准"));
+        pCmbLevel->AddString(_T("激进"));
+        pCmbLevel->SetCurSel(1); // Default to "标准"
+    }
+
+    UpdateStatus(_T("就绪 - 请选择审查级别后点击""开始扫描"""));
 
     return TRUE;
 }
@@ -141,6 +164,20 @@ void CProcessScanDlg::ResizeControls()
     if (pBtnEndAll && IsWindow(pBtnEndAll->m_hWnd))
         pBtnEndAll->SetWindowPos(nullptr, m_btnEndAllLeft, btnY, m_btnWidth, m_btnHeight, SWP_NOZORDER);
 
+    CWnd* pBtnStart = GetDlgItem(IDC_BTN_SCAN_START);
+    if (pBtnStart && IsWindow(pBtnStart->m_hWnd))
+        pBtnStart->SetWindowPos(nullptr, m_btnStartLeft, btnY, m_btnWidth, m_btnHeight, SWP_NOZORDER);
+
+    // "审查级别:" label: fixed size from RC, only move position
+    CWnd* pLabelLevel = GetDlgItem(IDC_STATIC_SCAN_LEVEL_LABEL);
+    if (pLabelLevel && IsWindow(pLabelLevel->m_hWnd))
+        pLabelLevel->SetWindowPos(nullptr, m_labelLevelLeft, btnY + 2, m_labelLevelWidth, m_labelLevelHeight, SWP_NOZORDER);
+
+    // Scan level combo box: fixed size from RC, only move position
+    CWnd* pCmbLevel = GetDlgItem(IDC_COMBO_SCAN_LEVEL);
+    if (pCmbLevel && IsWindow(pCmbLevel->m_hWnd))
+        pCmbLevel->SetWindowPos(nullptr, m_cmbLevelLeft, btnY - 1, m_cmbLevelWidth, m_cmbLevelHeight, SWP_NOZORDER);
+
     // Status label: fixed size from RC, only move position
     CWnd* pStatus = GetDlgItem(IDC_STATIC_SCAN_STATUS);
     if (pStatus && IsWindow(pStatus->m_hWnd))
@@ -175,6 +212,14 @@ void CProcessScanDlg::UpdateStatus(const CString& text)
     SetDlgItemText(IDC_STATIC_SCAN_STATUS, text);
 }
 
+int CProcessScanDlg::GetScanLevel() const
+{
+    CComboBox* pCmb = static_cast<CComboBox*>(const_cast<CProcessScanDlg*>(this)->GetDlgItem(IDC_COMBO_SCAN_LEVEL));
+    if (pCmb && IsWindow(pCmb->m_hWnd))
+        return pCmb->GetCurSel();
+    return 1; // Default to "标准"
+}
+
 LRESULT CProcessScanDlg::OnAiResponse(WPARAM wParam, LPARAM lParam)
 {
     int success = static_cast<int>(wParam);
@@ -193,6 +238,49 @@ LRESULT CProcessScanDlg::OnAiResponse(WPARAM wParam, LPARAM lParam)
     }
 
     if (pResponse) delete pResponse;
+    return 0;
+}
+
+LRESULT CProcessScanDlg::OnAiStreamChunk(WPARAM wParam, LPARAM lParam)
+{
+    CString* pChunk = reinterpret_cast<CString*>(lParam);
+    if (pChunk)
+    {
+        m_streamBuffer += *pChunk;
+        delete pChunk;
+    }
+    return 0;
+}
+
+LRESULT CProcessScanDlg::OnAiStreamDone(WPARAM wParam, LPARAM lParam)
+{
+    int success = static_cast<int>(wParam);
+    CString* pFinal = reinterpret_cast<CString*>(lParam);
+
+    if (success)
+    {
+        CString full = m_streamBuffer;
+        if (pFinal && !pFinal->IsEmpty() && full.IsEmpty())
+            full = *pFinal;
+        if (!full.IsEmpty())
+        {
+            ParseAIResponse(full);
+        }
+        else
+        {
+            UpdateStatus(_T("AI扫描完成但无返回内容"));
+        }
+    }
+    else
+    {
+        CString errorMsg = pFinal ? *pFinal : CString(_T("未知错误"));
+        UpdateStatus(_T("AI扫描失败: ") + errorMsg);
+        MessageBox(_T("AI扫描失败，请检查网络连接和API密钥。\n") + errorMsg,
+            _T("AI扫描"), MB_OK | MB_ICONERROR);
+    }
+
+    m_streamBuffer.Empty();
+    if (pFinal) delete pFinal;
     return 0;
 }
 
@@ -437,10 +525,54 @@ void CProcessScanDlg::OnBnClickedScanEnd()
     CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST_SCAN_RESULTS));
     if (!pList) return;
 
+    // Collect all selected indices
+    std::vector<int> selected;
     int idx = pList->GetNextItem(-1, LVNI_SELECTED);
-    if (idx == -1) return;
+    while (idx != -1)
+    {
+        selected.push_back(idx);
+        idx = pList->GetNextItem(idx, LVNI_SELECTED);
+    }
+    if (selected.empty()) return;
 
-    EndProcess(idx);
+    if ((int)selected.size() == 1)
+    {
+        EndProcess(selected[0]);
+        return;
+    }
+
+    // Multi-select: confirm first, then batch-terminate
+    CString msg;
+    msg.Format(_T("确定要结束选中的 %d 个进程吗？\n此操作可能导致相关程序异常退出。"), (int)selected.size());
+    if (MessageBox(msg, _T("确认结束多个进程"), MB_YESNO | MB_ICONWARNING) != IDYES) return;
+
+    int success = 0, fail = 0;
+    // Sort indices descending so erasing larger ones doesn't invalidate smaller ones
+    std::sort(selected.begin(), selected.end(), std::greater<int>());
+    for (int i : selected)
+    {
+        if (i < 0 || i >= (int)m_entries.size()) { fail++; continue; }
+        auto& entry = m_entries[i];
+        HANDLE hProc = OpenProcess(PROCESS_TERMINATE, FALSE, entry.pid);
+        if (hProc)
+        {
+            if (TerminateProcess(hProc, 0))
+                success++;
+            else
+                fail++;
+            CloseHandle(hProc);
+            m_entries.erase(m_entries.begin() + i);
+        }
+        else
+        {
+            fail++;
+        }
+    }
+    RefreshList();
+
+    CString result;
+    result.Format(_T("已结束 %d 个进程，失败 %d 个。"), success, fail);
+    MessageBox(result, _T("批量结束结果"), MB_OK | MB_ICONINFORMATION);
 }
 
 void CProcessScanDlg::OnBnClickedScanLocate()
@@ -462,9 +594,45 @@ void CProcessScanDlg::OnBnClickedScanEndAll()
         return;
     }
 
-    CString msg;
-    msg.Format(_T("确定要批量结束列表中所有 %d 个进程吗？"), (int)m_entries.size());
-    if (MessageBox(msg, _T("确认批量结束"), MB_YESNO | MB_ICONWARNING) != IDYES) return;
+    int nTotal = (int)m_entries.size();
+
+    // Build a preview of the first several entries to be terminated
+    CString preview;
+    int previewCount = (nTotal < 8) ? nTotal : 8;
+    for (int i = 0; i < previewCount; i++)
+    {
+        CString line;
+        line.Format(_T("  %s (PID: %u)\n"), m_entries[i].name.GetString(), m_entries[i].pid);
+        preview += line;
+    }
+    if (nTotal > previewCount)
+    {
+        CString more;
+        more.Format(_T("  ......以及另外 %d 个进程\n"), nTotal - previewCount);
+        preview += more;
+    }
+
+    // First confirmation (critical warning, default button = NO)
+    CString step1;
+    step1.Format(_T("【警告】即将结束列表中全部 %d 个进程！\n\n")
+        _T("此操作不可撤销，可能导致：\n")
+        _T("  · 相关程序异常退出或系统功能异常\n")
+        _T("  · 未保存的数据丢失\n")
+        _T("  · 如AI分析存在误判，可能影响系统关键组件\n\n")
+        _T("请确认以下进程是否可以结束：\n%s\n")
+        _T("你是否清楚此操作的后果并确认继续？"),
+        nTotal, preview.GetString());
+    if (MessageBox(step1, _T("警告：全部结束（第一步确认）"),
+        MB_YESNO | MB_ICONSTOP | MB_DEFBUTTON2) != IDYES)
+        return;
+
+    // Second confirmation (double-check)
+    CString step2;
+    step2.Format(_T("最后确认：是否真的要强制结束列表中全部 %d 个进程？\n")
+        _T("请再次确认：这些进程中不包含系统正常运行所必需的关键进程。"), nTotal);
+    if (MessageBox(step2, _T("最终确认：全部结束"),
+        MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) != IDYES)
+        return;
 
     int success = 0, fail = 0;
     for (const auto& entry : m_entries)
@@ -485,12 +653,25 @@ void CProcessScanDlg::OnBnClickedScanEndAll()
     }
 
     CString result;
-    result.Format(_T("已结束 %d 个进程，失败 %d 个。"), success, fail);
-    MessageBox(result, _T("批量结束完成"), MB_OK | MB_ICONINFORMATION);
+    result.Format(_T("全部结束操作完成：\n成功 %d 个，失败 %d 个。"), success, fail);
+    MessageBox(result, _T("结束结果"), MB_OK | MB_ICONINFORMATION);
 
     m_entries.clear();
     RefreshList();
-    UpdateStatus(_T("批量结束完成"));
+    UpdateStatus(_T("全部结束操作完成"));
+}
+
+void CProcessScanDlg::OnBnClickedScanStart()
+{
+    int level = GetScanLevel();
+    UpdateStatus(_T("正在扫描进程..."));
+
+    // Notify parent (main dialog) to start the AI scan
+    CWnd* pParent = GetParent();
+    if (pParent && IsWindow(pParent->m_hWnd))
+    {
+        pParent->PostMessage(WM_PROCESS_SCAN_START, (WPARAM)level, (LPARAM)m_hWnd);
+    }
 }
 
 void CProcessScanDlg::OnNMRClickList(NMHDR* pNMHDR, LRESULT* pResult)
@@ -517,13 +698,8 @@ void CProcessScanDlg::OnNMRClickList(NMHDR* pNMHDR, LRESULT* pResult)
 
 void CProcessScanDlg::OnMenuScanEnd()
 {
-    CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST_SCAN_RESULTS));
-    if (!pList) return;
-
-    int idx = pList->GetNextItem(-1, LVNI_SELECTED);
-    if (idx == -1) return;
-
-    EndProcess(idx);
+    // Reuse button logic: supports multi-select
+    OnBnClickedScanEnd();
 }
 
 void CProcessScanDlg::OnMenuScanLocate()

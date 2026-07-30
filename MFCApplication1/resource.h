@@ -347,6 +347,9 @@
 #define IDC_BTN_COPY_RESULT            1288
 #define IDC_BTN_SAVE_RESULT            1289
 #define IDC_BTN_CLOSE_RESULT           1290
+#define IDC_STATIC_SCAN_LEVEL_LABEL    1291
+#define IDC_COMBO_SCAN_LEVEL           1292
+#define IDC_BTN_SCAN_START             1293
 
 // Next default values for new objects
 // 
@@ -354,7 +357,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        153
 #define _APS_NEXT_COMMAND_VALUE         32843
-#define _APS_NEXT_CONTROL_VALUE         1291
+#define _APS_NEXT_CONTROL_VALUE         1294
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
