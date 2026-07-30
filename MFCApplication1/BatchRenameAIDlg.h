@@ -5,8 +5,9 @@
 #include <filesystem>
 
 struct AIRenameMapping {
-    CString oldName;
-    CString newName;
+    CString oldName;                  // current name sent to AI
+    CString newName;                  // AI-generated name
+    std::filesystem::path fullPath;   // for matching back to entries
 };
 
 class CBatchRenameAIDlg : public CDialogEx

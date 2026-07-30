@@ -29,6 +29,7 @@ namespace fs = std::filesystem;
 #define IDM_FILE_MOVE_DOWN      32834
 #define IDM_FILE_MOVE_TO_UP     32835
 #define IDM_FILE_MOVE_TO_DOWN   32836
+#define IDM_FILE_CANCEL_AI      32838
 
 // Simple input dialog class
 class CInputDialog : public CDialogEx
@@ -133,6 +134,7 @@ BEGIN_MESSAGE_MAP(CBatchRenameDlg, CDialogEx)
     ON_COMMAND(IDM_FILE_MOVE_TO_UP, &CBatchRenameDlg::OnFileMoveToUp)
     ON_COMMAND(IDM_FILE_MOVE_TO_DOWN, &CBatchRenameDlg::OnFileMoveToDown)
     ON_COMMAND(IDM_FILE_AI_ANALYZE, &CBatchRenameDlg::OnFileAiAnalyze)
+    ON_COMMAND(IDM_FILE_CANCEL_AI, &CBatchRenameDlg::OnFileCancelAi)
     ON_NOTIFY(NM_RCLICK, IDC_LIST_RENAME, &CBatchRenameDlg::OnFileListRightClick)
     ON_NOTIFY(LVN_BEGINDRAG, IDC_LIST_RENAME, &CBatchRenameDlg::OnLvnBeginDrag)
     ON_NOTIFY(NM_CUSTOMDRAW, IDC_LIST_RENAME, &CBatchRenameDlg::OnCustomDrawList)
@@ -1538,11 +1540,11 @@ void CBatchRenameDlg::ApplyRules()
     if (bDeleteMatch)
         GetDlgItemText(IDC_EDIT_DELETE_PATTERN, deletePattern);
 
-    // Count non-ignored, non-deleted files for digit padding
+    // Count non-ignored, non-deleted files for digit padding (include AI entries)
     int activeCount = 0;
     for (size_t i = 0; i < m_entries.size(); i++)
     {
-        if (!m_entries[i].bIgnored && !m_entries[i].bMarkedDelete && !m_entries[i].bAiGenerated)
+        if (!m_entries[i].bIgnored && !m_entries[i].bMarkedDelete)
             activeCount++;
     }
 
@@ -1557,24 +1559,30 @@ void CBatchRenameDlg::ApplyRules()
 
     for (size_t i = 0; i < m_entries.size(); i++)
     {
-        // Ignored files: skip all operations
+        // Ignored files: skip all operations, but preserve AI-generated name
         if (m_entries[i].bIgnored)
         {
-            m_entries[i].newName = m_entries[i].oldName;
+            if (!m_entries[i].bAiGenerated)
+                m_entries[i].newName = m_entries[i].oldName;
+            // AI entries: keep newName (AI-generated) even when ignored
             m_entries[i].bMarkedDelete = false;
             continue;
         }
 
-        // AI-generated files: preserve the AI-generated name, skip rule-based generation
-        if (m_entries[i].bAiGenerated)
-            continue;
+        // Determine base name for rule application:
+        // AI entries use aiBaseName (idempotent), normal entries use oldName
+        CString name;
+        if (m_entries[i].bAiGenerated && !m_entries[i].aiBaseName.IsEmpty())
+            name = m_entries[i].aiBaseName;
+        else
+            name = m_entries[i].oldName;
 
         // Match delete check
         if (bDeleteMatch && !deletePattern.IsEmpty())
         {
             try
             {
-                std::wstring wName = static_cast<LPCWSTR>(m_entries[i].oldName);
+                std::wstring wName = static_cast<LPCWSTR>(name);
                 std::wregex re(static_cast<LPCWSTR>(deletePattern));
                 bool bMatched = std::regex_search(wName, re);
                 // Invert: delete when not matched, keep when matched
@@ -1595,7 +1603,6 @@ void CBatchRenameDlg::ApplyRules()
             continue;
         }
 
-        CString name = m_entries[i].oldName;
         int dotPos = name.ReverseFind(_T('.'));
         CString stem, ext;
         if (m_entries[i].bCustomExt)
@@ -1918,6 +1925,7 @@ void CBatchRenameDlg::OnFileListRightClick(NMHDR* /*pNMHDR*/, LRESULT* pResult)
         menu.AppendMenu(MF_STRING, IDM_FILE_EXPLORE, _T("在资源管理器中定位"));
         menu.AppendMenu(MF_SEPARATOR);
         menu.AppendMenu(MF_STRING, IDM_FILE_AI_ANALYZE, _T("AI解析文件名"));
+        menu.AppendMenu(MF_STRING, IDM_FILE_CANCEL_AI, _T("取消AI标记"));
     }
     menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, this);
     *pResult = 0;
@@ -2030,6 +2038,8 @@ void CBatchRenameDlg::OnFileResetAll()
         m_entries[i].bCustomExt = false;
         m_entries[i].customExt.Empty();
         m_entries[i].bAiGenerated = false;
+        m_entries[i].aiBaseName.Empty();
+        m_entries[i].aiOriginalName.Empty();
     }
 
     // Auto execute preview
@@ -2141,11 +2151,12 @@ void CBatchRenameDlg::OnBnClickedAiAssistant()
     }
 
     // Build file list (non-ignored, non-deleted files only)
+    // Pass current newName (may already have rule modifications) so AI works on current state
     std::vector<std::pair<CString, std::filesystem::path>> files;
     for (const auto& entry : m_entries)
     {
         if (!entry.bIgnored && !entry.bMarkedDelete)
-            files.push_back({ entry.oldName, entry.fullPath });
+            files.push_back({ entry.newName, entry.fullPath });
     }
 
     if (files.empty())
@@ -2162,14 +2173,16 @@ void CBatchRenameDlg::OnBnClickedAiAssistant()
     if (mappings.empty())
         return;
 
-    // Apply AI-generated mappings to m_entries
+    // Apply AI-generated mappings to m_entries (match by fullPath)
     int appliedCount = 0;
     for (const auto& mapping : mappings)
     {
         for (auto& entry : m_entries)
         {
-            if (entry.oldName == mapping.oldName)
+            if (entry.fullPath == mapping.fullPath)
             {
+                entry.aiOriginalName = entry.newName;  // save state before AI for undo
+                entry.aiBaseName = mapping.newName;    // AI base name for rule idempotency
                 entry.newName = mapping.newName;
                 entry.bAiGenerated = true;
                 appliedCount++;
@@ -2194,7 +2207,7 @@ void CBatchRenameDlg::OnFileAiAnalyze()
     CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST_RENAME));
     if (!pList) return;
 
-    // Collect selected files
+    // Collect selected files (pass current newName so AI works on current state)
     std::vector<std::pair<CString, std::filesystem::path>> files;
     int nCount = pList->GetItemCount();
     for (int i = 0; i < nCount; i++)
@@ -2205,7 +2218,7 @@ void CBatchRenameDlg::OnFileAiAnalyze()
             {
                 auto& entry = m_entries[i];
                 if (!entry.bIgnored && !entry.bMarkedDelete)
-                    files.push_back({ entry.oldName, entry.fullPath });
+                    files.push_back({ entry.newName, entry.fullPath });
             }
         }
     }
@@ -2224,14 +2237,16 @@ void CBatchRenameDlg::OnFileAiAnalyze()
     if (mappings.empty())
         return;
 
-    // Apply AI-generated mappings to m_entries
+    // Apply AI-generated mappings to m_entries (match by fullPath)
     int appliedCount = 0;
     for (const auto& mapping : mappings)
     {
         for (auto& entry : m_entries)
         {
-            if (entry.oldName == mapping.oldName)
+            if (entry.fullPath == mapping.fullPath)
             {
+                entry.aiOriginalName = entry.newName;  // save state before AI for undo
+                entry.aiBaseName = mapping.newName;    // AI base name for rule idempotency
                 entry.newName = mapping.newName;
                 entry.bAiGenerated = true;
                 appliedCount++;
@@ -2248,6 +2263,41 @@ void CBatchRenameDlg::OnFileAiAnalyze()
     CString msg;
     msg.Format(_T("AI 已为 %d 个文件生成新名称，请预览确认后点击「执行」。"), appliedCount);
     MessageBox(msg, _T("AI 助手"), MB_OK | MB_ICONINFORMATION);
+}
+
+void CBatchRenameDlg::OnFileCancelAi()
+{
+    CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST_RENAME));
+    if (!pList) return;
+
+    int nCount = pList->GetItemCount();
+    bool bChanged = false;
+    for (int i = 0; i < nCount; i++)
+    {
+        if (pList->GetItemState(i, LVIS_SELECTED) & LVIS_SELECTED)
+        {
+            if (i < static_cast<int>(m_entries.size()) && m_entries[i].bAiGenerated)
+            {
+                // Restore to the name before AI modification
+                if (!m_entries[i].aiOriginalName.IsEmpty())
+                    m_entries[i].newName = m_entries[i].aiOriginalName;
+                else
+                    m_entries[i].newName = m_entries[i].oldName;
+                m_entries[i].bAiGenerated = false;
+                m_entries[i].aiBaseName.Empty();
+                m_entries[i].aiOriginalName.Empty();
+                bChanged = true;
+            }
+        }
+    }
+
+    if (!bChanged)
+        return;
+
+    ApplyRules();
+    RefreshFileList();
+    m_bPreviewDone = true;
+    GetDlgItem(IDC_BTN_RENAME_EXECUTE)->EnableWindow(TRUE);
 }
 
 void CBatchRenameDlg::OnCancel()

@@ -3,6 +3,7 @@
 #include "AIApiClient.h"
 #include "json.hpp"
 #include <set>
+#include <map>
 #include <regex>
 
 using json = nlohmann::json;
@@ -43,8 +44,15 @@ BOOL CBatchRenameAIDlg::OnInitDialog()
         CRect rcList;
         pList->GetClientRect(&rcList);
         int totalWidth = rcList.Width() - ::GetSystemMetrics(SM_CXVSCROLL) - 4;
-        pList->InsertColumn(0, _T("原文件名"), LVCFMT_LEFT, totalWidth * 45 / 100);
+        pList->InsertColumn(0, _T("当前文件名"), LVCFMT_LEFT, totalWidth * 45 / 100);
         pList->InsertColumn(1, _T("AI 建议新文件名"), LVCFMT_LEFT, totalWidth * 55 / 100);
+
+        // Immediately show current filenames in the first column
+        for (size_t i = 0; i < m_files.size(); i++)
+        {
+            int idx = pList->InsertItem(static_cast<int>(i), m_files[i].first);
+            pList->SetItemText(idx, 1, _T(""));  // empty until AI responds
+        }
     }
 
     // Disable Apply button until AI responds
@@ -128,19 +136,20 @@ void CBatchRenameAIDlg::OnBnClickedAiSend()
     ShowStatus(_T("正在等待 AI 响应..."));
 
     // Build system prompt
-    CString systemPrompt = _T("You are a batch file renaming assistant. Given a list of filenames and a user's natural language description, generate new filenames for each file.\n\n")
+    CString systemPrompt = _T("You are a batch file renaming assistant. Given a list of CURRENT filenames and a user's natural language description, generate new filenames for each file.\n\n")
         _T("Important rules:\n")
-        _T("- Only rename files that match the user's request. If a file should keep its original name, do NOT include it in the output.\n")
+        _T("- The filenames you receive are the CURRENT state (may already have prefixes/suffixes applied by the user)\n")
+        _T("- Only rename files that match the user's request. If a file should keep its current name, do NOT include it in the output.\n")
         _T("- Do NOT change file extensions unless explicitly requested by the user.\n")
         _T("- Avoid illegal Windows filename characters: \\ / : * ? \" < > |\n")
         _T("- Ensure all new filenames are unique (no duplicates).\n")
         _T("- Preserve the original file extension unless the user explicitly asks to change it.\n\n")
         _T("Return ONLY a valid JSON object (no markdown code blocks, no extra text) with the following format:\n")
-        _T("{\"mappings\":[{\"old\":\"original_name.ext\",\"new\":\"new_name.ext\"}]}");
+        _T("{\"mappings\":[{\"old\":\"current_name.ext\",\"new\":\"new_name.ext\"}]}");
 
     // Build user prompt with file list
     CString userPrompt;
-    userPrompt += _T("File list:\n");
+    userPrompt += _T("Current file list:\n");
     for (size_t i = 0; i < m_files.size(); i++)
     {
         CString line;
@@ -288,9 +297,9 @@ bool CBatchRenameAIDlg::ParseAIResponse(const CString& response)
         }
 
         std::set<CString> newNameSet;
-        std::set<CString> oldNameSet; // Build a set of original filenames for validation
+        std::map<CString, std::filesystem::path> nameToPath; // Build a map from current name to fullPath for matching
         for (const auto& f : m_files)
-            oldNameSet.insert(f.first);
+            nameToPath[f.first] = f.second;
 
         int skippedCount = 0;
         int illegalCount = 0;
@@ -306,8 +315,9 @@ bool CBatchRenameAIDlg::ParseAIResponse(const CString& response)
             CString oldName((LPCWSTR)CA2T(oldUtf8.c_str(), CP_UTF8));
             CString newName((LPCWSTR)CA2T(newUtf8.c_str(), CP_UTF8));
 
-            // Validation 1: old name must exist in the file list
-            if (oldNameSet.find(oldName) == oldNameSet.end())
+            // Validation 1: old name must exist in the file list (match by current name)
+            auto it = nameToPath.find(oldName);
+            if (it == nameToPath.end())
             {
                 skippedCount++;
                 continue;
@@ -365,6 +375,7 @@ bool CBatchRenameAIDlg::ParseAIResponse(const CString& response)
             AIRenameMapping mapping;
             mapping.oldName = oldName;
             mapping.newName = newName;
+            mapping.fullPath = it->second;  // store fullPath for matching back to entries
             m_mappings.push_back(mapping);
 
             // Record reverse mapping for undo
@@ -412,12 +423,21 @@ void CBatchRenameAIDlg::RefreshPreview()
     CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_AI_PREVIEW));
     if (!pList) return;
 
-    pList->DeleteAllItems();
+    // Build a map from current name to AI-generated new name
+    std::map<CString, CString> nameToNew;
+    for (const auto& m : m_mappings)
+        nameToNew[m.oldName] = m.newName;
 
-    for (size_t i = 0; i < m_mappings.size(); i++)
+    // Update column 1 for each item (keep column 0 showing current names)
+    int nCount = pList->GetItemCount();
+    for (int i = 0; i < nCount; i++)
     {
-        int idx = pList->InsertItem(static_cast<int>(i), m_mappings[i].oldName);
-        pList->SetItemText(idx, 1, m_mappings[i].newName);
+        CString curName = pList->GetItemText(i, 0);
+        auto it = nameToNew.find(curName);
+        if (it != nameToNew.end())
+            pList->SetItemText(i, 1, it->second);
+        else
+            pList->SetItemText(i, 1, _T("（保持不变）"));
     }
 }
 

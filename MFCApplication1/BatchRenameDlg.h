@@ -15,6 +15,8 @@ struct RenameEntry {
         bool bIgnored{false};
         bool bTracked{false};
         bool bAiGenerated{false};
+        CString aiBaseName;      // AI-generated base name, used as rule application base for idempotency
+        CString aiOriginalName;  // Name before AI modification, used for "cancel AI mark" undo
     };
 
 struct FolderEntry {
@@ -106,6 +108,7 @@ private:
     afx_msg void OnFileMoveToDown();
     afx_msg void OnBnClickedAiAssistant();
     afx_msg void OnFileAiAnalyze();
+    afx_msg void OnFileCancelAi();
     afx_msg void OnLvnBeginDrag(NMHDR* pNMHDR, LRESULT* pResult);
     afx_msg void OnMouseMove(UINT nFlags, CPoint point);
     afx_msg void OnLButtonUp(UINT nFlags, CPoint point);

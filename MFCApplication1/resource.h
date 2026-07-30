@@ -324,13 +324,14 @@
 #define IDC_AI_STATUS                   1276
 #define IDC_BTN_AI_ASSISTANT            1277
 #define IDM_FILE_AI_ANALYZE             32837
+#define IDM_FILE_CANCEL_AI             32838
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        151
-#define _APS_NEXT_COMMAND_VALUE         32838
+#define _APS_NEXT_COMMAND_VALUE         32839
 #define _APS_NEXT_CONTROL_VALUE         1278
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
