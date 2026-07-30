@@ -499,11 +499,34 @@ void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
     showGroup(kToolIds, _countof(kToolIds), nTab == 2);
 
     // AI Assistant controls (right tab 0: Common)
+    // WebBrowser is handled separately to avoid internal state loss on hide/show
     static const int kAiIds[] = {
         IDC_STATIC_AI_SEP, IDC_STATIC_AI_LABEL, IDC_COMBO_AI_VENDOR,
-        IDC_AI_BROWSER, IDC_EDIT_AI_INPUT, IDC_BUTTON_AI_SEND, IDC_BUTTON_AI_CLEAR
+        IDC_EDIT_AI_INPUT, IDC_BUTTON_AI_SEND, IDC_BUTTON_AI_CLEAR
     };
     showGroup(kAiIds, _countof(kAiIds), nTab == 0);
+
+    // WebBrowser: move off-screen instead of hiding to preserve internal state
+    if (m_aiBrowser.m_hWnd && ::IsWindow(m_aiBrowser.m_hWnd))
+    {
+        if (nTab == 0)
+        {
+            // Restore to original position
+            m_aiBrowser.SetWindowPos(nullptr,
+                m_aiBrowserRect.left, m_aiBrowserRect.top,
+                m_aiBrowserRect.Width(), m_aiBrowserRect.Height(),
+                SWP_NOZORDER | SWP_NOACTIVATE);
+            m_aiBrowser.ShowWindow(SW_SHOW);
+        }
+        else
+        {
+            // Move off-screen (hide without losing internal state)
+            m_aiBrowser.SetWindowPos(nullptr,
+                -10000, -10000,
+                m_aiBrowserRect.Width(), m_aiBrowserRect.Height(),
+                SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSENDCHANGING);
+        }
+    }
 }
 
 void CMFCApplication1Dlg::OnTcnSelchangeQuickTab(NMHDR* pNMHDR, LRESULT* pResult)
@@ -1304,6 +1327,9 @@ void CMFCApplication1Dlg::InitAIControls()
         if (m_aiBrowser.CreateControl(CLSID_WebBrowser, nullptr,
             WS_VISIBLE | WS_CHILD, rc, this, IDC_AI_BROWSER))
         {
+            // Save original rect for off-screen restore when switching tabs
+            m_aiBrowserRect = rc;
+
             // Give the browser its real size immediately — a zero-size control
             // will never render even if content is written to its document
             m_aiBrowser.SetWindowPos(nullptr, rc.left, rc.top, rc.Width(), rc.Height(), SWP_NOZORDER);

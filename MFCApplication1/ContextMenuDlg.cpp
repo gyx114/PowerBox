@@ -127,6 +127,18 @@ BOOL CContextMenuDlg::PreTranslateMessage(MSG* pMsg)
 		OnBnClickedRefresh();
 		return TRUE;
 	}
+
+	// Enter in extension edit box: trigger filter instead of closing dialog
+	if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_RETURN)
+	{
+		CWnd* pFocus = GetFocus();
+		if (pFocus && pFocus->GetDlgCtrlID() == IDC_EDIT_CM_EXTENSION)
+		{
+			OnBnClickedExtension();
+			return TRUE;
+		}
+	}
+
 	return CDialogEx::PreTranslateMessage(pMsg);
 }
 

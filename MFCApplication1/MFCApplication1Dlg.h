@@ -304,6 +304,7 @@ public:
     // AI Assistant
     std::vector<std::pair<CString, CString>> m_aiHistory; // (role, content) pairs
     CWnd m_aiBrowser;                     // WebBrowser ActiveX for Markdown rendering
+    CRect m_aiBrowserRect;                // saved rect for off-screen restore
     bool m_aiBrowserReady{false};         // true when WebBrowser document is ready
     CString m_aiPendingHtml;              // buffered HTML before browser is ready
     CString m_aiStreamingContent;         // accumulated streaming content
