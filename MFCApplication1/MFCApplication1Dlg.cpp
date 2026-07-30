@@ -233,6 +233,8 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_EN_CHANGE(IDC_EDIT_PROCESS_FILTER, &CMFCApplication1Dlg::OnProcessFilterChange)
     ON_BN_CLICKED(IDC_CHECK_PROCESS_REGEX, &CMFCApplication1Dlg::OnProcessFilterChange)
     ON_BN_CLICKED(IDC_BTN_PROCESS_REGEX_HELP, &CMFCApplication1Dlg::OnProcessRegexHelp)
+    ON_COMMAND(IDM_PROCESS_AI_ANALYZE, &CMFCApplication1Dlg::OnProcessAiAnalyze)
+    ON_BN_CLICKED(IDC_BTN_PROCESS_AI_SCAN, &CMFCApplication1Dlg::OnBnClickedProcessAiScan)
     // AI Assistant
     ON_BN_CLICKED(IDC_BUTTON_AI_SEND, &CMFCApplication1Dlg::OnBnClickedAiSend)
     ON_BN_CLICKED(IDC_BUTTON_AI_STOP, &CMFCApplication1Dlg::OnBnClickedAiStop)
@@ -849,25 +851,12 @@ afx_msg LRESULT CMFCApplication1Dlg::OnRefreshStartupsDone(WPARAM wParam, LPARAM
 
 void CMFCApplication1Dlg::OnContextMenu(CWnd* pWnd, CPoint point)
 {
-    CListCtrl* pList1 = (CListCtrl*)GetDlgItem(IDC_LIST1);
     CListCtrl* pList2 = (CListCtrl*)GetDlgItem(IDC_LIST2);
 
     HWND hClicked = pWnd ? pWnd->GetSafeHwnd() : ::WindowFromPoint(point);
 
-    // Right-click on process list
-    if (pList1 && hClicked == pList1->GetSafeHwnd())
-    {
-        int nSel = pList1->GetNextItem(-1, LVNI_SELECTED);
-        if (nSel != -1)
-        {
-            CMenu menu;
-            menu.CreatePopupMenu();
-            menu.AppendMenu(MF_STRING, 32771, _T("结束进程"));
-            menu.AppendMenu(MF_STRING, 32774, _T("打开程序所在位置"));
-            menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON, point.x, point.y, this);
-        }
-        return;
-    }
+    // Process list right-click is handled by OnRclickProcessList (NM_RCLICK) which has the full menu
+    // Skip to avoid duplicate popup menus
 
     // Right-click on startup management list
     if (pList2 && hClicked == pList2->GetSafeHwnd())
@@ -1378,11 +1367,13 @@ CString CMFCApplication1Dlg::BuildSystemPrompt()
         _T("=== LEFT TAB PAGES (6 tabs, switchable via Alt+1~6 or View menu) ===\n\n")
 
         _T("1. Process Management (Tab 1)\n")
-        _T("   - Displays all running processes: name, PID, full path, memory usage (KB)\n")
-        _T("   - Click column headers to sort ascending/descending (arrow indicators)\n")
-        _T("   - Filter box: type keywords to filter processes; check 'Regex' for regex filtering\n")
-        _T("   - Right-click a process: 'End Process' (WM_CLOSE then TerminateProcess) or 'End All Same-Name Processes'\n")
-        _T("   - Right-click a process: 'Open File Location' opens Explorer at the executable\n")
+        _T("   - Displays all running processes: name, PID, full path, memory usage (KB), CPU usage (%)\n")
+        _T("   - Click column headers to sort ascending/descending (arrow indicators); CPU% supports sorting\n")
+        _T("   - Filter box: type keywords to filter processes by name and path (CPU% is NOT a search factor); check 'Regex' for regex filtering\n")
+        _T("   - Right-click a process: 'End Process' (WM_CLOSE then TerminateProcess), 'End All Same-Name Processes', 'Locate' (opens Explorer at the executable), 'AI Analyze' (analyzes process security via AI)\n")
+        _T("   - 'AI Scan' button: scans all processes via AI, opens a new window listing suspicious/useless processes with risk level and AI analysis result\n")
+        _T("   - AI Scan window supports: end process, locate, batch end all, right-click menu (end/locate/copy path)\n")
+        _T("   - AI Analyze examines: process name, path, digital signature status to determine if malicious/useless\n")
         _T("   - F5 refreshes the process list\n")
         _T("   - Help button opens regex reference guide\n\n")
 

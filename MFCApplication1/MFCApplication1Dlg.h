@@ -179,7 +179,7 @@ public:
 	// custom message for async volume update
 	static constexpr UINT WM_VOLUME_UPDATED = WM_APP + 5;
 
-    struct ProcInfo { CString name; DWORD pid; CString path; SIZE_T memKB; };
+    struct ProcInfo { CString name; DWORD pid; CString path; SIZE_T memKB; double cpuPercent{0.0}; };
 	struct StartupInfo { CString name; CString cmd; };
 
     // Process list: store raw data for sorting and filtering
@@ -280,6 +280,11 @@ public:
     afx_msg void OnProcessColumnClick(NMHDR* pNMHDR, LRESULT* pResult);
     afx_msg void OnProcessFilterChange();
     afx_msg void OnProcessRegexHelp();
+    // Process AI features
+    afx_msg void OnBnClickedProcessAiScan();
+    afx_msg void OnProcessAiAnalyze();
+    static bool GetProcessSignatureInfo(const CString& path, CString& outSigner, bool& outValid);
+    static bool GetProcessVersionInfo(const CString& path, CString& outCompany, CString& outOriginalName);
     // Git list handlers
 	afx_msg void OnCopyGitCommand();
 	afx_msg void OnNMDblclkList4(NMHDR* pNMHDR, LRESULT* pResult);

@@ -225,6 +225,8 @@ if exist "$(OutDir)Unmerged" rmdir /s /q "$(OutDir)Unmerged"
     <ClInclude Include="pch.h" />
     <ClInclude Include="qrcodegen.hpp" />
     <ClInclude Include="QRCodeGenDlg.h" />
+    <ClInclude Include="ProcessScanDlg.h" />
+    <ClInclude Include="ProcessAiResultDlg.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="ScreenshotOCRDlg.h" />
     <ClInclude Include="OcrEngine.h" />
@@ -273,6 +275,8 @@ if exist "$(OutDir)Unmerged" rmdir /s /q "$(OutDir)Unmerged"
     <ClCompile Include="AutoClicker.cpp" />
     <ClCompile Include="VolumeManager.cpp" />
     <ClCompile Include="ProcessManager.cpp" />
+    <ClCompile Include="ProcessScanDlg.cpp" />
+    <ClCompile Include="ProcessAiResultDlg.cpp" />
     <ClCompile Include="StickyNoteDlg.cpp" />
     <ClCompile Include="MarkdownDlg.cpp" />
     <ClCompile Include="EncodingConverterDlg.cpp" />

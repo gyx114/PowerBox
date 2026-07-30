@@ -28,9 +28,10 @@ void CMFCApplication1Dlg::InitProcessTab()
     pList1->ModifyStyle(0, LVS_REPORT);
     pList1->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
     pList1->InsertColumn(0, _T("进程名"), LVCFMT_LEFT, 200);
-    pList1->InsertColumn(1, _T("PID"), LVCFMT_LEFT, 160);
-    pList1->InsertColumn(2, _T("路径"), LVCFMT_LEFT, 600);
-    pList1->InsertColumn(3, _T("内存(KB)"), LVCFMT_RIGHT, 200);
+	pList1->InsertColumn(1, _T("CPU%"), LVCFMT_RIGHT, 80);
+	pList1->InsertColumn(2, _T("路径"), LVCFMT_LEFT, 480);
+	pList1->InsertColumn(3, _T("内存(KB)"), LVCFMT_RIGHT, 100);
+	pList1->InsertColumn(4, _T("PID"), LVCFMT_LEFT, 80);
 
     // Force header redraw
     if (pList1->GetHeaderCtrl())
@@ -197,6 +198,9 @@ void CMFCApplication1Dlg::UpdateTabVisibility(int nTab)
     CWnd* pBtnRegexHelp = GetDlgItem(IDC_BTN_PROCESS_REGEX_HELP);
     if (pBtnRegexHelp)
         pBtnRegexHelp->ShowWindow(nTab == 0 ? SW_SHOW : SW_HIDE);
+    CWnd* pBtnAiScan = GetDlgItem(IDC_BTN_PROCESS_AI_SCAN);
+    if (pBtnAiScan)
+        pBtnAiScan->ShowWindow(nTab == 0 ? SW_SHOW : SW_HIDE);
     if (pList2) pList2->ShowWindow(nTab == 1 ? SW_SHOW : SW_HIDE);
     if (pList3) pList3->ShowWindow(nTab == 2 ? SW_SHOW : SW_HIDE);
     if (pList4) pList4->ShowWindow(nTab == 5 ? SW_SHOW : SW_HIDE);

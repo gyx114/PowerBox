@@ -328,14 +328,33 @@
 #define IDC_BUTTON_AI_STOP             1278
 #define IDC_BTN_CM_UNDO                1279
 #define IDC_BTN_CM_HISTORY             1280
+// Process AI scan
+#define IDC_BTN_PROCESS_AI_SCAN        1281
+#define IDD_PROCESS_SCAN_DLG           151
+#define IDC_LIST_SCAN_RESULTS          1282
+#define IDC_BTN_SCAN_END               1283
+#define IDC_BTN_SCAN_LOCATE            1284
+#define IDC_BTN_SCAN_ENDALL            1285
+#define IDC_STATIC_SCAN_STATUS         1286
+#define IDM_PROCESS_AI_ANALYZE         32839
+#define IDM_SCAN_END                   32840
+#define IDM_SCAN_LOCATE                32841
+#define IDM_SCAN_COPY_PATH             32842
+
+// AI process result dialog
+#define IDD_PROCESS_AI_RESULT_DLG      152
+#define IDC_RICHEDIT_AI_RESULT         1287
+#define IDC_BTN_COPY_RESULT            1288
+#define IDC_BTN_SAVE_RESULT            1289
+#define IDC_BTN_CLOSE_RESULT           1290
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        151
-#define _APS_NEXT_COMMAND_VALUE         32839
-#define _APS_NEXT_CONTROL_VALUE         1281
+#define _APS_NEXT_RESOURCE_VALUE        153
+#define _APS_NEXT_COMMAND_VALUE         32843
+#define _APS_NEXT_CONTROL_VALUE         1291
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
