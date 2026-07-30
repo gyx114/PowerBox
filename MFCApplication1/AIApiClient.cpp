@@ -1,13 +1,115 @@
 // AIApiClient.cpp: AI API client implementation
+// Refactored: RAII handles, SSE parser, unified HTTP logic, exception classification,
+// cancel support, thread pool integration
 #include "pch.h"
 #include "AIApiClient.h"
+#include "ThreadPool.h"
 #include "json.hpp"
 #include <winhttp.h>
-#include <thread>
-#include <algorithm>
 #pragma comment(lib, "winhttp.lib")
 
 using json = nlohmann::json;
+
+// ============================================================================
+// SSE Parser implementation
+// ============================================================================
+
+void SseParser::Reset()
+{
+    m_buffer.clear();
+}
+
+std::vector<std::string> SseParser::Feed(const char* data, size_t len)
+{
+    m_buffer.append(data, len);
+    std::vector<std::string> results;
+
+    while (true)
+    {
+        size_t pos = m_buffer.find("\n\n");
+        if (pos == std::string::npos) break;
+
+        std::string chunk = m_buffer.substr(0, pos);
+        m_buffer.erase(0, pos + 2); // skip "\n\n"
+
+        // Parse "data: ..." lines from the chunk
+        size_t lineStart = 0;
+        while (lineStart < chunk.size())
+        {
+            // Skip leading \r\n
+            while (lineStart < chunk.size() &&
+                (chunk[lineStart] == '\r' || chunk[lineStart] == '\n'))
+                lineStart++;
+
+            size_t lineEnd = chunk.find('\n', lineStart);
+            if (lineEnd == std::string::npos)
+                lineEnd = chunk.size();
+
+            std::string line = chunk.substr(lineStart, lineEnd - lineStart);
+            // Trim trailing \r
+            if (!line.empty() && line.back() == '\r')
+                line.pop_back();
+
+            if (line.size() > 6 && line.substr(0, 6) == "data: ")
+            {
+                std::string payload = line.substr(6);
+                if (payload != "[DONE]")
+                    results.push_back(std::move(payload));
+            }
+
+            lineStart = lineEnd + 1;
+        }
+    }
+
+    return results;
+}
+
+// ============================================================================
+// Static members
+// ============================================================================
+
+std::atomic<bool> CAIApiClient::s_bCancel{false};
+
+// ============================================================================
+// Thread pool (lazy singleton)
+// ============================================================================
+
+static std::unique_ptr<CThreadPool> s_pThreadPool;
+static std::mutex s_threadPoolMutex;
+
+CThreadPool& CAIApiClient::GetThreadPool()
+{
+    if (!s_pThreadPool)
+    {
+        std::lock_guard<std::mutex> lock(s_threadPoolMutex);
+        if (!s_pThreadPool)
+            s_pThreadPool = std::make_unique<CThreadPool>(4);
+    }
+    return *s_pThreadPool;
+}
+
+void CAIApiClient::DestroyThreadPool()
+{
+    std::lock_guard<std::mutex> lock(s_threadPoolMutex);
+    if (s_pThreadPool)
+    {
+        s_pThreadPool->Join();
+        s_pThreadPool.reset();
+    }
+}
+
+// ============================================================================
+// Cancel
+// ============================================================================
+
+void CAIApiClient::Cancel()
+{
+    s_bCancel.store(true);
+}
+
+// ============================================================================
+// Vendors
+// ============================================================================
 
 const std::vector<AIVendorConfig>& CAIApiClient::GetVendors()
 {
@@ -22,14 +124,35 @@ const std::vector<AIVendorConfig>& CAIApiClient::GetVendors()
     return vendors;
 }
 
+// ============================================================================
+// Vendor resolution
+// ============================================================================
+
+bool CAIApiClient::ResolveVendor(const CString& vendor, const CString& model,
+    CString& outEndpoint, CString& outModel)
+{
+    for (const auto& v : GetVendors())
+    {
+        if (v.name.CompareNoCase(vendor) == 0)
+        {
+            outEndpoint = v.endpoint;
+            outModel = model.IsEmpty() ? v.defaultModel : model;
+            return true;
+        }
+    }
+    return false;
+}
+
+// ============================================================================
+// URL parsing
+// ============================================================================
+
 bool CAIApiClient::ParseUrl(const CString& url, CString& server, int& port, CString& path)
 {
     CString s = url;
-    bool bSecure = false;
 
     if (s.Left(8).CompareNoCase(_T("https://")) == 0)
     {
-        bSecure = true;
         port = 443;
         s = s.Mid(8);
     }
@@ -55,7 +178,6 @@ bool CAIApiClient::ParseUrl(const CString& url, CString& server, int& port, CStr
         path = _T("/");
     }
 
-    // Check for explicit port
     int colon = server.Find(_T(':'));
     if (colon != -1)
     {
@@ -67,110 +189,168 @@ bool CAIApiClient::ParseUrl(const CString& url, CString& server, int& port, CStr
     return true;
 }
 
+// ============================================================================
+// Build request body
+// ============================================================================
+
 CString CAIApiClient::BuildRequestBody(
     const std::vector<std::pair<CString, CString>>& messages,
-    const CString& model)
+    const CString& model,
+    bool bStream)
 {
     json jMessages = json::array();
     for (const auto& msg : messages)
     {
         std::string role = (LPCSTR)CT2A(msg.first, CP_UTF8);
         std::string content = (LPCSTR)CT2A(msg.second, CP_UTF8);
-        jMessages.push_back({
-            {"role", role},
-            {"content", content}
-        });
+        jMessages.push_back({ {"role", role}, {"content", content} });
     }
 
     json jBody;
-    std::string modelStr = (LPCSTR)CT2A(model, CP_UTF8);
-    jBody["model"] = modelStr;
+    jBody["model"] = (LPCSTR)CT2A(model, CP_UTF8);
     jBody["messages"] = jMessages;
-    jBody["stream"] = false;
+    jBody["stream"] = bStream;
 
     std::string bodyStr = jBody.dump();
     return CString(CA2T(bodyStr.c_str(), CP_UTF8));
 }
 
-CString CAIApiClient::SendHttpRequest(
+// ============================================================================
+// Unified HTTP request (RAII handles, no manual CloseHandle)
+// ============================================================================
+
+std::string CAIApiClient::SendRequestInternal(
     const CString& server, int port, const CString& path,
-    const CString& apiKey, const CString& body)
+    const CString& apiKey, const std::string& bodyUtf8)
 {
     bool bSecure = (port == 443);
 
-    HINTERNET hSession = WinHttpOpen(
+    WinHttpHandle hSession(WinHttpOpen(
         L"MFCApplication1/1.0",
         WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
         WINHTTP_NO_PROXY_NAME,
-        WINHTTP_NO_PROXY_BYPASS, 0);
+        WINHTTP_NO_PROXY_BYPASS, 0));
+    if (!hSession.IsValid())
+        throw AiNetworkError("WinHttpOpen failed", GetLastError());
 
-    if (!hSession) return _T("");
-
-    HINTERNET hConnect = WinHttpConnect(hSession, server, (INTERNET_PORT)port, 0);
-    if (!hConnect) { WinHttpCloseHandle(hSession); return _T(""); }
+    WinHttpHandle hConnect(WinHttpConnect(hSession, server, (INTERNET_PORT)port, 0));
+    if (!hConnect.IsValid())
+        throw AiNetworkError("WinHttpConnect failed", GetLastError());
 
     DWORD flags = bSecure ? WINHTTP_FLAG_SECURE : 0;
-    HINTERNET hRequest = WinHttpOpenRequest(
+    WinHttpHandle hRequest(WinHttpOpenRequest(
         hConnect, L"POST", path, nullptr,
-        WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
-
-    if (!hRequest) { WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession); return _T(""); }
+        WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags));
+    if (!hRequest.IsValid())
+        throw AiNetworkError("WinHttpOpenRequest failed", GetLastError());
 
     // Set headers
     CString headers;
-    headers.Format(L"Content-Type: application/json\r\nAuthorization: Bearer %s\r\n", apiKey.GetString());
-    WinHttpAddRequestHeaders(hRequest, headers, -1, WINHTTP_ADDREQ_FLAG_ADD);
+    headers.Format(L"Content-Type: application/json\r\nAuthorization: Bearer %s\r\n",
+        apiKey.GetString());
+    if (!WinHttpAddRequestHeaders(hRequest, headers, -1, WINHTTP_ADDREQ_FLAG_ADD))
+        throw AiNetworkError("WinHttpAddRequestHeaders failed", GetLastError());
 
     // Send request
-    CStringA bodyUtf8 = (LPCSTR)CW2A(body, CP_UTF8);
-    BOOL bResult = WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
-        (LPVOID)(LPCSTR)bodyUtf8, bodyUtf8.GetLength(), bodyUtf8.GetLength(), 0);
+    if (!WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+        (LPVOID)bodyUtf8.data(), (DWORD)bodyUtf8.size(), (DWORD)bodyUtf8.size(), 0))
+        throw AiNetworkError("WinHttpSendRequest failed", GetLastError());
 
-    if (!bResult) { WinHttpCloseHandle(hRequest); WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession); return _T(""); }
-
-    bResult = WinHttpReceiveResponse(hRequest, nullptr);
-    if (!bResult) { WinHttpCloseHandle(hRequest); WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession); return _T(""); }
+    // Receive response
+    if (!WinHttpReceiveResponse(hRequest, nullptr))
+        throw AiNetworkError("WinHttpReceiveResponse failed", GetLastError());
 
     // Check HTTP status code
     DWORD statusCode = 0;
     DWORD statusCodeSize = sizeof(statusCode);
-    if (WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
-        WINHTTP_HEADER_NAME_BY_INDEX, &statusCode, &statusCodeSize, WINHTTP_NO_HEADER_INDEX))
+    WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+        WINHTTP_HEADER_NAME_BY_INDEX, &statusCode, &statusCodeSize, WINHTTP_NO_HEADER_INDEX);
+
+    if (statusCode == 401 || statusCode == 403)
+        throw AiApiKeyError("Invalid or expired API key");
+    if (statusCode != 200)
     {
-        if (statusCode != 200)
-        {
-            CString errMsg;
-            errMsg.Format(_T("[HTTP Error] Status code: %d"), statusCode);
-            WinHttpCloseHandle(hRequest);
-            WinHttpCloseHandle(hConnect);
-            WinHttpCloseHandle(hSession);
-            return errMsg;
-        }
+        char errBuf[128];
+        sprintf_s(errBuf, "HTTP %d", (int)statusCode);
+        throw AiNetworkError(errBuf, statusCode);
     }
 
-    // Read response
-    CStringA response;
+    // Read response body
+    std::string response;
     DWORD dwSize = 0;
     do
     {
         dwSize = 0;
-        WinHttpQueryDataAvailable(hRequest, &dwSize);
-        if (dwSize == 0) break;
+        if (!WinHttpQueryDataAvailable(hRequest, &dwSize) || dwSize == 0)
+            break;
 
-        char* pszBuffer = new char[dwSize + 1];
-        ZeroMemory(pszBuffer, dwSize + 1);
+        std::vector<char> buf(dwSize + 1);
         DWORD dwDownloaded = 0;
-        WinHttpReadData(hRequest, (LPVOID)pszBuffer, dwSize, &dwDownloaded);
-        response += pszBuffer;
-        delete[] pszBuffer;
+        if (!WinHttpReadData(hRequest, buf.data(), dwSize, &dwDownloaded))
+            break;
+
+        buf[dwDownloaded] = '\0';
+        response.append(buf.data(), dwDownloaded);
     } while (dwSize > 0);
 
-    WinHttpCloseHandle(hRequest);
-    WinHttpCloseHandle(hConnect);
-    WinHttpCloseHandle(hSession);
-
-    return CString(CA2T(response, CP_UTF8));
+    // All handles auto-closed by RAII on scope exit
+    return response;
 }
+
+// ============================================================================
+// SSE stream reader (uses SseParser, posts WM_AI_STREAM_CHUNK)
+// ============================================================================
+
+std::string CAIApiClient::ReadSseStream(HINTERNET hRequest, HWND hwndNotify)
+{
+    SseParser parser;
+    std::string accumulatedContent;
+
+    char readBuf[4096];
+    DWORD dwSize = 0;
+
+    while (!s_bCancel.load())
+    {
+        dwSize = 0;
+        if (!WinHttpQueryDataAvailable(hRequest, &dwSize) || dwSize == 0)
+            break;
+
+        DWORD toRead = std::min<DWORD>(dwSize, (DWORD)sizeof(readBuf) - 1);
+        DWORD dwDownloaded = 0;
+        if (!WinHttpReadData(hRequest, readBuf, toRead, &dwDownloaded) || dwDownloaded == 0)
+            break;
+
+        // Feed raw bytes to SSE parser
+        auto payloads = parser.Feed(readBuf, dwDownloaded);
+
+        for (const auto& payload : payloads)
+        {
+            try
+            {
+                json j = json::parse(payload);
+                if (j.contains("choices") && j["choices"].is_array() &&
+                    !j["choices"].empty())
+                {
+                    auto& choice = j["choices"][0];
+                    if (choice.contains("delta") && choice["delta"].contains("content"))
+                    {
+                        std::string content = choice["delta"]["content"].get<std::string>();
+                        accumulatedContent += content;
+                        CString* pChunk = new CString(CA2T(content.c_str(), CP_UTF8));
+                        ::PostMessage(hwndNotify, WM_AI_STREAM_CHUNK, 0, (LPARAM)pChunk);
+                    }
+                }
+            }
+            catch (...) {}
+        }
+    }
+
+    return accumulatedContent;
+}
+
+// ============================================================================
+// Extract content from JSON response
+// ============================================================================
 
 CString CAIApiClient::ExtractContent(const CString& jsonStr)
 {
@@ -181,10 +361,10 @@ CString CAIApiClient::ExtractContent(const CString& jsonStr)
 
         if (j.contains("error"))
         {
-            CString errMsg;
-            CString errText = (LPCTSTR)CA2T(j["error"]["message"].get<std::string>().c_str(), CP_UTF8);
-            errMsg.Format(_T("[API Error] %s"), errText.GetString());
-            return errMsg;
+            std::string errMsg = j["error"]["message"].get<std::string>();
+            CString err;
+            err.Format(_T("[API Error] %hs"), errMsg.c_str());
+            return err;
         }
 
         if (j.contains("choices") && j["choices"].is_array() && !j["choices"].empty())
@@ -199,13 +379,23 @@ CString CAIApiClient::ExtractContent(const CString& jsonStr)
 
         return _T("[Error] Unexpected response format");
     }
+    catch (const json::parse_error& e)
+    {
+        CString err;
+        err.Format(_T("[JSON Parse Error] %hs"), e.what());
+        return err;
+    }
     catch (const std::exception& e)
     {
         CString err;
-        err.Format(_T("[Parse Error] %hs"), e.what());
+        err.Format(_T("[Error] %hs"), e.what());
         return err;
     }
 }
+
+// ============================================================================
+// SendAsync (non-streaming) — uses thread pool
+// ============================================================================
 
 void CAIApiClient::SendAsync(
     const std::vector<std::pair<CString, CString>>& messages,
@@ -214,67 +404,73 @@ void CAIApiClient::SendAsync(
     const CString& model,
     HWND hwndNotify)
 {
-    // Find vendor config
-    CString endpoint;
-    CString actualModel = model;
-    for (const auto& v : GetVendors())
-    {
-        if (v.name.CompareNoCase(vendor) == 0)
-        {
-            endpoint = v.endpoint;
-            if (actualModel.IsEmpty())
-                actualModel = v.defaultModel;
-            break;
-        }
-    }
+    // Cancel any pending request and reset flag
+    s_bCancel.store(true);
+    s_bCancel.store(false);
 
-    if (endpoint.IsEmpty())
+    CString endpoint, actualModel;
+    if (!ResolveVendor(vendor, model, endpoint, actualModel))
     {
         CString* pResult = new CString(_T("[Error] Unknown vendor: ") + vendor);
         ::PostMessage(hwndNotify, WM_AI_RESPONSE, 0, (LPARAM)pResult);
         return;
     }
 
-    // Capture data for thread
-    CString capturedEndpoint = endpoint;
-    CString capturedApiKey = apiKey;
-    CString capturedModel = actualModel;
-
-    std::thread([messages, capturedEndpoint, capturedApiKey, capturedModel, hwndNotify]()
+    GetThreadPool().Enqueue([messages, endpoint, apiKey, model = actualModel, hwndNotify]()
     {
-        CString server, path;
-        int port = 443;
-
-        if (!ParseUrl(capturedEndpoint, server, port, path))
+        try
         {
-            CString* pResult = new CString(_T("[Error] Invalid endpoint URL"));
-            ::PostMessage(hwndNotify, WM_AI_RESPONSE, 0, (LPARAM)pResult);
-            return;
+            CString server, path;
+            int port = 443;
+            if (!ParseUrl(endpoint, server, port, path))
+            {
+                CString* pResult = new CString(_T("[Error] Invalid endpoint URL"));
+                ::PostMessage(hwndNotify, WM_AI_RESPONSE, 0, (LPARAM)pResult);
+                return;
+            }
+
+            CString body = BuildRequestBody(messages, model, false);
+            std::string bodyUtf8 = (LPCSTR)CW2A(body, CP_UTF8);
+            std::string response = SendRequestInternal(server, port, path, apiKey, bodyUtf8);
+
+            if (response.empty())
+            {
+                CString* pResult = new CString(
+                    _T("[Error] Empty response from server. Check your network or API key."));
+                ::PostMessage(hwndNotify, WM_AI_RESPONSE, 0, (LPARAM)pResult);
+                return;
+            }
+
+            CString content = ExtractContent(CString(CA2T(response.c_str(), CP_UTF8)));
+            bool bSuccess = (content.Find(_T("[Error]")) < 0 &&
+                content.Find(_T("[API Error]")) < 0);
+            CString* pResult = new CString(content);
+            ::PostMessage(hwndNotify, WM_AI_RESPONSE, bSuccess ? 1 : 0, (LPARAM)pResult);
         }
-
-        CString body = BuildRequestBody(messages, capturedModel);
-        CString response = SendHttpRequest(server, port, path, capturedApiKey, body);
-
-        if (response.IsEmpty())
+        catch (const AiApiKeyError& e)
         {
-            CString* pResult = new CString(_T("[Error] Network request failed. Check your network or API key."));
-            ::PostMessage(hwndNotify, WM_AI_RESPONSE, 0, (LPARAM)pResult);
-            return;
+            CString err;
+            err.Format(_T("[API Key Error] %hs"), e.what());
+            ::PostMessage(hwndNotify, WM_AI_RESPONSE, 0, (LPARAM)new CString(err));
         }
-
-        // If response is already an error message (starts with '['), return it directly
-        if (response.GetAt(0) == _T('['))
+        catch (const AiNetworkError& e)
         {
-            CString* pResult = new CString(response);
-            ::PostMessage(hwndNotify, WM_AI_RESPONSE, 0, (LPARAM)pResult);
-            return;
+            CString err;
+            err.Format(_T("[Network Error] %hs (code: %d)"), e.what(), (int)e.errorCode);
+            ::PostMessage(hwndNotify, WM_AI_RESPONSE, 0, (LPARAM)new CString(err));
         }
-
-        CString content = ExtractContent(response);
-        CString* pResult = new CString(content);
-        ::PostMessage(hwndNotify, WM_AI_RESPONSE, 1, (LPARAM)pResult);
-    }).detach();
+        catch (const std::exception& e)
+        {
+            CString err;
+            err.Format(_T("[Error] %hs"), e.what());
+            ::PostMessage(hwndNotify, WM_AI_RESPONSE, 0, (LPARAM)new CString(err));
+        }
+    });
 }
+
+// ============================================================================
+// SendAsyncStreaming — uses thread pool + SSE parser
+// ============================================================================
 
 void CAIApiClient::SendAsyncStreaming(
     const std::vector<std::pair<CString, CString>>& messages,
@@ -283,179 +479,112 @@ void CAIApiClient::SendAsyncStreaming(
     const CString& model,
     HWND hwndNotify)
 {
-    // Find vendor config
-    CString endpoint;
-    CString actualModel = model;
-    for (const auto& v : GetVendors())
-    {
-        if (v.name.CompareNoCase(vendor) == 0)
-        {
-            endpoint = v.endpoint;
-            if (actualModel.IsEmpty())
-                actualModel = v.defaultModel;
-            break;
-        }
-    }
+    // Cancel any pending request and reset flag
+    s_bCancel.store(true);
+    s_bCancel.store(false);
 
-    if (endpoint.IsEmpty())
+    CString endpoint, actualModel;
+    if (!ResolveVendor(vendor, model, endpoint, actualModel))
     {
         CString* pResult = new CString(_T("[Error] Unknown vendor: ") + vendor);
         ::PostMessage(hwndNotify, WM_AI_STREAM_DONE, 0, (LPARAM)pResult);
         return;
     }
 
-    std::thread([messages, endpoint, apiKey, model = actualModel, hwndNotify]()
+    GetThreadPool().Enqueue([messages, endpoint, apiKey, model = actualModel, hwndNotify]()
     {
-        CString server, path;
-        int port = 443;
-
-        if (!ParseUrl(endpoint, server, port, path))
+        try
         {
-            CString* pResult = new CString(_T("[Error] Invalid endpoint URL"));
-            ::PostMessage(hwndNotify, WM_AI_STREAM_DONE, 0, (LPARAM)pResult);
-            return;
-        }
-
-        // Build streaming request body (stream: true)
-        json jMessages = json::array();
-        for (const auto& msg : messages)
-        {
-            std::string role = (LPCSTR)CT2A(msg.first, CP_UTF8);
-            std::string content = (LPCSTR)CT2A(msg.second, CP_UTF8);
-            jMessages.push_back({ {"role", role}, {"content", content} });
-        }
-        json jBody;
-        std::string modelStr = (LPCSTR)CT2A(model, CP_UTF8);
-        jBody["model"] = modelStr;
-        jBody["messages"] = jMessages;
-        jBody["stream"] = true;
-        std::string bodyStr = jBody.dump();
-        CString body = CString(CA2T(bodyStr.c_str(), CP_UTF8));
-
-        // Send HTTP request
-        bool bSecure = (port == 443);
-        HINTERNET hSession = WinHttpOpen(L"MFCApplication1/1.0",
-            WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
-        if (!hSession)
-        {
-            CString* pResult = new CString(_T("[Error] WinHttpOpen failed"));
-            ::PostMessage(hwndNotify, WM_AI_STREAM_DONE, 0, (LPARAM)pResult);
-            return;
-        }
-
-        HINTERNET hConnect = WinHttpConnect(hSession, server, (INTERNET_PORT)port, 0);
-        if (!hConnect) { WinHttpCloseHandle(hSession);
-            CString* pResult = new CString(_T("[Error] Connection failed"));
-            ::PostMessage(hwndNotify, WM_AI_STREAM_DONE, 0, (LPARAM)pResult); return; }
-
-        DWORD flags = bSecure ? WINHTTP_FLAG_SECURE : 0;
-        HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"POST", path, nullptr,
-            WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
-        if (!hRequest) { WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession);
-            CString* pResult = new CString(_T("[Error] Request creation failed"));
-            ::PostMessage(hwndNotify, WM_AI_STREAM_DONE, 0, (LPARAM)pResult); return; }
-
-        CString headers;
-        headers.Format(L"Content-Type: application/json\r\nAuthorization: Bearer %s\r\n", apiKey.GetString());
-        WinHttpAddRequestHeaders(hRequest, headers, -1, WINHTTP_ADDREQ_FLAG_ADD);
-
-        CStringA bodyUtf8 = (LPCSTR)CW2A(body, CP_UTF8);
-        if (!WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
-            (LPVOID)(LPCSTR)bodyUtf8, bodyUtf8.GetLength(), bodyUtf8.GetLength(), 0))
-        {
-            WinHttpCloseHandle(hRequest); WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession);
-            CString* pResult = new CString(_T("[Error] Send request failed"));
-            ::PostMessage(hwndNotify, WM_AI_STREAM_DONE, 0, (LPARAM)pResult); return;
-        }
-
-        if (!WinHttpReceiveResponse(hRequest, nullptr))
-        {
-            WinHttpCloseHandle(hRequest); WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession);
-            CString* pResult = new CString(_T("[Error] Receive response failed"));
-            ::PostMessage(hwndNotify, WM_AI_STREAM_DONE, 0, (LPARAM)pResult); return;
-        }
-
-        // Check HTTP status code
-        DWORD statusCode = 0;
-        DWORD statusCodeSize = sizeof(statusCode);
-        WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
-            WINHTTP_HEADER_NAME_BY_INDEX, &statusCode, &statusCodeSize, WINHTTP_NO_HEADER_INDEX);
-        if (statusCode != 200)
-        {
-            WinHttpCloseHandle(hRequest); WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession);
-            CString errMsg;
-            errMsg.Format(_T("[HTTP Error] Status code: %d"), statusCode);
-            CString* pResult = new CString(errMsg);
-            ::PostMessage(hwndNotify, WM_AI_STREAM_DONE, 0, (LPARAM)pResult); return;
-        }
-
-        // Read SSE stream incrementally
-        CStringA buffer;
-        char readBuf[4096];
-        DWORD dwSize = 0;
-        CStringA accumulatedContent;
-
-        while (true)
-        {
-            dwSize = 0;
-            if (!WinHttpQueryDataAvailable(hRequest, &dwSize) || dwSize == 0)
-                break;
-
-            DWORD toRead = std::min<DWORD>(dwSize, (DWORD)sizeof(readBuf) - 1);
-            DWORD dwDownloaded = 0;
-            if (!WinHttpReadData(hRequest, readBuf, toRead, &dwDownloaded) || dwDownloaded == 0)
-                break;
-
-            readBuf[dwDownloaded] = '\0';
-            buffer += readBuf;
-
-            // Parse SSE lines from buffer
-            while (true)
+            CString server, path;
+            int port = 443;
+            if (!ParseUrl(endpoint, server, port, path))
             {
-                int newline = buffer.Find("\n");
-                if (newline < 0) break;
-
-                CStringA line = buffer.Left(newline);
-                // Remove trailing \r
-                if (line.GetLength() > 0 && line[line.GetLength() - 1] == '\r')
-                    line = line.Left(line.GetLength() - 1);
-
-                buffer = buffer.Mid(newline + 1);
-
-                if (line.IsEmpty()) continue; // skip empty lines between chunks
-
-                if (line.Left(6) == "data: ")
-                {
-                    CStringA data = line.Mid(6);
-                    if (data == "[DONE]") continue;
-
-                    try
-                    {
-                        std::string dataStr(data, data.GetLength());
-                        json j = json::parse(dataStr);
-                        if (j.contains("choices") && j["choices"].is_array() && !j["choices"].empty())
-                        {
-                            auto& choice = j["choices"][0];
-                            if (choice.contains("delta") && choice["delta"].contains("content"))
-                            {
-                                std::string content = choice["delta"]["content"].get<std::string>();
-                                accumulatedContent += content.c_str();
-                                CString* pChunk = new CString(CA2T(content.c_str(), CP_UTF8));
-                                ::PostMessage(hwndNotify, WM_AI_STREAM_CHUNK, 0, (LPARAM)pChunk);
-                            }
-                        }
-                    }
-                    catch (...) {}
-                }
+                CString* pResult = new CString(_T("[Error] Invalid endpoint URL"));
+                ::PostMessage(hwndNotify, WM_AI_STREAM_DONE, 0, (LPARAM)pResult);
+                return;
             }
+
+            CString body = BuildRequestBody(messages, model, true);
+            std::string bodyUtf8 = (LPCSTR)CW2A(body, CP_UTF8);
+
+            // Use SendRequestInternal for common HTTP setup, then read SSE stream
+            bool bSecure = (port == 443);
+            WinHttpHandle hSession(WinHttpOpen(L"MFCApplication1/1.0",
+                WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME,
+                WINHTTP_NO_PROXY_BYPASS, 0));
+            if (!hSession.IsValid())
+                throw AiNetworkError("WinHttpOpen failed", GetLastError());
+
+            WinHttpHandle hConnect(WinHttpConnect(hSession, server, (INTERNET_PORT)port, 0));
+            if (!hConnect.IsValid())
+                throw AiNetworkError("WinHttpConnect failed", GetLastError());
+
+            DWORD flags = bSecure ? WINHTTP_FLAG_SECURE : 0;
+            WinHttpHandle hRequest(WinHttpOpenRequest(hConnect, L"POST", path, nullptr,
+                WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags));
+            if (!hRequest.IsValid())
+                throw AiNetworkError("WinHttpOpenRequest failed", GetLastError());
+
+            CString headers;
+            headers.Format(
+                L"Content-Type: application/json\r\nAuthorization: Bearer %s\r\n",
+                apiKey.GetString());
+            WinHttpAddRequestHeaders(hRequest, headers, -1, WINHTTP_ADDREQ_FLAG_ADD);
+
+            if (!WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+                (LPVOID)bodyUtf8.data(), (DWORD)bodyUtf8.size(),
+                (DWORD)bodyUtf8.size(), 0))
+                throw AiNetworkError("WinHttpSendRequest failed", GetLastError());
+
+            if (!WinHttpReceiveResponse(hRequest, nullptr))
+                throw AiNetworkError("WinHttpReceiveResponse failed", GetLastError());
+
+            DWORD statusCode = 0;
+            DWORD statusCodeSize = sizeof(statusCode);
+            WinHttpQueryHeaders(hRequest,
+                WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                WINHTTP_HEADER_NAME_BY_INDEX, &statusCode,
+                &statusCodeSize, WINHTTP_NO_HEADER_INDEX);
+
+            if (statusCode == 401 || statusCode == 403)
+                throw AiApiKeyError("Invalid or expired API key");
+            if (statusCode != 200)
+            {
+                char errBuf[128];
+                sprintf_s(errBuf, "HTTP %d", (int)statusCode);
+                throw AiNetworkError(errBuf, statusCode);
+            }
+
+            // Read & parse SSE stream
+            std::string accumulatedContent = ReadSseStream(hRequest, hwndNotify);
+
+            if (s_bCancel.load())
+            {
+                CString* pCancel = new CString(_T(""));
+                ::PostMessage(hwndNotify, WM_AI_STREAM_DONE, 0, (LPARAM)pCancel);
+                return;
+            }
+
+            CString* pFinal = new CString(CA2T(accumulatedContent.c_str(), CP_UTF8));
+            ::PostMessage(hwndNotify, WM_AI_STREAM_DONE, 1, (LPARAM)pFinal);
         }
-
-        WinHttpCloseHandle(hRequest);
-        WinHttpCloseHandle(hConnect);
-        WinHttpCloseHandle(hSession);
-
-        // Signal completion
-        CString* pFinal = new CString(CA2T(accumulatedContent, CP_UTF8));
-        ::PostMessage(hwndNotify, WM_AI_STREAM_DONE, 1, (LPARAM)pFinal);
-    }).detach();
+        catch (const AiApiKeyError& e)
+        {
+            CString err;
+            err.Format(_T("[API Key Error] %hs"), e.what());
+            ::PostMessage(hwndNotify, WM_AI_STREAM_DONE, 0, (LPARAM)new CString(err));
+        }
+        catch (const AiNetworkError& e)
+        {
+            CString err;
+            err.Format(_T("[Network Error] %hs (code: %d)"), e.what(), (int)e.errorCode);
+            ::PostMessage(hwndNotify, WM_AI_STREAM_DONE, 0, (LPARAM)new CString(err));
+        }
+        catch (const std::exception& e)
+        {
+            CString err;
+            err.Format(_T("[Error] %hs"), e.what());
+            ::PostMessage(hwndNotify, WM_AI_STREAM_DONE, 0, (LPARAM)new CString(err));
+        }
+    });
 }

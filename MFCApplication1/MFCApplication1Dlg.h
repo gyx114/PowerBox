@@ -314,6 +314,7 @@ public:
     bool SetAiBrowserHtml(const CString& html);
     afx_msg void OnBnClickedAiSend();
     afx_msg void OnBnClickedAiClear();
+    afx_msg void OnBnClickedAiStop();
     afx_msg LRESULT OnAiResponse(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnAiStreamChunk(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnAiStreamDone(WPARAM wParam, LPARAM lParam);

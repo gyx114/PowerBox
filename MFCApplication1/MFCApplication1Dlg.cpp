@@ -235,6 +235,7 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_BN_CLICKED(IDC_BTN_PROCESS_REGEX_HELP, &CMFCApplication1Dlg::OnProcessRegexHelp)
     // AI Assistant
     ON_BN_CLICKED(IDC_BUTTON_AI_SEND, &CMFCApplication1Dlg::OnBnClickedAiSend)
+    ON_BN_CLICKED(IDC_BUTTON_AI_STOP, &CMFCApplication1Dlg::OnBnClickedAiStop)
     ON_BN_CLICKED(IDC_BUTTON_AI_CLEAR, &CMFCApplication1Dlg::OnBnClickedAiClear)
     ON_MESSAGE(WM_AI_RESPONSE, &CMFCApplication1Dlg::OnAiResponse)
     ON_MESSAGE(WM_AI_STREAM_CHUNK, &CMFCApplication1Dlg::OnAiStreamChunk)
@@ -1605,6 +1606,8 @@ void CMFCApplication1Dlg::OnBnClickedAiSend()
 
     CWnd* pSend = GetDlgItem(IDC_BUTTON_AI_SEND);
     if (pSend) pSend->EnableWindow(FALSE);
+    CWnd* pStop = GetDlgItem(IDC_BUTTON_AI_STOP);
+    if (pStop) pStop->EnableWindow(TRUE);
 
     // Use streaming API
     m_aiStreamingContent.Empty();
@@ -1617,6 +1620,17 @@ void CMFCApplication1Dlg::OnBnClickedAiClear()
     m_aiStreamingContent.Empty();
     m_aiPendingHtml.Empty();
     SetAiBrowserHtml(BuildAiHtmlPage(_T("")));
+    CWnd* pStop = GetDlgItem(IDC_BUTTON_AI_STOP);
+    if (pStop) pStop->EnableWindow(FALSE);
+}
+
+void CMFCApplication1Dlg::OnBnClickedAiStop()
+{
+    CAIApiClient::Cancel();
+    CWnd* pStop = GetDlgItem(IDC_BUTTON_AI_STOP);
+    if (pStop) pStop->EnableWindow(FALSE);
+    CWnd* pSend = GetDlgItem(IDC_BUTTON_AI_SEND);
+    if (pSend) pSend->EnableWindow(TRUE);
 }
 
 LRESULT CMFCApplication1Dlg::OnAiResponse(WPARAM wParam, LPARAM lParam)
@@ -1645,6 +1659,8 @@ LRESULT CMFCApplication1Dlg::OnAiResponse(WPARAM wParam, LPARAM lParam)
 
     CWnd* pSend = GetDlgItem(IDC_BUTTON_AI_SEND);
     if (pSend) pSend->EnableWindow(TRUE);
+    CWnd* pStop = GetDlgItem(IDC_BUTTON_AI_STOP);
+    if (pStop) pStop->EnableWindow(FALSE);
 
     return 0;
 }
@@ -1668,6 +1684,8 @@ LRESULT CMFCApplication1Dlg::OnAiStreamDone(WPARAM wParam, LPARAM lParam)
 {
     CWnd* pSend = GetDlgItem(IDC_BUTTON_AI_SEND);
     if (pSend) pSend->EnableWindow(TRUE);
+    CWnd* pStop = GetDlgItem(IDC_BUTTON_AI_STOP);
+    if (pStop) pStop->EnableWindow(FALSE);
 
     CString* pResult = reinterpret_cast<CString*>(lParam);
     bool bSuccess = (wParam == 1);

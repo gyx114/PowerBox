@@ -5,6 +5,7 @@
 #include "framework.h"
 #include "MFCApplication1.h"
 #include "MFCApplication1Dlg.h"
+#include "AIApiClient.h"
 #include <afxole.h>
 #include <gdiplus.h>
 #pragma comment(lib, "gdiplus.lib")
@@ -241,6 +242,22 @@ BOOL CMFCApplication1App::InitInstance()
 
 int CMFCApplication1App::ExitInstance()
 {
+    // Clean up empty "log" folder created by MFC CMFCVisualManager diagnostics.
+    // MFC creates this folder in the module directory for tracing output;
+    // if empty, it's safe to remove.
+    TCHAR szModulePath[MAX_PATH]{};
+    GetModuleFileName(nullptr, szModulePath, MAX_PATH);
+    fs::path logPath = fs::path(szModulePath).parent_path() / L"log";
+    std::error_code ec;
+    if (fs::exists(logPath, ec) && fs::is_directory(logPath, ec))
+    {
+        if (fs::is_empty(logPath, ec))
+            fs::remove(logPath, ec);
+    }
+
+    // Wait for all AI thread pool tasks to finish
+    CAIApiClient::DestroyThreadPool();
+
     Gdiplus::GdiplusShutdown(m_gdiplusToken);
     return CWinApp::ExitInstance();
 }

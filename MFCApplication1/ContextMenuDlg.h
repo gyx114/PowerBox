@@ -7,6 +7,7 @@
 #include <set>
 #include <map>
 #include <string>
+#include <deque>
 
 class CContextMenuDlg : public CDialogEx
 {
@@ -96,6 +97,24 @@ private:
 	bool SaveUserOverride(const CString& clsid, const CString& scenePath,
 		const CString& customName);
 	void OnBnClickedDictOpen();           // 打开字典目录
+	bool ExportRegistryBackup(const CString& regPath, const CString& description);
+	CString GetBackupDir();
+	CString GetHistoryPath();
+	void LoadHistory();
+	void SaveHistory();
+	void AddHistoryEntry(const CString& type, const CString& itemName, const CString& details,
+		const CString& regPath, const CString& keyName);
+
+	struct HistoryEntry
+	{
+		CString timestamp;
+		CString type;       // "toggle" or "delete"
+		CString itemName;
+		CString details;
+		CString regPath;    // HKCR-relative path for undo lookup
+		CString keyName;    // subkey name for undo lookup
+	};
+	std::deque<HistoryEntry> m_history;  // max 100 entries
 
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void OnBnClickedRefresh();
@@ -113,5 +132,8 @@ private:
 	afx_msg void OnMenuLocate();
 	afx_msg void OnMenuCustomParse();
 	afx_msg void OnMenuAiAnalyze();
+	afx_msg void OnMenuEnableAll();
+	afx_msg void OnBnClickedUndo();
+	afx_msg void OnBnClickedHistory();
 	afx_msg LRESULT OnAiResponse(WPARAM wParam, LPARAM lParam);
 };

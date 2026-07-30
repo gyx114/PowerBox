@@ -16,6 +16,7 @@
 // C++20 standard library
 #include <format>
 #include <filesystem>
+namespace fs = std::filesystem;
 #include <span>
 #include <string_view>
 #include <stop_token>

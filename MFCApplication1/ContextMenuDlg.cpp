@@ -81,6 +81,7 @@ protected:
 
 #define ID_MENU_CM_CUSTOMPARSE  50023
 #define ID_MENU_CM_AI_ANALYZE  50024
+#define ID_MENU_CM_ENABLE_ALL   50025
 
 IMPLEMENT_DYNAMIC(CContextMenuDlg, CDialogEx)
 
@@ -116,7 +117,10 @@ BEGIN_MESSAGE_MAP(CContextMenuDlg, CDialogEx)
 	ON_COMMAND(ID_MENU_CM_LOCATE, &CContextMenuDlg::OnMenuLocate)
 	ON_COMMAND(ID_MENU_CM_CUSTOMPARSE, &CContextMenuDlg::OnMenuCustomParse)
 	ON_COMMAND(ID_MENU_CM_AI_ANALYZE, &CContextMenuDlg::OnMenuAiAnalyze)
+	ON_COMMAND(ID_MENU_CM_ENABLE_ALL, &CContextMenuDlg::OnMenuEnableAll)
 	ON_BN_CLICKED(IDC_BTN_CM_EXTENSION, &CContextMenuDlg::OnBnClickedExtension)
+	ON_BN_CLICKED(IDC_BTN_CM_UNDO, &CContextMenuDlg::OnBnClickedUndo)
+	ON_BN_CLICKED(IDC_BTN_CM_HISTORY, &CContextMenuDlg::OnBnClickedHistory)
 	ON_MESSAGE(WM_AI_RESPONSE, &CContextMenuDlg::OnAiResponse)
 END_MESSAGE_MAP()
 
@@ -1454,6 +1458,7 @@ BOOL CContextMenuDlg::OnInitDialog()
 
 	LoadSelfContextMenuState();
 	LoadWin11ClassicState();
+	LoadHistory();
 
 	return TRUE;
 }
@@ -1906,6 +1911,11 @@ void CContextMenuDlg::ToggleEntry(int index, bool bRefresh)
 	// Build the HKCR-relative full path: regPath\keyName (e.g. "*\shell\edit")
 	CString hkcrFullPath = entry.regPath + _T("\\") + entry.keyName;
 
+	// Export registry backup before modification
+	CString backupDesc = entry.bEnabled ? _T("Disable ") : _T("Enable ");
+	backupDesc += entry.displayName;
+	ExportRegistryBackup(hkcrFullPath, backupDesc);
+
 	// Clean up any previous HKCU override from earlier attempts
 	// (ensures HKLM writes are not masked by stale HKCU entries in merged view)
 	CString hkcuCleanup = _T("Software\\Classes\\") + hkcrFullPath;
@@ -2096,6 +2106,12 @@ void CContextMenuDlg::ToggleEntry(int index, bool bRefresh)
 	if (bRefresh)
 		RefreshList();
 
+	// Record operation history
+	CString type = _T("toggle");
+	CString details = entry.bEnabled ? _T("已启用") : _T("已禁用");
+	details += _T(": ") + entry.regPath + _T("\\") + entry.keyName;
+	AddHistoryEntry(type, entry.displayName, details, entry.regPath, entry.keyName);
+
 	CString msg;
 	msg.Format(_T("已%s: %s"), entry.bEnabled ? _T("启用") : _T("禁用"), entry.displayName);
 	UpdateStatus(msg);
@@ -2141,6 +2157,35 @@ void CContextMenuDlg::OnBnClickedDelete()
 		nEnabled);
 	if (MessageBox(msg, _T("确认禁用"), MB_ICONWARNING | MB_YESNO) != IDYES)
 		return;
+
+	// Secondary confirmation for system-critical items
+	// Items in "*" (all files), "Folder", "Directory\\Background", "Drive",
+	// and "AllFilesystemObjects" directly affect Windows shell behavior.
+	bool bHasCritical = false;
+	for (int idx : selected)
+	{
+		if (idx < 0 || idx >= (int)m_entries.size() || !m_entries[idx].bEnabled)
+			continue;
+		CString loc = m_entries[idx].location;
+		if (loc.Find(_T("*")) >= 0 || loc.Find(_T("Folder")) >= 0 ||
+			loc.Find(_T("Directory")) >= 0 || loc.Find(_T("Drive")) >= 0 ||
+			loc.Find(_T("AllFilesystemObjects")) >= 0)
+		{
+			bHasCritical = true;
+			break;
+		}
+	}
+	if (bHasCritical)
+	{
+		CString criticalMsg;
+		criticalMsg.Format(_T("警告：部分选中项为系统关键右键菜单项！\n\n")
+			_T("禁用这些项可能影响 Windows 资源管理器的正常行为。\n")
+			_T("修改前会自动创建注册表备份。\n\n")
+			_T("确定要继续吗？"));
+		if (MessageBox(criticalMsg, _T("严重警告 - 确认禁用"),
+			MB_ICONWARNING | MB_YESNO) != IDYES)
+			return;
+	}
 
 	// Toggle each selected item without refreshing inside the loop.
 	// RefreshList only repaints the list control and never clears m_entries,
@@ -2195,24 +2240,34 @@ void CContextMenuDlg::OnNMRClickList(NMHDR* pNMHDR, LRESULT* pResult)
 	CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_CM_ENTRIES);
 	if (!pList) return;
 
-	POSITION pos = pList->GetFirstSelectedItemPosition();
-	if (!pos) return;
-
-	int idx = pList->GetNextSelectedItem(pos);
-	if (idx < 0 || idx >= (int)m_entries.size()) return;
-
-	// Determine toggle label based on current state
-	bool bEnabled = m_entries[idx].bEnabled;
+	int nSelected = pList->GetSelectedCount();
+	if (nSelected == 0) return;
 
 	CMenu menu;
 	menu.CreatePopupMenu();
 
-	menu.AppendMenu(MF_STRING, ID_MENU_CM_TOGGLE, bEnabled ? _T("禁用") : _T("启用"));
+	if (nSelected == 1)
+	{
+		// Single selection: show "启用"/"禁用"
+		POSITION pos = pList->GetFirstSelectedItemPosition();
+		int idx = pList->GetNextSelectedItem(pos);
+		if (idx >= 0 && idx < (int)m_entries.size())
+		{
+			bool bEnabled = m_entries[idx].bEnabled;
+			menu.AppendMenu(MF_STRING, ID_MENU_CM_TOGGLE, bEnabled ? _T("禁用") : _T("启用"));
+		}
+	}
+	else
+	{
+		// Multiple selection: show "启用选中"/"禁用选中"
+		menu.AppendMenu(MF_STRING, ID_MENU_CM_ENABLE_ALL, _T("启用选中"));
+		menu.AppendMenu(MF_STRING, ID_MENU_CM_DELETE, _T("禁用选中"));
+	}
+
 	menu.AppendMenu(MF_SEPARATOR);
 	menu.AppendMenu(MF_STRING, ID_MENU_CM_CUSTOMPARSE, _T("自定义解析"));
 	menu.AppendMenu(MF_STRING, ID_MENU_CM_AI_ANALYZE, _T("AI解析"));
 	menu.AppendMenu(MF_SEPARATOR);
-	menu.AppendMenu(MF_STRING, ID_MENU_CM_DELETE, _T("禁用选中"));
 	menu.AppendMenu(MF_STRING, ID_MENU_CM_LOCATE, _T("定位(注册表)"));
 
 	CPoint pt;
@@ -2223,6 +2278,53 @@ void CContextMenuDlg::OnNMRClickList(NMHDR* pNMHDR, LRESULT* pResult)
 void CContextMenuDlg::OnMenuDelete()
 {
 	OnBnClickedDelete();
+}
+
+void CContextMenuDlg::OnMenuEnableAll()
+{
+	CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_CM_ENTRIES);
+	if (!pList) return;
+
+	std::vector<int> selected;
+	POSITION pos = pList->GetFirstSelectedItemPosition();
+	while (pos)
+		selected.push_back(pList->GetNextSelectedItem(pos));
+
+	// Count only currently disabled items (already enabled ones are skipped)
+	int nDisabled = 0;
+	for (int idx : selected)
+	{
+		if (idx >= 0 && idx < (int)m_entries.size() && !m_entries[idx].bEnabled)
+			nDisabled++;
+	}
+
+	if (nDisabled == 0)
+	{
+		MessageBox(_T("选中的项均已启用。"), _T("提示"), MB_ICONINFORMATION);
+		return;
+	}
+
+	CString msg;
+	msg.Format(_T("确定要启用选中的 %d 个右键菜单项吗？"), nDisabled);
+	if (MessageBox(msg, _T("确认启用"), MB_ICONWARNING | MB_YESNO) != IDYES)
+		return;
+
+	int nEnabled = 0;
+	for (int idx : selected)
+	{
+		if (idx < 0 || idx >= (int)m_entries.size())
+			continue;
+		if (m_entries[idx].bEnabled)
+			continue;
+
+		ToggleEntry(idx, false);
+		nEnabled++;
+	}
+	RefreshList();
+
+	CString status;
+	status.Format(_T("已启用 %d 项"), nEnabled);
+	UpdateStatus(status);
 }
 
 void CContextMenuDlg::OnMenuToggle()
@@ -3299,4 +3401,240 @@ LRESULT CContextMenuDlg::OnAiResponse(WPARAM wParam, LPARAM lParam)
     }
 
     return 0;
+}
+
+// ============================================================================
+// Registry backup / operation history / undo
+// ============================================================================
+
+CString CContextMenuDlg::GetBackupDir()
+{
+    TCHAR szAppData[MAX_PATH]{};
+    if (SUCCEEDED(SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, 0, szAppData)))
+    {
+        fs::path backupDir = fs::path(szAppData) / L"MFCApplication1" / L"ContextMenuBackups";
+        return CString(backupDir.c_str());
+    }
+    // Fallback to exe directory
+    TCHAR szExePath[MAX_PATH]{};
+    GetModuleFileName(nullptr, szExePath, MAX_PATH);
+    fs::path exeDir = fs::path(szExePath).parent_path();
+    fs::path backupDir = exeDir / L"ContextMenuBackups";
+    return CString(backupDir.c_str());
+}
+
+CString CContextMenuDlg::GetHistoryPath()
+{
+    return GetBackupDir() + _T("\\history.log");
+}
+
+void CContextMenuDlg::LoadHistory()
+{
+    m_history.clear();
+    CString historyPath = GetHistoryPath();
+    if (!PathFileExists(historyPath)) return;
+
+    try
+    {
+        CStdioFile file(historyPath, CFile::modeRead | CFile::typeText);
+        CString line;
+        while (file.ReadString(line))
+        {
+            line.Trim();
+            if (line.IsEmpty()) continue;
+
+            int pos1 = line.Find(_T('|'));
+            if (pos1 < 0) continue;
+            int pos2 = line.Find(_T('|'), pos1 + 1);
+            if (pos2 < 0) continue;
+            int pos3 = line.Find(_T('|'), pos2 + 1);
+            if (pos3 < 0) continue;
+            int pos4 = line.Find(_T('|'), pos3 + 1);
+            if (pos4 < 0) continue;
+            int pos5 = line.Find(_T('|'), pos4 + 1);
+            if (pos5 < 0) continue;
+
+            HistoryEntry entry;
+            entry.timestamp = line.Left(pos1);
+            entry.type = line.Mid(pos1 + 1, pos2 - pos1 - 1);
+            entry.itemName = line.Mid(pos2 + 1, pos3 - pos2 - 1);
+            entry.details = line.Mid(pos3 + 1, pos4 - pos3 - 1);
+            entry.regPath = line.Mid(pos4 + 1, pos5 - pos4 - 1);
+            entry.keyName = line.Mid(pos5 + 1);
+
+            m_history.push_back(entry);
+        }
+        file.Close();
+    }
+    catch (...) {}
+}
+
+void CContextMenuDlg::SaveHistory()
+{
+    CString historyPath = GetHistoryPath();
+    CString backupDir = GetBackupDir();
+    if (!PathFileExists(backupDir))
+        CreateDirectory(backupDir, nullptr);
+
+    try
+    {
+        CStdioFile file(historyPath, CFile::modeCreate | CFile::modeWrite | CFile::typeText);
+        for (const auto& entry : m_history)
+        {
+            CString line;
+            line.Format(_T("%s|%s|%s|%s|%s|%s\n"),
+                entry.timestamp, entry.type, entry.itemName,
+                entry.details, entry.regPath, entry.keyName);
+            file.WriteString(line);
+        }
+        file.Close();
+    }
+    catch (...) {}
+}
+
+void CContextMenuDlg::AddHistoryEntry(const CString& type, const CString& itemName,
+    const CString& details, const CString& regPath, const CString& keyName)
+{
+    CTime now = CTime::GetCurrentTime();
+    CString timestamp;
+    timestamp.Format(_T("%04d-%02d-%02d %02d:%02d:%02d"),
+        now.GetYear(), now.GetMonth(), now.GetDay(),
+        now.GetHour(), now.GetMinute(), now.GetSecond());
+
+    HistoryEntry entry;
+    entry.timestamp = timestamp;
+    entry.type = type;
+    entry.itemName = itemName;
+    entry.details = details;
+    entry.regPath = regPath;
+    entry.keyName = keyName;
+
+    m_history.push_front(entry);
+
+    // Keep max 100 entries
+    while (m_history.size() > 100)
+        m_history.pop_back();
+
+    SaveHistory();
+}
+
+bool CContextMenuDlg::ExportRegistryBackup(const CString& regPath, const CString& /*description*/)
+{
+    CString backupDir = GetBackupDir();
+    if (!PathFileExists(backupDir))
+    {
+        if (!CreateDirectory(backupDir, nullptr))
+        {
+            UpdateStatus(_T("无法创建备份目录"));
+            return false;
+        }
+    }
+
+    CTime now = CTime::GetCurrentTime();
+    CString filename;
+    filename.Format(_T("backup_%04d%02d%02d_%02d%02d%02d.reg"),
+        now.GetYear(), now.GetMonth(), now.GetDay(),
+        now.GetHour(), now.GetMinute(), now.GetSecond());
+
+    CString backupPath = backupDir + _T("\\") + filename;
+
+    CString regKeyPath = _T("HKCR\\") + regPath;
+    CString cmd;
+    cmd.Format(_T("reg export \"%s\" \"%s\" /y"), regKeyPath, backupPath);
+
+    STARTUPINFO si = { sizeof(si) };
+    PROCESS_INFORMATION pi = {};
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+
+    CString cmdLine = _T("cmd.exe /c ") + cmd + _T(" >nul 2>&1");
+    BOOL bResult = CreateProcess(nullptr, cmdLine.GetBuffer(), nullptr, nullptr,
+        FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi);
+    cmdLine.ReleaseBuffer();
+
+    if (bResult)
+    {
+        WaitForSingleObject(pi.hProcess, 5000);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+    }
+
+    return (PathFileExists(backupPath) != FALSE);
+}
+
+void CContextMenuDlg::OnBnClickedUndo()
+{
+    if (m_history.empty())
+    {
+        MessageBox(_T("没有可撤销的操作。"), _T("撤销"), MB_ICONINFORMATION);
+        return;
+    }
+
+    const auto& lastEntry = m_history.front();
+
+    // Find the entry in m_entries by matching regPath and keyName
+    int targetIdx = -1;
+    for (int i = 0; i < (int)m_entries.size(); i++)
+    {
+        if (m_entries[i].regPath == lastEntry.regPath &&
+            m_entries[i].keyName == lastEntry.keyName)
+        {
+            targetIdx = i;
+            break;
+        }
+    }
+
+    if (targetIdx < 0)
+    {
+        MessageBox(_T("找不到对应的菜单项，可能已被删除。"), _T("撤销失败"), MB_ICONWARNING);
+        return;
+    }
+
+    CString msg;
+    msg.Format(_T("确定要撤销以下操作吗？\n\n")
+        _T("时间：%s\n")
+        _T("操作：%s\n")
+        _T("项目：%s\n")
+        _T("详情：%s\n\n")
+        _T("将把该项恢复到操作前的状态。"),
+        lastEntry.timestamp, lastEntry.type, lastEntry.itemName, lastEntry.details);
+
+    if (MessageBox(msg, _T("确认撤销"), MB_ICONWARNING | MB_YESNO) != IDYES)
+        return;
+
+    // Toggle the entry back to its previous state
+    ToggleEntry(targetIdx);
+
+    // Remove the undone entry from history
+    m_history.pop_front();
+    SaveHistory();
+
+    CString status;
+    status.Format(_T("已撤销: %s"), lastEntry.itemName);
+    UpdateStatus(status);
+}
+
+void CContextMenuDlg::OnBnClickedHistory()
+{
+    if (m_history.empty())
+    {
+        MessageBox(_T("没有操作历史。"), _T("操作历史"), MB_ICONINFORMATION);
+        return;
+    }
+
+    CString historyText;
+    int count = 0;
+    for (const auto& entry : m_history)
+    {
+        CString line;
+        line.Format(_T("[%d] %s  %s  %s\r\n    %s\r\n"),
+            ++count, entry.timestamp, entry.type, entry.itemName, entry.details);
+        historyText += line;
+        if (count >= 50) break;
+    }
+
+    if (count >= 50)
+        historyText += _T("\r\n...（仅显示最近 50 条）");
+
+    MessageBox(historyText, _T("操作历史（最近优先）"), MB_ICONINFORMATION);
 }
