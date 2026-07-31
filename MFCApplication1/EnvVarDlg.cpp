@@ -313,10 +313,8 @@ IMPLEMENT_DYNAMIC(CEnvVarDlg, CDialogEx)
 
 CEnvVarDlg::CEnvVarDlg(CWnd* pParent)
 	: CDialogEx(IDD_ENVVAR_DLG, pParent)
-	, m_listSysLeft(0), m_listSysTop(0)
-	, m_listUserLeft(0), m_listUserTop(0)
-	, m_buttonTop(0)
-	, m_statusTop(0)
+	, m_listSysLeft(0), m_listSysTop(0), m_listSysHeight(0)
+	, m_listUserLeft(0), m_listUserTop(0), m_listUserHeight(0)
 {
 }
 
@@ -505,16 +503,12 @@ BOOL CEnvVarDlg::OnInitDialog()
 	};
 
 	CRect rcSys = ReadRect(IDC_LIST_ENV_SYSTEM);
-	m_listSysLeft = rcSys.left; m_listSysTop = 39;
+	m_listSysLeft = rcSys.left; m_listSysTop = rcSys.top;
+	m_listSysHeight = rcSys.Height();
 
 	CRect rcUser = ReadRect(IDC_LIST_ENV_USER);
-	m_listUserLeft = rcUser.left; m_listUserTop = 39;
-
-	CRect rcBtn = ReadRect(IDC_BTN_ENV_ADD);
-	m_buttonTop = 184;
-
-	CRect rcStatus = ReadRect(IDC_STATIC_ENV_STATUS);
-	m_statusTop = 213;
+	m_listUserLeft = rcUser.left; m_listUserTop = rcUser.top;
+	m_listUserHeight = rcUser.Height();
 
 	CListCtrl* pListSys = (CListCtrl*)GetDlgItem(IDC_LIST_ENV_SYSTEM);
 	if (pListSys)
@@ -550,14 +544,15 @@ void CEnvVarDlg::OnSize(UINT nType, int cx, int cy)
 	CDialogEx::OnSize(nType, cx, cy);
 	if (nType != SIZE_MINIMIZED && IsWindow(m_hWnd))
 	{
-		int nListWidth = (cx - m_listSysLeft - 10) / 2;
-		int nListHeight = m_buttonTop - m_listSysTop - 4;
+		// Both lists are stacked vertically, same x and width.
+		// Only list width adjusts when window is widened horizontally.
+		int nListWidth = cx - m_listSysLeft - 10;
 
 		CListCtrl* pListSys = (CListCtrl*)GetDlgItem(IDC_LIST_ENV_SYSTEM);
 		if (pListSys)
 		{
 			pListSys->SetWindowPos(nullptr, m_listSysLeft, m_listSysTop,
-				nListWidth, nListHeight, SWP_NOZORDER);
+				nListWidth, m_listSysHeight, SWP_NOZORDER);
 			AdjustColumnWidths(IDC_LIST_ENV_SYSTEM);
 		}
 
@@ -565,7 +560,7 @@ void CEnvVarDlg::OnSize(UINT nType, int cx, int cy)
 		if (pListUser)
 		{
 			pListUser->SetWindowPos(nullptr, m_listUserLeft, m_listUserTop,
-				nListWidth, nListHeight, SWP_NOZORDER);
+				nListWidth, m_listUserHeight, SWP_NOZORDER);
 			AdjustColumnWidths(IDC_LIST_ENV_USER);
 		}
 	}

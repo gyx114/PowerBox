@@ -36,11 +36,9 @@ private:
 	std::vector<EnvVarEntry> m_userVars;
 	CString m_strSearchFilter;
 
-	// Layout anchors for resize
-	int m_listSysLeft, m_listSysTop;
-	int m_listUserLeft, m_listUserTop;
-	int m_buttonTop;
-	int m_statusTop;
+	// Layout anchors for resize (only list width adjusts on horizontal resize)
+	int m_listSysLeft, m_listSysTop, m_listSysHeight;
+	int m_listUserLeft, m_listUserTop, m_listUserHeight;
 
 	void RefreshAll();
 	void RefreshList(int listId, const std::vector<EnvVarEntry>& vars);

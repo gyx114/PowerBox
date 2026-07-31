@@ -15,6 +15,7 @@ CProcessScanDlg::CProcessScanDlg(CWnd* pParent)
     : CDialogEx(IDD_PROCESS_SCAN_DLG, pParent)
 {
     m_listLeft = m_listTop = 0;
+    m_listHeight = 0;
     m_listRightMargin = 0;
     m_btnEndLeft = m_btnLocateLeft = m_btnEndAllLeft = m_btnStartLeft = 0;
     m_btnWidth = m_btnHeight = 0;
@@ -82,6 +83,7 @@ BOOL CProcessScanDlg::OnInitDialog()
 
     m_listLeft = rcList.left;
     m_listTop = rcList.top;
+    m_listHeight = rcList.Height();  // fixed height from RC, only width adjusts on resize
     m_listRightMargin = rcDlg.Width() - rcList.right;
 
     if (pBtnEnd) { pBtnEnd->GetWindowRect(&rcBtn); ScreenToClient(&rcBtn); m_btnEndLeft = rcBtn.left; m_btnWidth = rcBtn.Width(); m_btnHeight = rcBtn.Height(); }
@@ -145,54 +147,16 @@ void CProcessScanDlg::ResizeControls()
     CRect rcClient;
     GetClientRect(&rcClient);
     int cx = rcClient.Width();
-    int cy = rcClient.Height();
 
-    int margin = 7;
-
-    // Buttons: anchor to bottom-left, fixed size from RC (only Y changes)
-    int btnY = cy - margin - m_btnHeight;
-
-    CWnd* pBtnEnd = GetDlgItem(IDC_BTN_SCAN_END);
-    if (pBtnEnd && IsWindow(pBtnEnd->m_hWnd))
-        pBtnEnd->SetWindowPos(nullptr, m_btnEndLeft, btnY, m_btnWidth, m_btnHeight, SWP_NOZORDER);
-
-    CWnd* pBtnLocate = GetDlgItem(IDC_BTN_SCAN_LOCATE);
-    if (pBtnLocate && IsWindow(pBtnLocate->m_hWnd))
-        pBtnLocate->SetWindowPos(nullptr, m_btnLocateLeft, btnY, m_btnWidth, m_btnHeight, SWP_NOZORDER);
-
-    CWnd* pBtnEndAll = GetDlgItem(IDC_BTN_SCAN_ENDALL);
-    if (pBtnEndAll && IsWindow(pBtnEndAll->m_hWnd))
-        pBtnEndAll->SetWindowPos(nullptr, m_btnEndAllLeft, btnY, m_btnWidth, m_btnHeight, SWP_NOZORDER);
-
-    CWnd* pBtnStart = GetDlgItem(IDC_BTN_SCAN_START);
-    if (pBtnStart && IsWindow(pBtnStart->m_hWnd))
-        pBtnStart->SetWindowPos(nullptr, m_btnStartLeft, btnY, m_btnWidth, m_btnHeight, SWP_NOZORDER);
-
-    // "审查级别:" label: fixed size from RC, only move position
-    CWnd* pLabelLevel = GetDlgItem(IDC_STATIC_SCAN_LEVEL_LABEL);
-    if (pLabelLevel && IsWindow(pLabelLevel->m_hWnd))
-        pLabelLevel->SetWindowPos(nullptr, m_labelLevelLeft, btnY + 2, m_labelLevelWidth, m_labelLevelHeight, SWP_NOZORDER);
-
-    // Scan level combo box: fixed size from RC, only move position
-    CWnd* pCmbLevel = GetDlgItem(IDC_COMBO_SCAN_LEVEL);
-    if (pCmbLevel && IsWindow(pCmbLevel->m_hWnd))
-        pCmbLevel->SetWindowPos(nullptr, m_cmbLevelLeft, btnY - 1, m_cmbLevelWidth, m_cmbLevelHeight, SWP_NOZORDER);
-
-    // Status label: fixed size from RC, only move position
-    CWnd* pStatus = GetDlgItem(IDC_STATIC_SCAN_STATUS);
-    if (pStatus && IsWindow(pStatus->m_hWnd))
-        pStatus->SetWindowPos(nullptr, m_statusLeft, btnY + 2, m_statusWidth, m_statusHeight, SWP_NOZORDER);
-
-    // List control: stretch between top and button row
+    // All controls except the list stay at their original RC positions.
+    // Only the list control width adjusts when window is widened horizontally.
     CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST_SCAN_RESULTS));
     if (pList && IsWindow(pList->m_hWnd))
     {
         int listWidth = cx - m_listLeft - m_listRightMargin;
-        int listHeight = btnY - m_listTop - margin;
-        if (listHeight < 50) listHeight = 50;
 
         pList->SetWindowPos(nullptr, m_listLeft, m_listTop,
-            listWidth, listHeight, SWP_NOZORDER);
+            listWidth, m_listHeight, SWP_NOZORDER);
 
         // Adjust column widths proportionally
         CRect rcList;

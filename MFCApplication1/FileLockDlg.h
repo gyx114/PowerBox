@@ -42,6 +42,7 @@ private:
 
 	// Layout anchors (read from actual controls at init, DPI-safe)
 	int m_hintLeft, m_hintTop, m_hintHeight;
+	int m_listHeight;   // fixed list height from RC (only width changes on resize)
 	int m_btnWidth, m_btnHeight, m_btnGap;
 
 	void InitListColumns();

@@ -58,6 +58,7 @@ private:
 
     // Layout anchors (saved from RC file at OnInitDialog)
     int m_listLeft, m_listTop;
+    int m_listHeight;       // fixed list height from RC (only width changes on resize)
     int m_listRightMargin;  // original right margin of list from dialog edge
     int m_btnEndLeft, m_btnLocateLeft, m_btnEndAllLeft, m_btnStartLeft;
     int m_btnWidth, m_btnHeight;  // fixed button size from RC

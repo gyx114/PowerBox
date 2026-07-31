@@ -25,6 +25,7 @@ IMPLEMENT_DYNAMIC(CFileLockDlg, CDialogEx)
 CFileLockDlg::CFileLockDlg(CWnd* pParent)
 	: CDialogEx(IDD_FILELOCK_DLG, pParent)
 	, m_hintLeft(12), m_hintTop(5), m_hintHeight(10)
+	, m_listHeight(0)
 	, m_btnWidth(38), m_btnHeight(18), m_btnGap(8)
 {
 	m_hintText = _T("拖入文件到此查看占用进程");
@@ -90,6 +91,12 @@ BOOL CFileLockDlg::OnInitDialog()
 		m_btnGap = rcBtn2.left - rcBtn1.right;
 	}
 
+	// Store original list height from RC
+	CRect rcList;
+	m_list.GetWindowRect(&rcList);
+	ScreenToClient(&rcList);
+	m_listHeight = rcList.Height();
+
 	// Set hint text
 	SetDlgItemText(IDC_STATIC_FILELOCK_HINT, m_hintText);
 
@@ -143,35 +150,11 @@ void CFileLockDlg::ResizeControls()
 
 	const int margin = 7;
 
-	// Hint label: completely fixed, never touch size or position
-	// (leave it at RC-defined position)
-
-	// List control: stretch between hint bottom and buttons top
+	// All controls except the list stay at their original RC positions.
+	// Only the list control width adjusts when window is widened horizontally.
 	int listTop = m_hintTop + m_hintHeight + 5;
-	int listBottom = rc.Height() - margin - m_btnHeight - margin;
-	if (listBottom < listTop + 40) listBottom = listTop + 40;
 	m_list.SetWindowPos(nullptr, margin, listTop,
-		rc.Width() - 2 * margin, listBottom - listTop, SWP_NOZORDER);
-
-	// Buttons: anchor to bottom-right, fixed size from RC
-	int btnTop = rc.Height() - margin - m_btnHeight;
-	int x = rc.Width() - margin;
-
-	struct { int id; } buttons[] = {
-		{ IDC_BTN_FILELOCK_ENDALL },
-		{ IDC_BTN_FILELOCK_END },
-		{ IDC_BTN_FILELOCK_LOCATE },
-		{ IDC_BTN_FILELOCK_REFRESH },
-		{ IDC_BTN_FILELOCK_CLEAR },
-	};
-
-	for (const auto& btn : buttons)
-	{
-		x -= m_btnWidth + m_btnGap;
-		CWnd* pBtn = GetDlgItem(btn.id);
-		if (pBtn)
-			pBtn->SetWindowPos(nullptr, x, btnTop, m_btnWidth, m_btnHeight, SWP_NOZORDER);
-	}
+		rc.Width() - 2 * margin, m_listHeight, SWP_NOZORDER);
 }
 
 void CFileLockDlg::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
