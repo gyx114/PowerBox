@@ -90,12 +90,6 @@ BOOL CSettingsDlg::OnInitDialog()
     m_strCurrentVendor = AfxGetApp()->GetProfileString(_T("AI"), _T("Vendor"), _T("DeepSeek"));
     LoadVendorKey(m_strCurrentVendor);
 
-    // GitHub account config (optional, for AI Git command generation)
-    SetDlgItemText(IDC_EDIT_GITHUB_USER, AfxGetApp()->GetProfileString(_T("GitHub"), _T("UserName"), _T("")));
-    SetDlgItemText(IDC_EDIT_GITHUB_EMAIL, AfxGetApp()->GetProfileString(_T("GitHub"), _T("Email"), _T("")));
-    SetDlgItemText(IDC_EDIT_GITHUB_REPO, AfxGetApp()->GetProfileString(_T("GitHub"), _T("RepoName"), _T("")));
-    SetDlgItemText(IDC_EDIT_GITHUB_REMOTE, AfxGetApp()->GetProfileString(_T("GitHub"), _T("RemoteRepo"), _T("")));
-
     return TRUE;
 }
 
@@ -159,12 +153,6 @@ void CSettingsDlg::OnOK()
         pCombo->GetWindowText(aiVendor);
         AfxGetApp()->WriteProfileString(_T("AI"), _T("Vendor"), aiVendor);
     }
-
-    // Save GitHub account config
-    GetDlgItemText(IDC_EDIT_GITHUB_USER, v); AfxGetApp()->WriteProfileString(_T("GitHub"), _T("UserName"), v);
-    GetDlgItemText(IDC_EDIT_GITHUB_EMAIL, v); AfxGetApp()->WriteProfileString(_T("GitHub"), _T("Email"), v);
-    GetDlgItemText(IDC_EDIT_GITHUB_REPO, v); AfxGetApp()->WriteProfileString(_T("GitHub"), _T("RepoName"), v);
-    GetDlgItemText(IDC_EDIT_GITHUB_REMOTE, v); AfxGetApp()->WriteProfileString(_T("GitHub"), _T("RemoteRepo"), v);
 
     DestroyWindow();
 }

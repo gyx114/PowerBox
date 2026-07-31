@@ -704,11 +704,16 @@ void CMFCApplication1Dlg::OnBnClickedButton31()
         return;
     }
 
-    // Read displayed path from static control. It may be a file path (dropped file)
-    // or a directory. If it's a file, use its parent directory.
+    // Read the Git working directory from the Git tab's path control
+    // If empty, fall back to the shared path control
     CString displayed;
-    CWnd* pStatic = GetDlgItem(IDC_STATIC_PATH);
-    if (pStatic) pStatic->GetWindowText(displayed);
+    CWnd* pGitPath = GetDlgItem(IDC_STATIC_GIT_PATH);
+    if (pGitPath) pGitPath->GetWindowText(displayed);
+    if (displayed.IsEmpty())
+    {
+        CWnd* pStatic = GetDlgItem(IDC_STATIC_PATH);
+        if (pStatic) pStatic->GetWindowText(displayed);
+    }
 
     CString workDir;
     if (!displayed.IsEmpty())

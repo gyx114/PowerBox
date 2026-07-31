@@ -1422,7 +1422,7 @@ CString CMFCApplication1Dlg::BuildSystemPrompt()
         _T("   - Git command result dialog: non-modal window with AI command generation, temporary command list, and execution output\n")
         _T("   - The command list in the result dialog is a temporary display — commands are not saved to config\n")
         _T("   - Commands configurable in config.ini under [GitCommands] section (Cmd1~Cmd99, format: 'Description|Command')\n")
-        _T("   - GitHub account info (optional, in Settings): username, email, remote repo URLs for AI context\n\n")
+        _T("   - When a Git working directory is set, real-time git status (branch, status, log, remote, config) is automatically injected into AI prompts\n\n")
 
         _T("=== RIGHT SIDE QUICK ACTIONS (3 sub-tabs) ===\n\n")
 

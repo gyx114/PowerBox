@@ -82,4 +82,9 @@ private:
     static CString FindBashExe();
     // Execute a single command in a background thread
     void ExecuteThread(CString strCommand);
+    // Start the next queued command, if any
+    void ExecuteNextInQueue();
+
+    // Queue of commands to execute sequentially
+    std::vector<CString> m_cmdQueue;
 };

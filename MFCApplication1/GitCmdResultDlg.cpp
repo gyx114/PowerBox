@@ -258,7 +258,78 @@ void CGitCmdResultDlg::ResizeControls()
             m_bottomBtnWidth, m_bottomBtnHeight, SWP_NOZORDER);
 }
 
-// ========== Command execution ==========
+// ========== Dynamic git context helper ==========
+
+// Run a command and capture stdout (synchronous, short timeout)
+static CString RunAndCaptureGit(const CString& exePath, const CString& args,
+    const CString& workDir, DWORD timeoutMs = 3000)
+{
+    SECURITY_ATTRIBUTES sa = { 0 };
+    sa.nLength = sizeof(sa);
+    sa.bInheritHandle = TRUE;
+    HANDLE hReadPipe = nullptr, hWritePipe = nullptr;
+    if (!CreatePipe(&hReadPipe, &hWritePipe, &sa, 0)) return _T("");
+    SetHandleInformation(hReadPipe, HANDLE_FLAG_INHERIT, 0);
+
+    STARTUPINFO si = { 0 };
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdOutput = hWritePipe;
+    si.hStdError = hWritePipe;
+    PROCESS_INFORMATION pi = { 0 };
+
+    CString cmdLine = _T("\"") + exePath + _T("\" ") + args;
+    CString cmdLineCopy = cmdLine;
+    LPTSTR pCmdLine = cmdLineCopy.GetBuffer(cmdLineCopy.GetLength() + 1);
+
+    BOOL bOk = CreateProcess(nullptr, pCmdLine, nullptr, nullptr, TRUE,
+        CREATE_NO_WINDOW, nullptr,
+        workDir.IsEmpty() ? nullptr : workDir.GetString(),
+        &si, &pi);
+    cmdLineCopy.ReleaseBuffer();
+
+    if (!bOk)
+    {
+        CloseHandle(hReadPipe);
+        CloseHandle(hWritePipe);
+        return _T("");
+    }
+    CloseHandle(hWritePipe);
+
+    char readBuf[4096] = { 0 };
+    DWORD bytesRead;
+    std::string output;
+    while (ReadFile(hReadPipe, readBuf, sizeof(readBuf) - 1, &bytesRead, nullptr) && bytesRead > 0)
+        output.append(readBuf, bytesRead);
+    CloseHandle(hReadPipe);
+    WaitForSingleObject(pi.hProcess, timeoutMs);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+
+    int wlen = MultiByteToWideChar(CP_UTF8, 0, output.c_str(), (int)output.size(), nullptr, 0);
+    if (wlen <= 0) return _T("");
+    std::wstring wstr(wlen, 0);
+    MultiByteToWideChar(CP_UTF8, 0, output.c_str(), (int)output.size(), &wstr[0], wlen);
+    CString result(wstr.c_str());
+    result.Trim();
+    return result;
+}
+
+// Find git.exe from the configured GitBashPath
+static CString FindGitExe()
+{
+    CString gitBashPath = AfxGetApp()->GetProfileString(_T("Paths"), _T("GitBashPath"), _T(""));
+    if (gitBashPath.IsEmpty()) return _T("");
+    int pos = gitBashPath.ReverseFind(_T('\\'));
+    if (pos <= 0) return _T("");
+    CString gitDir = gitBashPath.Left(pos);
+    CString exe = gitDir + _T("\\bin\\git.exe");
+    if (GetFileAttributes(exe) == INVALID_FILE_ATTRIBUTES)
+        return _T("");
+    return exe;
+}
+
+// ========== Command execution helpers ==========
 
 CString CGitCmdResultDlg::FindBashExe()
 {
@@ -286,24 +357,49 @@ void CGitCmdResultDlg::StartExecution(const CString& strCommand)
 {
     if (m_bRunning)
     {
-        MessageBox(_T("已有命令正在执行，请等待完成。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        // Queue the command to execute after the current one finishes
+        m_cmdQueue.push_back(strCommand);
         return;
     }
 
     m_bRunning = true;
     m_bCancelPending = false;
-    m_strOutput.Empty();
 
     CString status;
     status.Format(_T("状态: 执行中 - %s"), strCommand.Left(80));
     SetDlgItemText(IDC_STATIC_GIT_STATUS, status);
-    SetDlgItemText(IDC_EDIT_GIT_OUTPUT, _T(""));
+
+    // Append a header separator for this command (unless output is empty)
+    if (!m_strOutput.IsEmpty())
+        AppendOutput(_T("\r\n---\r\n"));
+    AppendOutput(_T("$ ") + strCommand + _T("\r\n"));
 
     // Launch execution thread (captures this and command by value)
     CString cmd = strCommand;
     m_execThread = std::thread([this, cmd]() {
         ExecuteThread(cmd);
     });
+}
+
+void CGitCmdResultDlg::ExecuteNextInQueue()
+{
+    m_bRunning = false;
+
+    if (m_execThread.joinable())
+        m_execThread.join();
+
+    if (!m_cmdQueue.empty())
+    {
+        CString next = m_cmdQueue.front();
+        m_cmdQueue.erase(m_cmdQueue.begin());
+        StartExecution(next);
+    }
+    else
+    {
+        CString status;
+        status = _T("状态: 所有命令执行完毕");
+        SetDlgItemText(IDC_STATIC_GIT_STATUS, status);
+    }
 }
 
 void CGitCmdResultDlg::ExecuteThread(CString strCommand)
@@ -449,7 +545,6 @@ LRESULT CGitCmdResultDlg::OnGitCmdOutput(WPARAM wParam, LPARAM lParam)
 
 LRESULT CGitCmdResultDlg::OnGitCmdDone(WPARAM wParam, LPARAM lParam)
 {
-    m_bRunning = false;
     DWORD exitCode = (DWORD)lParam;
 
     CString status;
@@ -472,9 +567,8 @@ LRESULT CGitCmdResultDlg::OnGitCmdDone(WPARAM wParam, LPARAM lParam)
         AppendOutput(_T("(无输出)"));
     }
 
-    // Join the finished thread
-    if (m_execThread.joinable())
-        m_execThread.join();
+    // Check and execute next queued command
+    ExecuteNextInQueue();
 
     return 0;
 }
@@ -647,21 +741,44 @@ void CGitCmdResultDlg::OnBnClickedAiAsk()
     sysPrompt += _T("Now generate git commands for the user's request. ");
     sysPrompt += _T("Remember: the | separator is required, and text after | must start with 'git'.\n\n");
 
-    // Add GitHub account context if available
-    CString ghUser = AfxGetApp()->GetProfileString(_T("GitHub"), _T("UserName"), _T(""));
-    CString ghEmail = AfxGetApp()->GetProfileString(_T("GitHub"), _T("Email"), _T(""));
-    CString ghRemote = AfxGetApp()->GetProfileString(_T("GitHub"), _T("RemoteRepo"), _T(""));
-
-    if (!ghUser.IsEmpty() || !ghEmail.IsEmpty() || !ghRemote.IsEmpty())
-    {
-        sysPrompt += _T("User context:\n");
-        if (!ghUser.IsEmpty()) sysPrompt += _T("- GitHub username: ") + ghUser + _T("\n");
-        if (!ghEmail.IsEmpty()) sysPrompt += _T("- Email: ") + ghEmail + _T("\n");
-        if (!ghRemote.IsEmpty()) sysPrompt += _T("- Remote repo URL(s): ") + ghRemote + _T("\n");
-    }
-
+    // Add dynamic git context if a working directory is set
     if (!m_strWorkDir.IsEmpty())
+    {
         sysPrompt += _T("\nWorking directory: ") + m_strWorkDir + _T("\n");
+
+        // Try to get real-time git repo state
+        CString gitExe = FindGitExe();
+        if (!gitExe.IsEmpty())
+        {
+            CString branch = RunAndCaptureGit(gitExe, _T("branch --show-current"), m_strWorkDir);
+            if (!branch.IsEmpty())
+                sysPrompt += _T("Current branch: ") + branch + _T("\n");
+
+            CString status = RunAndCaptureGit(gitExe, _T("status --short"), m_strWorkDir);
+            if (!status.IsEmpty())
+            {
+                sysPrompt += _T("Working tree status:\n") + status + _T("\n");
+            }
+
+            CString log = RunAndCaptureGit(gitExe, _T("log --oneline -5"), m_strWorkDir);
+            if (!log.IsEmpty())
+            {
+                sysPrompt += _T("Recent commits:\n") + log + _T("\n");
+            }
+
+            CString remote = RunAndCaptureGit(gitExe, _T("remote -v"), m_strWorkDir);
+            if (!remote.IsEmpty())
+            {
+                sysPrompt += _T("Remote URLs:\n") + remote + _T("\n");
+            }
+
+            CString config = RunAndCaptureGit(gitExe, _T("config --list"), m_strWorkDir);
+            if (!config.IsEmpty())
+            {
+                sysPrompt += _T("Git config:\n") + config.Left(2000) + _T("\n");
+            }
+        }
+    }
 
     std::vector<std::pair<CString, CString>> messages;
     messages.push_back({ _T("system"), sysPrompt });
@@ -758,12 +875,29 @@ void CGitCmdResultDlg::OnNMRclickCmdList(NMHDR* pNMHDR, LRESULT* pResult)
 
     int nItem = pItem->iItem;
 
-    // Select the right-clicked item
+    // Standard Windows behavior for right-click selection:
+    // - If the clicked item is already selected, keep the existing selection.
+    // - If not, clear all and select only the clicked item.
+    if (nItem >= 0)
+    {
+        UINT state = pList->GetItemState(nItem, LVIS_SELECTED);
+        if (!(state & LVIS_SELECTED))
+        {
+            for (int i = pList->GetItemCount() - 1; i >= 0; --i)
+                pList->SetItemState(i, 0, LVIS_SELECTED);
+            pList->SetItemState(nItem, LVIS_SELECTED, LVIS_SELECTED);
+        }
+    }
+
+    // Count selected items
+    int selCount = 0;
     if (nItem >= 0)
     {
         for (int i = pList->GetItemCount() - 1; i >= 0; --i)
-            pList->SetItemState(i, 0, LVIS_SELECTED);
-        pList->SetItemState(nItem, LVIS_SELECTED, LVIS_SELECTED);
+        {
+            if (pList->GetItemState(i, LVIS_SELECTED) & LVIS_SELECTED)
+                selCount++;
+        }
     }
 
     CMenu menu;
@@ -771,11 +905,15 @@ void CGitCmdResultDlg::OnNMRclickCmdList(NMHDR* pNMHDR, LRESULT* pResult)
 
     if (nItem >= 0)
     {
-        menu.AppendMenu(MF_STRING, 1, _T("执行命令"));
-        menu.AppendMenu(MF_STRING, 2, _T("复制命令"));
+        menu.AppendMenu(MF_STRING, 1, selCount > 1 ? _T("执行选中命令") : _T("执行命令"));
+        // Copy only makes sense for single item
+        if (selCount <= 1)
+            menu.AppendMenu(MF_STRING, 2, _T("复制命令"));
         menu.AppendMenu(MF_SEPARATOR);
-        menu.AppendMenu(MF_STRING, 3, _T("编辑命令"));
-        menu.AppendMenu(MF_STRING, 4, _T("删除命令"));
+        // Edit only makes sense for single item
+        if (selCount <= 1)
+            menu.AppendMenu(MF_STRING, 3, _T("编辑命令"));
+        menu.AppendMenu(MF_STRING, 4, selCount > 1 ? _T("删除选中命令") : _T("删除命令"));
     }
 
     CPoint pt;
@@ -785,80 +923,122 @@ void CGitCmdResultDlg::OnNMRclickCmdList(NMHDR* pNMHDR, LRESULT* pResult)
 
     if (nItem < 0) return;
 
-    CString desc = pList->GetItemText(nItem, 0);
-    CString cmd = pList->GetItemText(nItem, 1);
+    // Gather selected items
+    std::vector<int> selItems;
+    for (int i = 0; i < pList->GetItemCount(); i++)
+    {
+        if (pList->GetItemState(i, LVIS_SELECTED) & LVIS_SELECTED)
+            selItems.push_back(i);
+    }
+    bool multiSel = (selItems.size() > 1);
 
     switch (nCmd)
     {
-    case 1: // Execute
-        if (!cmd.IsEmpty())
+    case 1: // Execute (single or multiple)
+    {
+        if (m_strWorkDir.IsEmpty())
         {
-            // Confirm before execution
+            MessageBox(_T("请先设置 Git 工作目录。"), _T("提示"), MB_OK | MB_ICONWARNING);
+            break;
+        }
+
+        if (multiSel)
+        {
             CString msg;
-            msg.Format(_T("即将执行:\n\n%s\n\n工作目录: %s\n\n确认执行？"),
-                cmd.GetString(),
-                m_strWorkDir.IsEmpty() ? CString(_T("(默认)")).GetString() : m_strWorkDir.GetString());
-            if (MessageBox(msg, _T("确认执行"), MB_YESNO | MB_ICONQUESTION) == IDYES)
-                StartExecution(cmd);
+            msg.Format(_T("即将依次执行 %u 条命令，工作目录: %s\n\n确认执行？"),
+                (UINT)selItems.size(),
+                m_strWorkDir.GetString());
+            if (MessageBox(msg, _T("确认执行"), MB_YESNO | MB_ICONQUESTION) != IDYES)
+                break;
+            for (int idx : selItems)
+            {
+                CString c = pList->GetItemText(idx, 1);
+                if (!c.IsEmpty())
+                    StartExecution(c);
+            }
+        }
+        else
+        {
+            CString c = pList->GetItemText(nItem, 1);
+            if (!c.IsEmpty())
+            {
+                CString msg;
+                msg.Format(_T("即将执行:\n\n%s\n\n工作目录: %s\n\n确认执行？"),
+                    c.GetString(),
+                    m_strWorkDir.GetString());
+                if (MessageBox(msg, _T("确认执行"), MB_YESNO | MB_ICONQUESTION) == IDYES)
+                    StartExecution(c);
+            }
         }
         break;
-    case 2: // Copy
-        if (!cmd.IsEmpty() && OpenClipboard())
+    }
+    case 2: // Copy single
+    {
+        CString c = pList->GetItemText(nItem, 1);
+        if (!c.IsEmpty() && OpenClipboard())
         {
             EmptyClipboard();
-            int nLen = (cmd.GetLength() + 1) * sizeof(TCHAR);
+            int nLen = (c.GetLength() + 1) * sizeof(TCHAR);
             HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, nLen);
             if (hMem)
             {
-                memcpy(GlobalLock(hMem), cmd.GetString(), nLen);
+                memcpy(GlobalLock(hMem), c.GetString(), nLen);
                 GlobalUnlock(hMem);
                 SetClipboardData(CF_UNICODETEXT, hMem);
             }
             CloseClipboard();
         }
         break;
-    case 3: // Edit
+    }
+    case 3: // Edit single
+    {
+        CString desc = pList->GetItemText(nItem, 0);
+        CString cmd = pList->GetItemText(nItem, 1);
+        class CGitEditDlg : public CDialogEx
         {
-            class CGitEditDlg : public CDialogEx
+        public:
+            CGitEditDlg(const CString& init) : CDialogEx(IDD_INPUT_DLG), m_init(init) {}
+            CString GetInput() const { return m_input; }
+        protected:
+            virtual BOOL OnInitDialog() override
             {
-            public:
-                CGitEditDlg(const CString& init) : CDialogEx(IDD_INPUT_DLG), m_init(init) {}
-                CString GetInput() const { return m_input; }
-            protected:
-                virtual BOOL OnInitDialog() override
-                {
-                    CDialogEx::OnInitDialog();
-                    SetWindowText(_T("编辑命令"));
-                    SetDlgItemText(IDC_INPUT_PROMPT, _T("格式: 说明|命令"));
-                    SetDlgItemText(IDC_INPUT_EDIT, m_init);
-                    GetDlgItem(IDC_INPUT_EDIT)->SetFocus();
-                    return FALSE;
-                }
-                virtual void DoDataExchange(CDataExchange* pDX) override
-                {
-                    CDialogEx::DoDataExchange(pDX);
-                    DDX_Text(pDX, IDC_INPUT_EDIT, m_input);
-                }
-                void OnOK() override { UpdateData(TRUE); CDialogEx::OnOK(); }
-                CString m_init, m_input;
-                enum { IDD = IDD_INPUT_DLG };
-            };
-            CGitEditDlg dlg(desc + _T("|") + cmd);
-            if (dlg.DoModal() == IDOK)
+                CDialogEx::OnInitDialog();
+                SetWindowText(_T("编辑命令"));
+                SetDlgItemText(IDC_INPUT_PROMPT, _T("格式: 说明|命令"));
+                SetDlgItemText(IDC_INPUT_EDIT, m_init);
+                GetDlgItem(IDC_INPUT_EDIT)->SetFocus();
+                return FALSE;
+            }
+            virtual void DoDataExchange(CDataExchange* pDX) override
             {
-                CString val = dlg.GetInput();
-                int sep = val.Find(_T('|'));
-                if (sep != -1)
-                {
-                    pList->SetItemText(nItem, 0, val.Left(sep));
-                    pList->SetItemText(nItem, 1, val.Mid(sep + 1));
-                }
+                CDialogEx::DoDataExchange(pDX);
+                DDX_Text(pDX, IDC_INPUT_EDIT, m_input);
+            }
+            void OnOK() override { UpdateData(TRUE); CDialogEx::OnOK(); }
+            CString m_init, m_input;
+            enum { IDD = IDD_INPUT_DLG };
+        };
+        CGitEditDlg dlg(desc + _T("|") + cmd);
+        if (dlg.DoModal() == IDOK)
+        {
+            CString val = dlg.GetInput();
+            int sep = val.Find(_T('|'));
+            if (sep != -1)
+            {
+                pList->SetItemText(nItem, 0, val.Left(sep));
+                pList->SetItemText(nItem, 1, val.Mid(sep + 1));
             }
         }
         break;
-    case 4: // Delete
-        pList->DeleteItem(nItem);
+    }
+    case 4: // Delete (single or multiple)
+    {
+        // Delete in reverse order to preserve indices
+        std::sort(selItems.begin(), selItems.end(), std::greater<int>());
+        for (int idx : selItems)
+            pList->DeleteItem(idx);
         break;
+    }
     }
 }
 
