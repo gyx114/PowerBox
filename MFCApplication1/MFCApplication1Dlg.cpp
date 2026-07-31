@@ -23,6 +23,7 @@
 #include "ContextMenuDlg.h"
 #include "EnvVarDlg.h"
 #include "FileLockDlg.h"
+#include "GitCmdResultDlg.h"
 #include "ProcessScanDlg.h"
 #include <TlHelp32.h>
 #include <Shellapi.h>
@@ -223,10 +224,12 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_BN_CLICKED(IDC_BUTTON33, &CMFCApplication1Dlg::OnBiliNext)
 #endif
     ON_COMMAND(41001, &CMFCApplication1Dlg::OnBiliNext)
-    ON_COMMAND(40001, &CMFCApplication1Dlg::OnCopyGitCommand)
     ON_NOTIFY(NM_DBLCLK, IDC_LIST4, &CMFCApplication1Dlg::OnNMDblclkList4)
+    ON_NOTIFY(NM_RCLICK, IDC_LIST4, &CMFCApplication1Dlg::OnNMRclickList4)
     ON_NOTIFY(NM_DBLCLK, IDC_LIST5, &CMFCApplication1Dlg::OnNMDblclkList5)
-    ON_LBN_DBLCLK(IDC_LIST4, &CMFCApplication1Dlg::OnLbnDblclkList4)
+    ON_BN_CLICKED(IDC_BTN_GIT_LOCATE, &CMFCApplication1Dlg::OnBnClickedGitLocate)
+    ON_BN_CLICKED(IDC_BTN_GIT_CMD_WINDOW, &CMFCApplication1Dlg::OnBnClickedGitCmdWindow)
+    ON_STN_CLICKED(IDC_STATIC_GIT_PATH, &CMFCApplication1Dlg::OnStnClickedGitPath)
     ON_COMMAND(ID_FILE_SETTINGS, &CMFCApplication1Dlg::OnFileSettings)
     ON_COMMAND(ID_FILE_EXIT, &CMFCApplication1Dlg::OnFileExit)
     ON_COMMAND(ID_HELP_ABOUT, &CMFCApplication1Dlg::OnHelpAbout)
@@ -940,16 +943,8 @@ void CMFCApplication1Dlg::OnContextMenu(CWnd* pWnd, CPoint point)
         }
         return;
     }
-    // Right-click on git tools list (copy command)
-    CWnd* pList4 = GetDlgItem(IDC_LIST4);
-    if (pList4 && hClicked == pList4->GetSafeHwnd())
-    {
-        CMenu menu;
-        menu.CreatePopupMenu();
-        menu.AppendMenu(MF_STRING, 40001, _T("复制指令"));
-        menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON, point.x, point.y, this);
-        return;
-    }
+    // Note: Git tools list (IDC_LIST4) right-click is handled by OnNMRclickList4 (NM_RCLICK)
+    // which provides the full menu (Execute/Copy/Edit/Delete). No OnContextMenu handler needed.
 }
 
 // File management helper removed
@@ -1415,10 +1410,19 @@ CString CMFCApplication1Dlg::BuildSystemPrompt()
         _T("6. Git Toolbox (Tab 6)\n")
         _T("   - Pre-loaded with 20 common Git commands (init, add, commit, push, pull, clone, status, branch, checkout, merge, log, restore, etc.)\n")
         _T("   - Drag files/folders to set the Git working directory\n")
-        _T("   - Double-click a command to execute it in the working directory\n")
-        _T("   - Right-click to copy the command text\n")
-        _T("   - 'Git Bash' button opens Git Bash in the current working directory\n")
-        _T("   - Commands can be customized in config.ini under [GitCommands] section (Cmd1~Cmd99, format: 'Description|Command')\n\n")
+        _T("   - Displays current working directory and repo status (branch name or '非Git仓库')\n")
+        _T("   - '定位' button: browse for a folder to use as Git working directory\n")
+        _T("   - '命令窗口' button: opens the Git command result dialog (AI command generation + command list + execution output)\n")
+        _T("   - '打开github': opens https://github.com/ in the default browser\n")
+        _T("   - '清空路径': clears the Git working directory\n")
+        _T("   - '打开git bash': launches Git Bash in the current working directory\n")
+        _T("   - Double-click a command in the list to copy it to clipboard\n")
+        _T("   - Right-click a command for: Execute / Copy / Edit / Delete\n")
+        _T("   - Execute: runs command via bash.exe (derived from GitBashPath config) in a non-modal result window\n")
+        _T("   - Git command result dialog: non-modal window with AI command generation, temporary command list, and execution output\n")
+        _T("   - The command list in the result dialog is a temporary display — commands are not saved to config\n")
+        _T("   - Commands configurable in config.ini under [GitCommands] section (Cmd1~Cmd99, format: 'Description|Command')\n")
+        _T("   - GitHub account info (optional, in Settings): username, email, remote repo URLs for AI context\n\n")
 
         _T("=== RIGHT SIDE QUICK ACTIONS (3 sub-tabs) ===\n\n")
 
@@ -1628,7 +1632,6 @@ void CMFCApplication1Dlg::OnBnClickedAiStop()
 
 LRESULT CMFCApplication1Dlg::OnAiResponse(WPARAM wParam, LPARAM lParam)
 {
-    // Kept for backward compatibility (e.g. ContextMenuDlg AI analysis)
     CString* pResult = reinterpret_cast<CString*>(lParam);
     if (!pResult) return 0;
 
@@ -1636,6 +1639,8 @@ LRESULT CMFCApplication1Dlg::OnAiResponse(WPARAM wParam, LPARAM lParam)
     delete pResult;
 
     bool bSuccess = (wParam == 1);
+
+    // Normal AI assistant chat response
     if (bSuccess)
     {
         m_aiHistory.push_back({ _T("assistant"), response });

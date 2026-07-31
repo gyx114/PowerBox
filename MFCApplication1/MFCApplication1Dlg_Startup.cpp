@@ -45,19 +45,6 @@ void CMFCApplication1Dlg::OnNMDblclkList4(NMHDR* pNMHDR, LRESULT* pResult)
     *pResult = 0;
 }
 
-// Double-click on CListBox: copy command
-void CMFCApplication1Dlg::OnLbnDblclkList4()
-{
-    CWnd* pWnd = GetDlgItem(IDC_LIST4);
-    if (pWnd && IsValidWindow(pWnd->GetSafeHwnd()))
-    {
-        TCHAR cls[64] = {0};
-        GetClassName(pWnd->GetSafeHwnd(), cls, _countof(cls));
-        if (CString(cls).CompareNoCase(_T("ListBox")) == 0)
-            OnCopyGitCommand();
-    }
-}
-
 // Delete selected dropped file (move to Recycle Bin)
 void CMFCApplication1Dlg::OnBnClickedButton24()
 {

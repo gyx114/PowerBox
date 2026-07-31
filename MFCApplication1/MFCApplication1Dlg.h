@@ -20,6 +20,7 @@ class CBatchRenameDlg;
 class CStickyNoteDlg;
 class CContextMenuDlg;
 class CEnvVarDlg;
+class CGitCmdResultDlg;
 
 // Semantic button aliases
 #define IDC_BTN_SHUTDOWN       IDC_BUTTON1   // Shutdown/Restart
@@ -287,10 +288,23 @@ public:
     static bool GetProcessSignatureInfo(const CString& path, CString& outSigner, bool& outValid);
     static bool GetProcessVersionInfo(const CString& path, CString& outCompany, CString& outOriginalName);
     // Git list handlers
-	afx_msg void OnCopyGitCommand();
 	afx_msg void OnNMDblclkList4(NMHDR* pNMHDR, LRESULT* pResult);
-	afx_msg void OnLbnDblclkList4();
-    afx_msg void OnNMDblclkList5(NMHDR* pNMHDR, LRESULT* pResult);
+	afx_msg void OnNMRclickList4(NMHDR* pNMHDR, LRESULT* pResult);
+	afx_msg void OnNMDblclkList5(NMHDR* pNMHDR, LRESULT* pResult);
+	afx_msg void OnBnClickedGitLocate();
+	afx_msg void OnBnClickedGitCmdWindow();
+	afx_msg void OnStnClickedGitPath();
+
+    // Git command helpers
+    void ExecuteGitCommand(const CString& strDesc, const CString& strCmd);
+    CString GetGitWorkDir() const;
+    void SaveGitCommandsToConfig();
+    void AddGitCommandToList(const CString& strDesc, const CString& strCmd);
+    // Detect git repo info (is repo, current branch) for a working directory
+    void DetectGitRepoInfo(const CString& strWorkDir, bool& bIsRepo, CString& strBranch) const;
+    void UpdateGitRepoInfo();
+    CString m_strGitWorkDir; // Independent Git working directory (not shared with file tab)
+
     afx_msg void OnFileSettings();
     afx_msg void OnFileExit();
     afx_msg void OnHelpAbout();

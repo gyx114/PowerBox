@@ -15,7 +15,29 @@ void CMFCApplication1Dlg::OnDropFiles(HDROP hDropInfo)
         return;
     }
 
-    // Check if it is a folder
+    // Determine current tab to decide which path box receives the drop
+    CTabCtrl* pTab = (CTabCtrl*)GetDlgItem(IDC_TAB1);
+    int nCurTab = pTab ? pTab->GetCurSel() : -1;
+
+    // Git tab (index 5): use independent Git path box
+    if (nCurTab == 5)
+    {
+        DragFinish(hDropInfo);
+        CString strPath = szFilePath;
+        DWORD attrs = ::GetFileAttributes(szFilePath);
+        // If dropped a file, use its parent folder; if folder, use it directly
+        if (attrs != INVALID_FILE_ATTRIBUTES && !(attrs & FILE_ATTRIBUTE_DIRECTORY))
+        {
+            int pos = strPath.ReverseFind(_T('\\'));
+            if (pos > 0) strPath = strPath.Left(pos);
+        }
+        m_strGitWorkDir = strPath;
+        SetDlgItemText(IDC_STATIC_GIT_PATH, m_strGitWorkDir);
+        UpdateGitRepoInfo();
+        return;
+    }
+
+    // Check if it is a folder (for file tab)
     DWORD attrs = ::GetFileAttributes(szFilePath);
     if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY))
     {
@@ -33,18 +55,14 @@ void CMFCApplication1Dlg::OnDropFiles(HDROP hDropInfo)
     CWnd* pStatic = GetDlgItem(IDC_STATIC_PATH);
     if (pStatic)
         pStatic->SetWindowText(m_strDroppedFilePath);
-    else
-        ;
     // restore edit IDC_EDIT4 to default content whenever a new file is dropped
     SetDlgItemText(IDC_EDIT4, AfxGetApp()->GetProfileString(_T("Template"), _T("DefaultReportName"), _T("")));
 
     // Automatically switch to tab 5 (index 4) when a file is dropped
-    CTabCtrl* pTab = (CTabCtrl*)GetDlgItem(IDC_TAB1);
     if (pTab)
     {
         pTab->SetCurSel(4);
         LRESULT res = 0;
-        // call handler to update control visibility
         OnTcnSelchangeTab1(NULL, &res);
         // populate rename edits: IDC_EDIT7 (basename without ext), IDC_EDIT8 (extension without dot)
         int nSlash = m_strDroppedFilePath.ReverseFind(_T('\\'));

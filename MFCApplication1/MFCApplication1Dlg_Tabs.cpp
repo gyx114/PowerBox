@@ -224,8 +224,10 @@ void CMFCApplication1Dlg::UpdateTabVisibility(int nTab)
     CWnd* pBtn30 = GetDlgItem(IDC_BUTTON30);
     CWnd* pBtn31 = GetDlgItem(IDC_BUTTON31);
     CWnd* pBtn32 = GetDlgItem(IDC_BUTTON32);
+    CWnd* pBtnCmdWin = GetDlgItem(IDC_BTN_GIT_CMD_WINDOW);
     if (pBtn30) pBtn30->ShowWindow(nTab == 5 ? SW_SHOW : SW_HIDE);
     if (pBtn31) pBtn31->ShowWindow(nTab == 5 ? SW_SHOW : SW_HIDE);
+    if (pBtnCmdWin) pBtnCmdWin->ShowWindow(nTab == 5 ? SW_SHOW : SW_HIDE);
     if (pBtn32)
     {
         if (nTab == 5)
@@ -241,8 +243,9 @@ void CMFCApplication1Dlg::UpdateTabVisibility(int nTab)
         }
     }
 
-    // File management controls
+    // File management controls (tab 4 only)
     BOOL showFile = (nTab == 4);
+    BOOL showGit = (nTab == 5);
     CWnd* pStaticPath = GetDlgItem(IDC_STATIC_PATH);
     CWnd* pEdit4 = GetDlgItem(IDC_EDIT4);
     CWnd* pBtn3 = GetDlgItem(IDC_BUTTON3);
@@ -257,7 +260,7 @@ void CMFCApplication1Dlg::UpdateTabVisibility(int nTab)
     CWnd* pBtn26 = GetDlgItem(IDC_BUTTON26);
     CWnd* pBrowse = GetDlgItem(IDC_MFCEDITBROWSE2);
 
-    if (pStaticPath) pStaticPath->ShowWindow((nTab == 4 || nTab == 5) ? SW_SHOW : SW_HIDE);
+    if (pStaticPath) pStaticPath->ShowWindow(showFile ? SW_SHOW : SW_HIDE);
     if (pEdit4) pEdit4->ShowWindow(showFile ? SW_SHOW : SW_HIDE);
     if (pBtn3) pBtn3->ShowWindow(showFile ? SW_SHOW : SW_HIDE);
     if (pStatic7) pStatic7->ShowWindow(showFile ? SW_SHOW : SW_HIDE);
@@ -271,11 +274,19 @@ void CMFCApplication1Dlg::UpdateTabVisibility(int nTab)
     if (pBtn26) pBtn26->ShowWindow(showFile ? SW_SHOW : SW_HIDE);
     if (pBrowse) pBrowse->ShowWindow(showFile ? SW_SHOW : SW_HIDE);
 
-    if (showFile || nTab == 5)
+    if (showFile)
     {
         CString stDisplay = m_strDroppedFilePath.IsEmpty() ? CString(_T("拖拽文件到此")) : m_strDroppedFilePath;
         SetDlgItemText(IDC_STATIC_PATH, stDisplay);
     }
+
+    // Git tab independent path box, repo info label, and locate button (tab 5 only)
+    CWnd* pGitPath = GetDlgItem(IDC_STATIC_GIT_PATH);
+    CWnd* pGitRepoInfo = GetDlgItem(IDC_STATIC_GIT_REPO_INFO);
+    CWnd* pGitLocate = GetDlgItem(IDC_BTN_GIT_LOCATE);
+    if (pGitPath) pGitPath->ShowWindow(showGit ? SW_SHOW : SW_HIDE);
+    if (pGitRepoInfo) pGitRepoInfo->ShowWindow(showGit ? SW_SHOW : SW_HIDE);
+    if (pGitLocate) pGitLocate->ShowWindow(showGit ? SW_SHOW : SW_HIDE);
 
     // Window handling tab: populate window info
     if (nTab == 3 && pList5)

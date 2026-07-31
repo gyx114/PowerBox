@@ -351,13 +351,42 @@
 #define IDC_COMBO_SCAN_LEVEL           1292
 #define IDC_BTN_SCAN_START             1293
 
+// Git command result dialog
+#define IDD_GIT_CMD_RESULT_DLG          153
+#define IDC_STATIC_GIT_CMD              1294
+#define IDC_STATIC_GIT_WORKDIR          1295
+#define IDC_STATIC_GIT_STATUS           1296
+#define IDC_EDIT_GIT_OUTPUT             1297
+#define IDC_BTN_GIT_OUTPUT_COPY         1298
+#define IDC_BTN_GIT_OUTPUT_CLOSE        1299
+// Git tab AI controls
+#define IDC_EDIT_GIT_AI_INPUT           1300
+#define IDC_BTN_GIT_AI_GEN              1301
+// GitHub account config (Settings dialog)
+#define IDC_EDIT_GITHUB_USER            1302
+#define IDC_EDIT_GITHUB_EMAIL           1303
+#define IDC_EDIT_GITHUB_REPO            1304
+#define IDC_EDIT_GITHUB_REMOTE          1305
+// Git tab independent path box and repo info
+#define IDC_STATIC_GIT_PATH             1306
+#define IDC_BTN_GIT_LOCATE              1307
+#define IDC_STATIC_GIT_REPO_INFO        1308
+// Git command dialog (integrated AI + command list + output)
+#define IDC_EDIT_GIT_AI_ASK             1309
+#define IDC_BTN_GIT_AI_ASK              1310
+#define IDC_LIST_GIT_CMDS               1311
+#define IDC_BTN_GIT_ADD_CMD             1312
+#define IDC_BTN_GIT_CLEAR_CMDS          1313
+#define IDC_STATIC_GIT_OUTPUT_LABEL     1314
+#define IDC_BTN_GIT_CMD_WINDOW          1315
+
 // Next default values for new objects
-// 
+//
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        153
+#define _APS_NEXT_RESOURCE_VALUE        154
 #define _APS_NEXT_COMMAND_VALUE         32843
-#define _APS_NEXT_CONTROL_VALUE         1294
+#define _APS_NEXT_CONTROL_VALUE         1315
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

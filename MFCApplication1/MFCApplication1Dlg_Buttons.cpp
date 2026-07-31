@@ -5,9 +5,41 @@
 #include "Utils.h"
 #include "VolumeManager.h"
 #include "ProcessManager.h"
+#include "GitCmdResultDlg.h"
+#include "AIApiClient.h"
 #include <TlHelp32.h>
 #include <Shellapi.h>
 #include <Psapi.h>
+
+// Simple input dialog for editing Git commands (local to this translation unit)
+class CGitCmdInputDialog : public CDialogEx
+{
+public:
+    CGitCmdInputDialog(LPCTSTR prompt, LPCTSTR title, LPCTSTR defaultVal)
+        : CDialogEx(IDD_INPUT_DLG), m_prompt(prompt), m_title(title), m_default(defaultVal) {}
+    CString GetInput() const { return m_input; }
+protected:
+    virtual BOOL OnInitDialog() override
+    {
+        CDialogEx::OnInitDialog();
+        SetWindowText(m_title);
+        SetDlgItemText(IDC_INPUT_PROMPT, m_prompt);
+        SetDlgItemText(IDC_INPUT_EDIT, m_default);
+        GetDlgItem(IDC_INPUT_EDIT)->SetFocus();
+        return FALSE;
+    }
+    virtual void DoDataExchange(CDataExchange* pDX) override
+    {
+        CDialogEx::DoDataExchange(pDX);
+        DDX_Text(pDX, IDC_INPUT_EDIT, m_input);
+    }
+    void OnOK() override { UpdateData(TRUE); CDialogEx::OnOK(); }
+    DECLARE_MESSAGE_MAP()
+    CString m_prompt, m_title, m_default, m_input;
+    enum { IDD = IDD_INPUT_DLG };
+};
+BEGIN_MESSAGE_MAP(CGitCmdInputDialog, CDialogEx)
+END_MESSAGE_MAP()
 
 // Trigger next track in Bilibili player if found; otherwise send global media next key as fallback
 void CMFCApplication1Dlg::OnBiliNext()
@@ -130,51 +162,6 @@ void CMFCApplication1Dlg::OnBiliNext()
     inputs[1].ki.wVk = VK_MEDIA_NEXT_TRACK;
     inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
     SendInput(2, inputs, sizeof(INPUT));
-}
-
-// Command handler for context menu "Copy Command"
-void CMFCApplication1Dlg::OnCopyGitCommand()
-{
-    CWnd* pWnd = GetDlgItem(IDC_LIST4);
-    if (!pWnd || !IsValidWindow(pWnd->GetSafeHwnd())) return;
-    TCHAR cls[64] = {0};
-    GetClassName(pWnd->GetSafeHwnd(), cls, _countof(cls));
-    CString className = cls;
-    if (className.CompareNoCase(_T("SysListView32")) == 0)
-    {
-        CListCtrl* pListCtrl = (CListCtrl*)pWnd;
-        int idx = pListCtrl->GetNextItem(-1, LVNI_SELECTED);
-        if (idx != -1)
-        {
-            CString cmd = pListCtrl->GetItemText(idx, 1);
-            if (cmd.IsEmpty())
-            {
-                CString combined = pListCtrl->GetItemText(idx, 0);
-                int sep = combined.Find(_T('|'));
-                if (sep != -1) cmd = combined.Mid(sep + 1);
-            }
-            CopyToClipboard(m_hWnd, cmd);
-        }
-    }
-    else if (className.CompareNoCase(_T("ListBox")) == 0)
-    {
-        CListBox* pBox = (CListBox*)pWnd;
-        int sel = pBox->GetCurSel();
-        if (sel != LB_ERR)
-        {
-            CString item; pBox->GetText(sel, item);
-            int sep = item.Find(_T('|'));
-            CString cmd;
-            if (sep != -1) cmd = item.Mid(sep + 1);
-            else
-            {
-                sep = item.Find(_T('\t'));
-                if (sep != -1) cmd = item.Mid(sep + 1);
-                else cmd = item;
-            }
-            CopyToClipboard(m_hWnd, cmd);
-        }
-    }
 }
 
 void CMFCApplication1Dlg::OnBnClickedButton10()
@@ -708,13 +695,12 @@ void CMFCApplication1Dlg::OnBnClickedButton30()
 
 void CMFCApplication1Dlg::OnBnClickedButton31()
 {
-    // Launch Git Bash. If a valid path is displayed in IDC_STATIC_PATH, use it as
-    // the process working directory so the shell starts there. Otherwise fall back
-    // to the default behaviour.
-    CString exe = _T("D:\\Git\\git-bash.exe");
-    if (GetFileAttributes(exe) == INVALID_FILE_ATTRIBUTES)
+    // Launch Git Bash using configured path. If a valid path is displayed in
+    // IDC_STATIC_PATH, use it as the process working directory.
+    CString exe = AfxGetApp()->GetProfileString(_T("Paths"), _T("GitBashPath"), _T(""));
+    if (exe.IsEmpty() || GetFileAttributes(exe) == INVALID_FILE_ATTRIBUTES)
     {
-        MessageBox(_T("找不到 git-bash.exe，请检查路径 D:\\Git\\git-bash.exe 是否存在。"), _T("错误"), MB_OK | MB_ICONERROR);
+        MessageBox(_T("找不到 git-bash.exe，请在配置中设置 Git Bash 路径。"), _T("错误"), MB_OK | MB_ICONERROR);
         return;
     }
 
@@ -764,13 +750,27 @@ void CMFCApplication1Dlg::OnBnClickedButton31()
 // Clear the displayed dropped file path when IDC_BUTTON32 is clicked
 void CMFCApplication1Dlg::OnBnClickedButton32()
 {
-    // Clear stored path and update static control text
-    m_strDroppedFilePath.Empty();
-    CWnd* pStatic = GetDlgItem(IDC_STATIC_PATH);
-    if (pStatic && IsValidWindow(pStatic->GetSafeHwnd()))
+    // Determine current tab: clear the appropriate path
+    CTabCtrl* pTab = (CTabCtrl*)GetDlgItem(IDC_TAB1);
+    int nCurTab = pTab ? pTab->GetCurSel() : -1;
+
+    if (nCurTab == 5)
     {
-        // Show placeholder to indicate no file
-        pStatic->SetWindowText(_T("拖拽文件到此"));
+        // Git tab: clear Git work directory
+        m_strGitWorkDir.Empty();
+        CWnd* pGitPath = GetDlgItem(IDC_STATIC_GIT_PATH);
+        if (pGitPath) pGitPath->SetWindowText(_T("拖入文件夹或文件所在目录"));
+        UpdateGitRepoInfo();
+    }
+    else
+    {
+        // File tab: clear dropped file path
+        m_strDroppedFilePath.Empty();
+        CWnd* pStatic = GetDlgItem(IDC_STATIC_PATH);
+        if (pStatic && IsValidWindow(pStatic->GetSafeHwnd()))
+        {
+            pStatic->SetWindowText(_T("拖拽文件到此"));
+        }
     }
 }
 
@@ -785,3 +785,333 @@ void CMFCApplication1Dlg::OnNMDblclkList5(NMHDR* pNMHDR, LRESULT* pResult)
     }
     *pResult = 0;
 }
+
+// ========== Git command execution helpers ==========
+
+CString CMFCApplication1Dlg::GetGitWorkDir() const
+{
+    return m_strGitWorkDir;
+}
+
+// Locate button: browse for a folder to use as Git working directory
+void CMFCApplication1Dlg::OnBnClickedGitLocate()
+{
+    CFolderPickerDialog dlg(nullptr, 0, this);
+    if (dlg.DoModal() == IDOK)
+    {
+        m_strGitWorkDir = dlg.GetPathName();
+        SetDlgItemText(IDC_STATIC_GIT_PATH, m_strGitWorkDir);
+        UpdateGitRepoInfo();
+    }
+}
+
+// Click on the Git path static control: also open folder picker
+void CMFCApplication1Dlg::OnStnClickedGitPath()
+{
+    OnBnClickedGitLocate();
+}
+
+// Open the Git command window (modeless dialog)
+void CMFCApplication1Dlg::OnBnClickedGitCmdWindow()
+{
+    CString workDir = GetGitWorkDir();
+    auto* pDlg = new CGitCmdResultDlg(workDir, nullptr);
+    if (!pDlg->Create(IDD_GIT_CMD_RESULT_DLG, nullptr))
+    {
+        delete pDlg;
+        MessageBox(_T("无法创建 Git 命令窗口。"), _T("错误"), MB_OK | MB_ICONERROR);
+        return;
+    }
+    pDlg->ShowWindow(SW_SHOW);
+    pDlg->SetForegroundWindow();
+}
+
+// Helper: run a command and capture its stdout (UTF-8). Returns empty string on failure.
+static CString RunAndCapture(const CString& exePath, const CString& args,
+    const CString& workDir, DWORD timeoutMs = 5000)
+{
+    SECURITY_ATTRIBUTES sa = { 0 };
+    sa.nLength = sizeof(sa);
+    sa.bInheritHandle = TRUE;
+    HANDLE hReadPipe = nullptr, hWritePipe = nullptr;
+    if (!CreatePipe(&hReadPipe, &hWritePipe, &sa, 0)) return _T("");
+    SetHandleInformation(hReadPipe, HANDLE_FLAG_INHERIT, 0);
+
+    STARTUPINFO si = { 0 };
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdOutput = hWritePipe;
+    si.hStdError = hWritePipe;
+    PROCESS_INFORMATION pi = { 0 };
+
+    CString cmdLine = _T("\"") + exePath + _T("\" ") + args;
+    CString cmdLineCopy = cmdLine;
+    LPTSTR pCmdLine = cmdLineCopy.GetBuffer(cmdLineCopy.GetLength() + 1);
+
+    BOOL bOk = CreateProcess(nullptr, pCmdLine, nullptr, nullptr, TRUE,
+        CREATE_NO_WINDOW, nullptr,
+        workDir.IsEmpty() ? nullptr : workDir.GetString(),
+        &si, &pi);
+    cmdLineCopy.ReleaseBuffer();
+
+    if (!bOk)
+    {
+        CloseHandle(hReadPipe);
+        CloseHandle(hWritePipe);
+        return _T("");
+    }
+    CloseHandle(hWritePipe);
+
+    char readBuf[4096] = { 0 };
+    DWORD bytesRead;
+    std::string output;
+    while (ReadFile(hReadPipe, readBuf, sizeof(readBuf) - 1, &bytesRead, nullptr) && bytesRead > 0)
+        output.append(readBuf, bytesRead);
+    CloseHandle(hReadPipe);
+    WaitForSingleObject(pi.hProcess, timeoutMs);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+
+    int wlen = MultiByteToWideChar(CP_UTF8, 0, output.c_str(), (int)output.size(), nullptr, 0);
+    if (wlen <= 0) return _T("");
+    std::wstring wstr(wlen, 0);
+    MultiByteToWideChar(CP_UTF8, 0, output.c_str(), (int)output.size(), &wstr[0], wlen);
+    CString result(wstr.c_str());
+    result.Trim();
+    return result;
+}
+
+// Detect whether the directory is a Git repo and get the current branch.
+// Uses git.exe directly with CreateProcess + lpCurrentDirectory for reliable detection.
+void CMFCApplication1Dlg::DetectGitRepoInfo(const CString& strWorkDir, bool& bIsRepo, CString& strBranch) const
+{
+    bIsRepo = false;
+    strBranch.Empty();
+
+    if (strWorkDir.IsEmpty()) return;
+
+    // Find git.exe from git-bash.exe path
+    CString gitBashPath = AfxGetApp()->GetProfileString(_T("Paths"), _T("GitBashPath"), _T(""));
+    if (gitBashPath.IsEmpty()) return;
+
+    int pos = gitBashPath.ReverseFind(_T('\\'));
+    if (pos <= 0) return;
+    CString gitDir = gitBashPath.Left(pos);
+
+    CString gitExe;
+    CString candidates[] = {
+        gitDir + _T("\\bin\\git.exe"),
+        gitDir + _T("\\mingw64\\bin\\git.exe"),
+        gitDir + _T("\\usr\\bin\\git.exe"),
+    };
+    for (const auto& path : candidates)
+    {
+        if (GetFileAttributes(path) != INVALID_FILE_ATTRIBUTES)
+        {
+            gitExe = path;
+            break;
+        }
+    }
+    if (gitExe.IsEmpty()) return;
+
+    // Step 1: git rev-parse --is-inside-work-tree  (checks if inside a repo)
+    CString output = RunAndCapture(gitExe, _T("rev-parse --is-inside-work-tree"), strWorkDir);
+    if (output.CompareNoCase(_T("true")) != 0)
+        return;
+
+    bIsRepo = true;
+
+    // Step 2: git branch --show-current
+    CString branch = RunAndCapture(gitExe, _T("branch --show-current"), strWorkDir);
+    if (!branch.IsEmpty())
+        strBranch = branch;
+}
+
+// Update the repo info label on the Git tab
+void CMFCApplication1Dlg::UpdateGitRepoInfo()
+{
+    if (m_strGitWorkDir.IsEmpty())
+    {
+        SetDlgItemText(IDC_STATIC_GIT_REPO_INFO, _T(""));
+        return;
+    }
+
+    bool bIsRepo = false;
+    CString strBranch;
+    DetectGitRepoInfo(m_strGitWorkDir, bIsRepo, strBranch);
+
+    CString info;
+    if (bIsRepo)
+    {
+        if (strBranch.IsEmpty())
+            info = _T("Git仓库 ( detached HEAD)");
+        else
+            info.Format(_T("Git仓库 分支: %s"), strBranch.GetString());
+    }
+    else
+    {
+        info = _T("非Git仓库");
+    }
+    SetDlgItemText(IDC_STATIC_GIT_REPO_INFO, info);
+}
+
+void CMFCApplication1Dlg::ExecuteGitCommand(const CString& strDesc, const CString& strCmd)
+{
+    // Check working directory
+    CString workDir = GetGitWorkDir();
+    if (workDir.IsEmpty())
+    {
+        MessageBox(_T("请先设置工作目录。"), _T("错误"), MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    // Detect repo info
+    bool bIsRepo = false;
+    CString strBranch;
+    DetectGitRepoInfo(workDir, bIsRepo, strBranch);
+
+    // Confirm before execution
+    CString msg;
+    msg.Format(_T("即将执行以下命令:\n\n%s\n\n工作目录: %s\n%s\n确认执行？"),
+        strCmd.GetString(),
+        workDir.GetString(),
+        bIsRepo ? (CString(_T("当前分支: ")) + strBranch).GetString() : _T("(非Git仓库)"));
+    if (MessageBox(msg, _T("确认执行"), MB_YESNO | MB_ICONQUESTION) != IDYES)
+        return;
+
+    // Create modeless result dialog
+    auto* pDlg = new CGitCmdResultDlg(workDir, nullptr);
+    pDlg->AddCommand(strDesc, strCmd, true); // auto-execute
+    if (!pDlg->Create(IDD_GIT_CMD_RESULT_DLG, nullptr))
+    {
+        delete pDlg;
+        MessageBox(_T("无法创建结果窗口。"), _T("错误"), MB_OK | MB_ICONERROR);
+        return;
+    }
+    pDlg->ShowWindow(SW_SHOW);
+    pDlg->SetForegroundWindow();
+}
+
+void CMFCApplication1Dlg::SaveGitCommandsToConfig()
+{
+    // Get config path
+    TCHAR exePath[MAX_PATH] = {0};
+    GetModuleFileName(NULL, exePath, MAX_PATH);
+    CString exeDir = exePath;
+    int p = exeDir.ReverseFind(_T('\\'));
+    CString configPath = (p != -1) ? (exeDir.Left(p) + _T("\\config.ini")) : CString(_T("config.ini"));
+
+    const TCHAR* section = _T("GitCommands");
+    CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST4);
+    if (!pList) return;
+
+    int count = pList->GetItemCount();
+    for (int i = 0; i < count && i < 99; ++i)
+    {
+        CString desc = pList->GetItemText(i, 0);
+        CString cmd = pList->GetItemText(i, 1);
+        CString val;
+        val.Format(_T("%s|%s"), desc.GetString(), cmd.GetString());
+        CString key;
+        key.Format(_T("Cmd%d"), i + 1);
+        WritePrivateProfileString(section, key, val, configPath);
+    }
+
+    // Clear remaining entries
+    for (int i = count + 1; i <= 99; ++i)
+    {
+        CString key;
+        key.Format(_T("Cmd%d"), i);
+        WritePrivateProfileString(section, key, NULL, configPath);
+    }
+}
+
+void CMFCApplication1Dlg::AddGitCommandToList(const CString& strDesc, const CString& strCmd)
+{
+    CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST4);
+    if (!pList) return;
+    int idx = pList->InsertItem(pList->GetItemCount(), strDesc);
+    pList->SetItemText(idx, 1, strCmd);
+    SaveGitCommandsToConfig();
+}
+
+// ========== Right-click menu for Git command list ==========
+
+void CMFCApplication1Dlg::OnNMRclickList4(NMHDR* pNMHDR, LRESULT* pResult)
+{
+    *pResult = 0;
+    LPNMITEMACTIVATE pItem = (LPNMITEMACTIVATE)pNMHDR;
+    CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST4);
+    if (!pList) return;
+
+    int nItem = pItem->iItem;
+
+    // Select the right-clicked item
+    if (nItem >= 0)
+    {
+        for (int i = pList->GetItemCount() - 1; i >= 0; --i)
+            pList->SetItemState(i, 0, LVIS_SELECTED);
+        pList->SetItemState(nItem, LVIS_SELECTED, LVIS_SELECTED);
+    }
+
+    CMenu menu;
+    menu.CreatePopupMenu();
+
+    if (nItem >= 0)
+    {
+        menu.AppendMenu(MF_STRING, 1, _T("执行命令"));
+        menu.AppendMenu(MF_STRING, 2, _T("复制命令"));
+        menu.AppendMenu(MF_SEPARATOR);
+        menu.AppendMenu(MF_STRING, 3, _T("编辑命令"));
+        menu.AppendMenu(MF_STRING, 4, _T("删除命令"));
+    }
+
+    CPoint pt;
+    GetCursorPos(&pt);
+    int nCmd = menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RETURNCMD, pt.x, pt.y, this);
+    menu.DestroyMenu();
+
+    if (nItem < 0) return;
+
+    CString desc = pList->GetItemText(nItem, 0);
+    CString cmd = pList->GetItemText(nItem, 1);
+
+    switch (nCmd)
+    {
+    case 1: // Execute
+        if (!cmd.IsEmpty())
+            ExecuteGitCommand(desc, cmd);
+        break;
+    case 2: // Copy
+        if (!cmd.IsEmpty())
+            CopyToClipboard(m_hWnd, cmd);
+        break;
+    case 3: // Edit
+        {
+            // Use a simple input dialog for editing
+            // Format: "说明|命令"
+            CGitCmdInputDialog editDlg(_T("编辑命令 (格式: 说明|命令)"), _T("编辑命令"),
+                desc + _T("|") + cmd);
+            if (editDlg.DoModal() == IDOK)
+            {
+                CString val = editDlg.GetInput();
+                int sep = val.Find(_T('|'));
+                if (sep != -1)
+                {
+                    pList->SetItemText(nItem, 0, val.Left(sep));
+                    pList->SetItemText(nItem, 1, val.Mid(sep + 1));
+                    SaveGitCommandsToConfig();
+                }
+            }
+        }
+        break;
+    case 4: // Delete
+        pList->DeleteItem(nItem);
+        SaveGitCommandsToConfig();
+        break;
+    }
+}
+
+// ========== AI command generation ==========
+// Note: AI command generation is now handled by CGitCmdResultDlg::OnBnClickedAiAsk
+// The old OnBnClickedGitAiGen function has been removed (AI input moved to result dialog)
