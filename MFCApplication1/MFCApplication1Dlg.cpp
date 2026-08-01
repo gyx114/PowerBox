@@ -26,6 +26,7 @@
 #include "GitCmdResultDlg.h"
 #include "ProcessScanDlg.h"
 #include "ConversationHistoryDlg.h"
+#include "json.hpp"
 #include <TlHelp32.h>
 #include <Shellapi.h>
 #include <Psapi.h>
@@ -45,7 +46,142 @@
 #include <windows.h>
 #include <processthreadsapi.h>
 #include <userenv.h>
+#include <shlwapi.h>
 #pragma comment(lib, "Userenv.lib")
+
+// ============================================================================
+// WebBrowser event sink: intercepts BeforeNavigate2 to handle AI executable
+// commands via the custom "http://127.0.0.1:1/exec/" URL scheme.
+// ============================================================================
+class CWebBrowserEventSink : public IDispatch
+{
+public:
+    CWebBrowserEventSink(HWND hTargetWnd) : m_hTargetWnd(hTargetWnd) {}
+
+    // IUnknown
+    STDMETHODIMP QueryInterface(REFIID riid, void** ppv) override
+    {
+        if (riid == IID_IUnknown || riid == IID_IDispatch)
+        {
+            *ppv = this;
+            AddRef();
+            return S_OK;
+        }
+        *ppv = nullptr;
+        return E_NOINTERFACE;
+    }
+
+    STDMETHODIMP_(ULONG) AddRef() override { return InterlockedIncrement(&m_refCount); }
+
+    STDMETHODIMP_(ULONG) Release() override
+    {
+        ULONG ref = InterlockedDecrement(&m_refCount);
+        if (ref == 0) { delete this; return 0; }
+        return ref;
+    }
+
+    // IDispatch (minimal implementation — only Invoke needed)
+    STDMETHODIMP GetTypeInfoCount(UINT*) override { return E_NOTIMPL; }
+    STDMETHODIMP GetTypeInfo(UINT, LCID, ITypeInfo**) override { return E_NOTIMPL; }
+    STDMETHODIMP GetIDsOfNames(REFIID, LPOLESTR*, UINT, LCID, DISPID*) override { return E_NOTIMPL; }
+
+    // Helper: extract URL from rgvarg[N] which may be VT_VARIANT|VT_BYREF or VT_BSTR directly
+    static CString GetUrlParam(DISPPARAMS* pParams, int index)
+    {
+        if (index < 0 || index >= (int)pParams->cArgs)
+            return CString();
+        VARIANTARG& v = pParams->rgvarg[index];
+        if (v.vt == (VT_VARIANT | VT_BYREF) && v.pvarVal)
+        {
+            if (v.pvarVal->vt == VT_BSTR && v.pvarVal->bstrVal)
+                return CString(v.pvarVal->bstrVal);
+        }
+        else if (v.vt == VT_BSTR && v.bstrVal)
+        {
+            return CString(v.bstrVal);
+        }
+        return CString();
+    }
+
+    // Helper: cancel the navigation at rgvarg[0] (Cancel parameter)
+    static void CancelNavigation(DISPPARAMS* pParams)
+    {
+        if (pParams->cArgs >= 1 &&
+            pParams->rgvarg[0].vt == (VT_BOOL | VT_BYREF) &&
+            pParams->rgvarg[0].pboolVal)
+        {
+            *pParams->rgvarg[0].pboolVal = VARIANT_TRUE;
+        }
+    }
+
+    // Helper: handle http://127.0.0.1:1/exec/ URL — decode payload and post to main window
+    static const CString kExecPrefix()
+    {
+        return CString(_T("http://127.0.0.1:1/exec/"));
+    }
+
+    bool HandleAppExecUrl(const CString& url)
+    {
+        int prefixLen = kExecPrefix().GetLength();
+        if (url.Left(prefixLen) != kExecPrefix())
+            return false;
+
+        // URL-decode using UrlUnescapeA + UTF-8 (not UrlUnescapeW which uses ANSI code page)
+        CString encoded = url.Mid(prefixLen);
+        CStringA encodedUtf8((LPCSTR)CT2A(encoded, CP_UTF8));
+        DWORD dwSize = (DWORD)encodedUtf8.GetLength() + 1;
+        char* buf = encodedUtf8.GetBuffer((int)dwSize);
+        UrlUnescapeA(buf, buf, &dwSize, URL_UNESCAPE_INPLACE);
+        encodedUtf8.ReleaseBuffer((int)dwSize);
+        CString decoded((LPCWSTR)CA2T(encodedUtf8, CP_UTF8));
+
+        // Post to main window for processing
+        ::PostMessage(m_hTargetWnd, WM_AI_EXECUTE_COMMAND, 0,
+            reinterpret_cast<LPARAM>(_tcsdup(decoded)));
+        return true;
+    }
+
+    STDMETHODIMP Invoke(DISPID dispid, REFIID, LCID, WORD, DISPPARAMS* pParams,
+        VARIANT*, EXCEPINFO*, UINT*) override
+    {
+        // DISPID_BEFORENAVIGATE2 = 250 — fires before navigation
+        //   rgvarg[0] = Cancel (VT_BOOL|VT_BYREF)
+        //   rgvarg[5] = URL (VT_VARIANT|VT_BYREF or VT_BSTR)
+        //   rgvarg[6] = pDisp (IDispatch*)
+        if (dispid == 250 && pParams && pParams->cArgs >= 6)
+        {
+            CString url = GetUrlParam(pParams, 5);
+            if (!url.IsEmpty() && url.Find(kExecPrefix()) == 0)
+            {
+                CancelNavigation(pParams);
+                HandleAppExecUrl(url);
+                return S_OK;
+            }
+        }
+
+        // DISPID_NAVIGATEERROR = 271 — fires when navigation fails
+        //   rgvarg[0] = Cancel (VT_BOOL|VT_BYREF)
+        //   rgvarg[3] = URL (VT_VARIANT|VT_BYREF or VT_BSTR)
+        //   rgvarg[4] = StatusCode (VT_I4)
+        if (dispid == 271 && pParams && pParams->cArgs >= 4)
+        {
+            CString url = GetUrlParam(pParams, 3);
+            if (!url.IsEmpty() && url.Find(kExecPrefix()) == 0)
+            {
+                CancelNavigation(pParams);
+                // Try to handle the URL in case BeforeNavigate2 missed it
+                HandleAppExecUrl(url);
+                return S_OK;
+            }
+        }
+
+        return S_OK;
+    }
+
+private:
+    HWND m_hTargetWnd;
+    LONG m_refCount = 1;
+};
 
 // capture overlay is implemented via a window class registered at runtime
 
@@ -249,6 +385,7 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_MESSAGE(WM_AI_RESPONSE, &CMFCApplication1Dlg::OnAiResponse)
     ON_MESSAGE(WM_AI_STREAM_CHUNK, &CMFCApplication1Dlg::OnAiStreamChunk)
     ON_MESSAGE(WM_AI_STREAM_DONE, &CMFCApplication1Dlg::OnAiStreamDone)
+    ON_MESSAGE(WM_AI_EXECUTE_COMMAND, &CMFCApplication1Dlg::OnAiExecuteCommand)
     ON_MESSAGE(WM_PROCESS_SCAN_START, &CMFCApplication1Dlg::OnProcessScanStart)
     ON_WM_TIMER()
 END_MESSAGE_MAP()
@@ -580,6 +717,9 @@ void CMFCApplication1Dlg::OnDestroy()
 
     // Ensure autoclicker threads are stopped (C++20: using CAutoClicker class)
     m_autoClicker.Stop();
+
+    // Disconnect WebBrowser event sink
+    DisconnectAiBrowserEvents();
 
     // ensure any background volume thread is stopped (CVolumeManager handles this automatically)
     // Drop helper and file management removed - no cleanup required here
@@ -1355,6 +1495,9 @@ void CMFCApplication1Dlg::InitAIControls()
                 _T("</div>"));
             SetTimer(1, 100, nullptr);
         }
+
+        // Connect WebBrowser event sink for AI executable commands
+        ConnectAiBrowserEvents();
     }
 
     // Stop button is initially disabled (no request to cancel)
@@ -1578,7 +1721,24 @@ CString CMFCApplication1Dlg::BuildSystemPrompt()
         _T("   - 回答要简洁直接，必要时提供分步指导\n")
         _T("   - 如果不确定某个功能，建议用户查看实际界面\n")
         _T("   - 如果用户遇到错误，建议检查 config.ini 配置文件和文件权限\n")
-        _T("   - 此应用程序的大多数操作需要管理员权限\n");
+        _T("   - 此应用程序的大多数操作需要管理员权限\n")
+        _T("   - 如果用户请求执行系统命令、操作文件、管理进程等，你可以返回可执行命令\n\n")
+
+        _T("=== 可执行命令协议 ===\n\n")
+        _T("当你需要返回可执行命令时，使用以下格式：\n\n")
+        _T("```action\n")
+        _T("{\n")
+        _T("  \"command\": \"要执行的命令\",\n")
+        _T("  \"purpose\": \"用途说明\",\n")
+        _T("  \"risk\": \"low/medium/high\"\n")
+        _T("}\n")
+        _T("```\n\n")
+        _T("风险等级说明：\n")
+        _T("- low：无害操作（如打开文件夹、显示信息）\n")
+        _T("- medium：有潜在影响的操作（如修改文件、重启进程）\n")
+        _T("- high：高危操作（如删除文件、修改注册表、格式化磁盘）\n\n")
+        _T("注意：包含 del、format、reg delete、net user 等关键词的命令会自动升级为高风险。\n")
+        _T("高风险命令需要用户输入\"确认执行\"才能执行。\n");
 }
 
 void CMFCApplication1Dlg::OnBnClickedAiSend()
@@ -1743,7 +1903,30 @@ CString CMFCApplication1Dlg::BuildAiHtmlPage(const CString& bodyContent)
         _T("th,td{border:1px solid #444;padding:4px 8px;}")
         _T("th{background:#2d2d2d;}")
         _T("blockquote{border-left:3px solid #569cd6;margin:4px 0;padding-left:12px;color:#888;}")
-        _T("</style></head><body>") + bodyContent + _T("</body></html>");
+        // Action card styles
+        _T(".action-card{border:2px solid #555;border-radius:8px;padding:12px 16px;margin:12px 0;background:#2a2a2a;font-family:Consolas,monospace;}")
+        _T(".action-card.action-level-low{border-color:#2da44e;}")
+        _T(".action-card.action-level-medium{border-color:#d4a72c;}")
+        _T(".action-card.action-level-high{border-color:#cf222e;}")
+        _T(".action-purpose{font-size:14px;color:#d4d4d4;margin-bottom:4px;}")
+        _T(".action-risk{font-size:12px;font-weight:600;margin-bottom:8px;}")
+        _T(".action-risk.level-low{color:#2da44e;}")
+        _T(".action-risk.level-medium{color:#d4a72c;}")
+        _T(".action-risk.level-high{color:#cf222e;}")
+        _T(".action-btn{background:#2da44e;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:14px;cursor:pointer;margin-bottom:6px;}")
+        _T(".action-btn:hover{background:#218838;}")
+        _T(".action-card.action-level-high .action-btn{background:#cf222e;}")
+        _T(".action-card.action-level-high .action-btn:hover{background:#a11c26;}")
+        _T(".action-card.action-level-medium .action-btn{background:#d4a72c;}")
+        _T(".action-card.action-level-medium .action-btn:hover{background:#b88a1f;}")
+        _T(".action-command{font-size:13px;color:#888;background:#333;padding:4px 8px;border-radius:4px;word-break:break-all;}")
+        _T("</style><script>")
+        _T("function execCmd(btn){")
+        _T("var data=btn.getAttribute('data-cmd');")
+        _T("if(!data)return;")
+        _T("location.href='http://127.0.0.1:1/exec/'+encodeURIComponent(data);")
+        _T("}")
+        _T("</script></head><body>") + bodyContent + _T("</body></html>");
 }
 
 bool CMFCApplication1Dlg::SetAiBrowserHtml(const CString& html)
@@ -1999,6 +2182,236 @@ CString CMFCApplication1Dlg::GetConversationsFolder()
 
     CreateDirectory(convDir, nullptr);
     return convDir;
+}
+
+// ============================================================================
+// Connect WebBrowser event sink to intercept BeforeNavigate2
+// ============================================================================
+void CMFCApplication1Dlg::ConnectAiBrowserEvents()
+{
+    if (m_pAiEventSink || m_dwAiEventCookie != 0)
+        return;
+
+    LPUNKNOWN pUnk = m_aiBrowser.GetControlUnknown();
+    if (!pUnk) return;
+
+    IConnectionPointContainer* pCPC = nullptr;
+    if (FAILED(pUnk->QueryInterface(IID_IConnectionPointContainer, (void**)&pCPC)))
+        return;
+
+    IConnectionPoint* pCP = nullptr;
+    if (SUCCEEDED(pCPC->FindConnectionPoint(DIID_DWebBrowserEvents2, &pCP)))
+    {
+        m_pAiEventSink = new CWebBrowserEventSink(m_hWnd);
+        if (SUCCEEDED(pCP->Advise(m_pAiEventSink, &m_dwAiEventCookie)))
+        {
+            // Success — event sink is now connected
+        }
+        else
+        {
+            // Failed to advise — clean up
+            delete m_pAiEventSink;
+            m_pAiEventSink = nullptr;
+            m_dwAiEventCookie = 0;
+        }
+        pCP->Release();
+    }
+    pCPC->Release();
+}
+
+// ============================================================================
+// Disconnect WebBrowser event sink
+// ============================================================================
+void CMFCApplication1Dlg::DisconnectAiBrowserEvents()
+{
+    if (!m_pAiEventSink || m_dwAiEventCookie == 0)
+        return;
+
+    LPUNKNOWN pUnk = m_aiBrowser.GetControlUnknown();
+    if (pUnk)
+    {
+        IConnectionPointContainer* pCPC = nullptr;
+        if (SUCCEEDED(pUnk->QueryInterface(IID_IConnectionPointContainer, (void**)&pCPC)))
+        {
+            IConnectionPoint* pCP = nullptr;
+            if (SUCCEEDED(pCPC->FindConnectionPoint(DIID_DWebBrowserEvents2, &pCP)))
+            {
+                pCP->Unadvise(m_dwAiEventCookie);
+                pCP->Release();
+            }
+            pCPC->Release();
+        }
+    }
+
+    m_pAiEventSink->Release(); // Release our ref — sink deletes itself at ref=0
+    m_pAiEventSink = nullptr;
+    m_dwAiEventCookie = 0;
+}
+
+// ============================================================================
+// Handle AI executable command: validate, confirm, execute
+// ============================================================================
+LRESULT CMFCApplication1Dlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam)
+{
+    // lParam is a TCHAR* allocated by _tcsdup in HandleAppExecUrl
+    TCHAR* pJsonStr = reinterpret_cast<TCHAR*>(lParam);
+    if (!pJsonStr) return 0;
+
+    CString json = pJsonStr;
+    free(pJsonStr);  // _tcsdup uses malloc, must use free()
+
+    // Parse JSON using nlohmann::json
+    CString command, purpose, risk;
+    try
+    {
+        std::string s = (LPCSTR)CT2A(json, CP_UTF8);
+        nlohmann::json j = nlohmann::json::parse(s);
+        command = CString(CA2T(j["command"].get<std::string>().c_str(), CP_UTF8));
+		purpose = CString(CA2T(j["purpose"].get<std::string>().c_str(), CP_UTF8));
+		risk = CString(CA2T(j["risk"].get<std::string>().c_str(), CP_UTF8));
+    }
+    catch (const nlohmann::json::parse_error&)
+    {
+        MessageBox(_T("无法解析命令，JSON 格式无效。"), _T("错误"), MB_OK | MB_ICONERROR);
+        return 0;
+    }
+
+    risk.MakeLower();
+    if (risk.IsEmpty()) risk = _T("medium");
+
+    // Risk level escalation for dangerous keywords
+    CString cmdLower = command;
+    cmdLower.MakeLower();
+    struct { const wchar_t* keyword; } dangerous[] = {
+        { L"del " }, { L"rd /s" }, { L"rmdir /s" },
+        { L"format " },
+        { L"reg delete" }, { L"reg add" },
+        { L"net user" }, { L"net localgroup" },
+        { L"takeown" }, { L"icacls" },
+        { L"schtasks" },
+        { L"bcdedit" }
+    };
+    for (const auto& d : dangerous)
+    {
+        if (cmdLower.Find(d.keyword) >= 0)
+        {
+            risk = _T("high");
+            break;
+        }
+    }
+
+    // Build confirmation message
+    CString msg;
+    msg.Format(_T("AI 请求执行以下命令：\n\n命令：%s\n\n用途：%s\n\n风险等级：%s"),
+        command.GetString(), purpose.GetString(), risk.GetString());
+
+    // Confirm based on risk level
+    bool bExecute = false;
+
+    if (risk == _T("high"))
+    {
+        // Use the existing input dialog template for high-risk confirmation
+        CDialogEx inputDlg(IDD_INPUT_DLG);
+        inputDlg.SetWindowText(_T("高危操作警告"));
+        inputDlg.GetDlgItem(IDC_INPUT_PROMPT)->SetWindowText(
+            _T("此操作风险较高，请输入 \"确认执行\" 以继续："));
+        inputDlg.GetDlgItem(IDC_INPUT_EDIT)->SetWindowText(_T(""));
+        if (inputDlg.DoModal() == IDOK)
+        {
+            CString confirmInput;
+            inputDlg.GetDlgItem(IDC_INPUT_EDIT)->GetWindowText(confirmInput);
+            confirmInput.Trim();
+            bExecute = (confirmInput == _T("确认执行"));
+            if (!bExecute)
+                MessageBox(_T("输入不匹配，操作已取消。"), _T("取消"), MB_OK | MB_ICONINFORMATION);
+        }
+    }
+    else // low or medium
+    {
+        UINT nType = (risk == _T("medium")) ? MB_ICONWARNING : MB_ICONINFORMATION;
+        bExecute = (MessageBox(msg, _T("执行确认"), MB_YESNO | nType | MB_DEFBUTTON2) == IDYES);
+    }
+
+    if (!bExecute)
+    {
+        // Record cancellation in conversation
+        CString resultMsg;
+        resultMsg.Format(_T("【命令执行结果】\n命令：%s\n状态：已取消（用户未确认）\n"),
+            command.GetString());
+        m_aiHistory.push_back({ _T("system"), resultMsg });
+        CString body = _T("<div style='color:#c8c8c8;margin-bottom:4px;'>AI:</div>")
+            + CMarkdownDlg::MarkdownToBody(m_aiStreamingContent.IsEmpty()
+                ? (m_aiHistory.empty() ? CString() : m_aiHistory.back().second)
+                : m_aiStreamingContent);
+        SetAiBrowserHtml(BuildAiHtmlPage(body));
+        return 0;
+    }
+
+    // Execute the command
+    CString resultMsg;
+    resultMsg.Format(_T("【命令执行结果】\n命令：%s\n状态：已执行\n\n"),
+        command.GetString());
+
+    STARTUPINFO si = { sizeof(si) };
+    PROCESS_INFORMATION pi = { 0 };
+    // Use CREATE_NO_WINDOW for low risk, normal window for others
+    DWORD dwFlags = (risk == _T("low")) ? CREATE_NO_WINDOW : 0;
+
+    // Build command line for CreateProcess
+    CString cmdLine = _T("cmd.exe /c ") + command;
+
+    if (CreateProcess(nullptr, cmdLine.GetBuffer(), nullptr, nullptr, FALSE,
+        dwFlags, nullptr, nullptr, &si, &pi))
+    {
+        cmdLine.ReleaseBuffer();
+        WaitForSingleObject(pi.hProcess, INFINITE);
+        DWORD exitCode = 0;
+        GetExitCodeProcess(pi.hProcess, &exitCode);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+
+        CString exitStr;
+        exitStr.Format(_T("退出代码：%d\n"), exitCode);
+        resultMsg += exitStr;
+    }
+    else
+    {
+        cmdLine.ReleaseBuffer();
+        CString errStr;
+        errStr.Format(_T("执行失败，错误代码：%d\n"), GetLastError());
+        resultMsg += errStr;
+    }
+
+    // Record result in conversation history
+    m_aiHistory.push_back({ _T("system"), resultMsg });
+
+    // Re-render browser with the latest assistant content + result
+    CString body;
+    for (auto& msg : m_aiHistory)
+    {
+        if (msg.first == _T("user"))
+        {
+            body += _T("<div style='color:#888;margin-bottom:4px;'>You: </div>")
+                + CMarkdownDlg::EscapeHtml(msg.second) + _T("<br>");
+        }
+        else if (msg.first == _T("assistant"))
+        {
+            body += _T("<div style='color:#c8c8c8;margin-bottom:4px;'>AI:</div>")
+                + CMarkdownDlg::MarkdownToBody(msg.second);
+        }
+        else if (msg.first == _T("system") && msg.second.Find(_T("【命令执行结果】")) == 0)
+        {
+            body += _T("<div style='color:#569cd6;font-size:13px;border-left:3px solid #569cd6;padding-left:8px;margin:4px 0;'>")
+                + CMarkdownDlg::MarkdownToBody(msg.second) + _T("</div>");
+        }
+    }
+    SetAiBrowserHtml(BuildAiHtmlPage(body));
+
+    // Re-enable send button
+    CWnd* pSend = GetDlgItem(IDC_BUTTON_AI_SEND);
+    if (pSend) pSend->EnableWindow(TRUE);
+
+    return 0;
 }
 
 

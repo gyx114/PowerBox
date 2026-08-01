@@ -23,6 +23,9 @@ class CContextMenuDlg;
 class CEnvVarDlg;
 class CGitCmdResultDlg;
 
+// Forward declaration for WebBrowser event sink
+class CWebBrowserEventSink;
+
 // Semantic button aliases
 #define IDC_BTN_SHUTDOWN       IDC_BUTTON1   // Shutdown/Restart
 #define IDC_BTN_CANCEL_SHUTDOWN IDC_BUTTON2  // Cancel shutdown
@@ -347,5 +350,12 @@ public:
     afx_msg LRESULT OnAiResponse(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnAiStreamChunk(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnAiStreamDone(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnAiExecuteCommand(WPARAM wParam, LPARAM lParam);
     afx_msg void OnTimer(UINT_PTR nIDEvent);
+
+    // WebBrowser event sink for AI executable commands
+    CWebBrowserEventSink* m_pAiEventSink{nullptr};
+    DWORD m_dwAiEventCookie{0};
+    void ConnectAiBrowserEvents();
+    void DisconnectAiBrowserEvents();
 };

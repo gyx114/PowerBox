@@ -8,9 +8,10 @@
 #include <winhttp.h>
 
 // Custom messages posted to main window
-#define WM_AI_RESPONSE     (WM_APP + 7)   // WPARAM: 0/1, LPARAM: CString*
-#define WM_AI_STREAM_CHUNK (WM_APP + 8)   // LPARAM: CString* (delta)
-#define WM_AI_STREAM_DONE  (WM_APP + 9)   // WPARAM: 0/1, LPARAM: CString*
+#define WM_AI_RESPONSE        (WM_APP + 7)   // WPARAM: 0/1, LPARAM: CString*
+#define WM_AI_STREAM_CHUNK    (WM_APP + 8)   // LPARAM: CString* (delta)
+#define WM_AI_STREAM_DONE     (WM_APP + 9)   // WPARAM: 0/1, LPARAM: CString*
+#define WM_AI_EXECUTE_COMMAND (WM_APP + 15)  // LPARAM: CString* (JSON command)
 
 // ============================================================================
 // RAII WinHTTP handle wrapper

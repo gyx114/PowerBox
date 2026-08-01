@@ -8,6 +8,7 @@
 #include "afxdialogex.h"
 #include <MsHTML.h>
 #include <ExDisp.h>
+#include "json.hpp"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -636,10 +637,28 @@ CString CMarkdownDlg::MarkdownToHtml(const CString& markdown)
 	html += _T("th{background:#f6f8fa;font-weight:600;}");
 	html += _T("tr:nth-child(2n){background:#f6f8fa;}");
 	html += _T("del{color:#57606a;text-decoration:line-through;}");
+	html += _T(".action-card{border:2px solid #d0d7de;border-radius:8px;padding:12px 16px;margin:12px 0;background:#f6f8fa;font-family:Consolas,monospace;}");
+	html += _T(".action-card.action-level-low{border-color:#2da44e;}");
+	html += _T(".action-card.action-level-medium{border-color:#d4a72c;}");
+	html += _T(".action-card.action-level-high{border-color:#cf222e;}");
+	html += _T(".action-purpose{font-size:13px;color:#24292f;margin-bottom:4px;}");
+	html += _T(".action-risk{font-size:11px;font-weight:600;margin-bottom:8px;}");
+	html += _T(".action-risk.level-low{color:#2da44e;}");
+	html += _T(".action-risk.level-medium{color:#d4a72c;}");
+	html += _T(".action-risk.level-high{color:#cf222e;}");
+	html += _T(".action-btn{background:#2da44e;color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:13px;cursor:pointer;margin-bottom:6px;}");
+	html += _T(".action-btn:hover{background:#218838;}");
+	html += _T(".action-card.action-level-high .action-btn{background:#cf222e;}");
+	html += _T(".action-card.action-level-high .action-btn:hover{background:#a11c26;}");
+	html += _T(".action-card.action-level-medium .action-btn{background:#d4a72c;}");
+	html += _T(".action-card.action-level-medium .action-btn:hover{background:#b88a1f;}");
+	html += _T(".action-command{font-size:12px;color:#57606a;background:#eaeef2;padding:4px 8px;border-radius:4px;word-break:break-all;}");
 	html += _T("</style></head><body>");
 
 	CString body;
 	bool inCodeBlock = false;
+	bool inActionBlock = false;
+	CString actionJson;
 	bool inList = false;
 	bool inQuote = false;
 	bool inTable = false;
@@ -667,10 +686,85 @@ CString CMarkdownDlg::MarkdownToHtml(const CString& markdown)
 	auto CloseBlocks = [&](bool keepParagraph)
 	{
 		if (inCodeBlock) { body += _T("</code></pre>"); inCodeBlock = false; }
+		if (inActionBlock) { inActionBlock = false; }
 		if (inList) { body += _T("</ul>"); inList = false; }
 		if (inQuote) { body += _T("</blockquote>"); inQuote = false; }
 		if (inTable) { body += _T("</tbody></table>"); inTable = false; inTHead = false; }
 		if (inParagraph && !keepParagraph) { body += _T("</p>"); inParagraph = false; }
+	};
+
+	auto RenderActionCard = [&](const CString& jsonStr)
+	{
+		CString command, purpose, risk;
+		try
+		{
+			std::string s = (LPCSTR)CT2A(jsonStr, CP_UTF8);
+			nlohmann::json j = nlohmann::json::parse(s);
+			command = CString(CA2T(j["command"].get<std::string>().c_str(), CP_UTF8));
+			purpose = CString(CA2T(j["purpose"].get<std::string>().c_str(), CP_UTF8));
+			risk = CString(CA2T(j["risk"].get<std::string>().c_str(), CP_UTF8));
+		}
+		catch (const nlohmann::json::parse_error&) { }
+		risk.MakeLower();
+		if (risk.IsEmpty()) risk = _T("medium");
+
+		// Risk level escalation for dangerous keywords
+		CString cmdLower = command;
+		cmdLower.MakeLower();
+		static const CString dangerous[] = {
+			_T("del "), _T("rd /s"), _T("rmdir /s"),
+			_T("format "),
+			_T("reg delete"), _T("reg add"),
+			_T("net user"), _T("net localgroup"),
+			_T("takeown"), _T("icacls"),
+			_T("schtasks"),
+			_T("bcdedit")
+		};
+		for (const auto& kw : dangerous)
+		{
+			if (cmdLower.Find(kw) >= 0)
+			{
+				risk = _T("high");
+				break;
+			}
+		}
+
+		CString riskText, riskLevel;
+		if (risk == _T("high"))
+		{
+			riskText = _T("高风险");
+			riskLevel = _T("level-high");
+		}
+		else if (risk == _T("low"))
+		{
+			riskText = _T("低风险");
+			riskLevel = _T("level-low");
+		}
+		else
+		{
+			riskText = _T("中等风险");
+			riskLevel = _T("level-medium");
+		}
+
+		// Build JSON string for data-cmd attribute using nlohmann::json
+		CString jsonAttr;
+		{
+			nlohmann::json j;
+			j["command"] = (LPCSTR)CT2A(command, CP_UTF8);
+			j["purpose"] = (LPCSTR)CT2A(purpose, CP_UTF8);
+			j["risk"] = (LPCSTR)CT2A(risk, CP_UTF8);
+			jsonAttr = CString(CA2T(j.dump().c_str(), CP_UTF8));
+		}
+
+		CString escPurpose = EscapeHtml(purpose);
+		CString escCmd = EscapeHtml(command);
+
+		body += _T("<div class=\"action-card action-") + riskLevel + _T("\">");
+		body += _T("<div class=\"action-purpose\">用途：") + escPurpose + _T("</div>");
+		body += _T("<div class=\"action-risk ") + riskLevel + _T("\">风险等级：") + riskText + _T("</div>");
+		body += _T("<button class=\"action-btn\" data-cmd=\"") + EscapeHtml(jsonAttr) + _T("\" onclick=\"execCmd(this)\">▶ 执行命令</button>");
+		body += _T("<div class=\"action-command\">$ ") + escCmd + _T("</div>");
+		body += _T("</div>");
 	};
 
 	for (int idx = 0; idx < lines.GetSize(); ++idx)
@@ -679,7 +773,15 @@ CString CMarkdownDlg::MarkdownToHtml(const CString& markdown)
 
 		if (line.GetLength() >= 3 && line.Left(3) == _T("```"))
 		{
-			if (inCodeBlock)
+			if (inActionBlock)
+			{
+				// Closing ``` of action block — parse and render card
+				RenderActionCard(actionJson);
+				inActionBlock = false;
+				inCodeBlock = false;
+				actionJson.Empty();
+			}
+			else if (inCodeBlock)
 			{
 				body += _T("</code></pre>");
 				inCodeBlock = false;
@@ -688,12 +790,28 @@ CString CMarkdownDlg::MarkdownToHtml(const CString& markdown)
 			{
 				CloseBlocks(false);
 				CString lang = line.Mid(3).Trim();
-				body += _T("<pre><code");
-				if (!lang.IsEmpty())
-					body += _T(" class=\"language-") + EscapeHtml(lang) + _T("\"");
-				body += _T(">");
-				inCodeBlock = true;
+				if (lang == _T("action"))
+				{
+					inActionBlock = true;
+					inCodeBlock = true;
+					actionJson.Empty();
+				}
+				else
+				{
+					body += _T("<pre><code");
+					if (!lang.IsEmpty())
+						body += _T(" class=\"language-") + EscapeHtml(lang) + _T("\"");
+					body += _T(">");
+					inCodeBlock = true;
+				}
 			}
+			continue;
+		}
+
+		if (inActionBlock)
+		{
+			actionJson += line;
+			actionJson += _T("\n");
 			continue;
 		}
 

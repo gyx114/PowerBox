@@ -151,10 +151,12 @@ void CConversationHistoryDlg::DeleteConversation(const ConversationInfo& conv)
     if (MessageBox(msg, _T("确认删除"), MB_YESNO | MB_ICONQUESTION) != IDYES)
         return;
 
-    // Move to recycle bin
+    // Move to recycle bin — pFrom requires double-null-terminated string
+    CString path = conv.filePath;
+    path.AppendChar(_T('\0')); // second null for SHFileOperation
     SHFILEOPSTRUCT fos = {0};
     fos.wFunc = FO_DELETE;
-    fos.pFrom = conv.filePath;
+    fos.pFrom = path;
     fos.pTo = nullptr;
     fos.fFlags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT;
     SHFileOperation(&fos);
@@ -318,9 +320,11 @@ void CConversationHistoryDlg::OnBnClickedConvDelete()
     for (int i = (int)selectedIndices.size() - 1; i >= 0; i--)
     {
         const auto& conv = m_conversations[selectedIndices[i]];
+        CString path = conv.filePath;
+        path.AppendChar(_T('\0')); // double-null-terminated for SHFileOperation
         SHFILEOPSTRUCT fos = {0};
         fos.wFunc = FO_DELETE;
-        fos.pFrom = conv.filePath;
+        fos.pFrom = path;
         fos.pTo = nullptr;
         fos.fFlags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT;
         SHFileOperation(&fos);
@@ -420,9 +424,11 @@ void CConversationHistoryDlg::OnRclickConvHistory(NMHDR* /*pNMHDR*/, LRESULT* pR
             for (int i = (int)selectedIndices.size() - 1; i >= 0; i--)
             {
                 const auto& conv = m_conversations[selectedIndices[i]];
+                CString path = conv.filePath;
+                path.AppendChar(_T('\0')); // double-null-terminated for SHFileOperation
                 SHFILEOPSTRUCT fos = {0};
                 fos.wFunc = FO_DELETE;
-                fos.pFrom = conv.filePath;
+                fos.pFrom = path;
                 fos.pTo = nullptr;
                 fos.fFlags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT;
                 SHFileOperation(&fos);
