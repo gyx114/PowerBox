@@ -178,7 +178,7 @@ BOOL CBatchRenameDlg::OnInitDialog()
     if (pFileList)
     {
         pFileList->ModifyStyle(0, LVS_REPORT);
-        pFileList->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        pFileList->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
         CRect rcList;
         pFileList->GetClientRect(&rcList);
         int totalWidth = rcList.Width() - ::GetSystemMetrics(SM_CXVSCROLL) - 4;
@@ -192,7 +192,7 @@ BOOL CBatchRenameDlg::OnInitDialog()
     if (pFolderList)
     {
         pFolderList->ModifyStyle(0, LVS_REPORT);
-        pFolderList->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_CHECKBOXES);
+        pFolderList->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_CHECKBOXES | LVS_EX_INFOTIP);
         CRect rcList;
         pFolderList->GetClientRect(&rcList);
         int totalWidth = rcList.Width() - ::GetSystemMetrics(SM_CXVSCROLL) - 4;

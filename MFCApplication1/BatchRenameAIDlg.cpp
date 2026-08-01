@@ -40,7 +40,7 @@ BOOL CBatchRenameAIDlg::OnInitDialog()
     CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_AI_PREVIEW));
     if (pList)
     {
-        pList->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        pList->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
         CRect rcList;
         pList->GetClientRect(&rcList);
         int totalWidth = rcList.Width() - ::GetSystemMetrics(SM_CXVSCROLL) - 4;

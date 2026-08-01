@@ -1425,7 +1425,7 @@ BOOL CContextMenuDlg::OnInitDialog()
 	CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_CM_ENTRIES);
 	if (pList)
 	{
-		pList->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+		pList->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
 		pList->InsertColumn(0, _T("位置"),     LVCFMT_LEFT, 50);
 		pList->InsertColumn(1, _T("显示名称"), LVCFMT_LEFT, 150);
 		pList->InsertColumn(2, _T("类型"),     LVCFMT_LEFT, 60);

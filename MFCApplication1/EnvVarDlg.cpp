@@ -74,7 +74,7 @@ protected:
 		CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_PATH_ENTRIES);
 		if (pList)
 		{
-			pList->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+			pList->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
 			pList->InsertColumn(0, _T("路径条目"), LVCFMT_LEFT, 800);
 		}
 
@@ -513,7 +513,7 @@ BOOL CEnvVarDlg::OnInitDialog()
 	CListCtrl* pListSys = (CListCtrl*)GetDlgItem(IDC_LIST_ENV_SYSTEM);
 	if (pListSys)
 	{
-		pListSys->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+		pListSys->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
 		pListSys->InsertColumn(0, _T("变量名"), LVCFMT_LEFT, 180);
 		pListSys->InsertColumn(1, _T("值"), LVCFMT_LEFT, 332);
 	}
@@ -521,7 +521,7 @@ BOOL CEnvVarDlg::OnInitDialog()
 	CListCtrl* pListUser = (CListCtrl*)GetDlgItem(IDC_LIST_ENV_USER);
 	if (pListUser)
 	{
-		pListUser->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+		pListUser->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
 		pListUser->InsertColumn(0, _T("变量名"), LVCFMT_LEFT, 180);
 		pListUser->InsertColumn(1, _T("值"), LVCFMT_LEFT, 332);
 	}

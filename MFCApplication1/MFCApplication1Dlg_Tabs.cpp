@@ -85,7 +85,7 @@ void CMFCApplication1Dlg::InitWindowTab()
     if (pList6)
     {
         pList6->ModifyStyle(0, LVS_REPORT);
-        pList6->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        pList6->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
         pList6->InsertColumn(0, _T("类型"), LVCFMT_LEFT, 80);
         pList6->InsertColumn(1, _T("窗口标题"), LVCFMT_LEFT, 280);
     }
@@ -95,7 +95,7 @@ void CMFCApplication1Dlg::InitWindowTab()
     if (pList7)
     {
         pList7->ModifyStyle(0, LVS_REPORT);
-        pList7->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        pList7->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
         pList7->InsertColumn(0, _T("序号"), LVCFMT_LEFT, 60);
         pList7->InsertColumn(1, _T("窗口标题"), LVCFMT_LEFT, 280);
     }

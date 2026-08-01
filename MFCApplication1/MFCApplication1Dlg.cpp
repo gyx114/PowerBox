@@ -1,4 +1,4 @@
-﻿// MFCApplication1Dlg.cpp: Implementation file
+// MFCApplication1Dlg.cpp: Implementation file
 //
 
 #include "pch.h"
@@ -510,7 +510,7 @@ void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
     // WebBrowser is handled separately to avoid internal state loss on hide/show
     static const int kAiIds[] = {
         IDC_STATIC_AI_SEP, IDC_STATIC_AI_LABEL, IDC_COMBO_AI_VENDOR,
-        IDC_EDIT_AI_INPUT, IDC_BUTTON_AI_SEND, IDC_BUTTON_AI_CLEAR
+        IDC_EDIT_AI_INPUT, IDC_BUTTON_AI_SEND, IDC_BUTTON_AI_STOP, IDC_BUTTON_AI_CLEAR
     };
     showGroup(kAiIds, _countof(kAiIds), nTab == 0);
 
@@ -1349,6 +1349,10 @@ void CMFCApplication1Dlg::InitAIControls()
             SetTimer(1, 100, nullptr);
         }
     }
+
+    // Stop button is initially disabled (no request to cancel)
+    CWnd* pStop = GetDlgItem(IDC_BUTTON_AI_STOP);
+    if (pStop) pStop->EnableWindow(FALSE);
 }
 
 CString CMFCApplication1Dlg::BuildSystemPrompt()

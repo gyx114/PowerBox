@@ -62,7 +62,7 @@ BOOL CFileLockDlg::OnInitDialog()
 	DragAcceptFiles(TRUE);
 
 	// Init list control
-	m_list.SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_DOUBLEBUFFER);
+	m_list.SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_DOUBLEBUFFER | LVS_EX_INFOTIP);
 	InitListColumns();
 
 	// Read actual control positions as layout anchors (DPI-safe)
