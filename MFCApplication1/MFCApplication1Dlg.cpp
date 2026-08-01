@@ -1491,7 +1491,7 @@ void CMFCApplication1Dlg::InitAIControls()
             m_aiPendingHtml = BuildAiHtmlPage(
                 _T("<div style='color:#888;text-align:center;padding-top:20px;'>")
                 _T("AI Assistant Ready<br>")
-                _T("<span style='font-size:11px;'>Ask me anything about this toolbox!</span>")
+                _T("<span style='font-size:13px;'>Ask me anything about this toolbox!</span>")
                 _T("</div>"));
             SetTimer(1, 100, nullptr);
         }
@@ -1892,7 +1892,7 @@ LRESULT CMFCApplication1Dlg::OnAiStreamDone(WPARAM wParam, LPARAM lParam)
 CString CMFCApplication1Dlg::BuildAiHtmlPage(const CString& bodyContent)
 {
     return _T("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><style>")
-        _T("body{font-family:Consolas,'Microsoft YaHei',sans-serif;font-size:16px;")
+        _T("body{font-family:Consolas,'Microsoft YaHei',sans-serif;font-size:18px;")
         _T("background:#1e1e1e;color:#d4d4d4;padding:8px;margin:0;line-height:1.5;}")
         _T("code{background:#2d2d2d;padding:1px 4px;border-radius:3px;font-family:Consolas,monospace;}")
         _T("pre{background:#2d2d2d;padding:8px;border-radius:4px;overflow-x:auto;}")
@@ -1908,18 +1908,18 @@ CString CMFCApplication1Dlg::BuildAiHtmlPage(const CString& bodyContent)
         _T(".action-card.action-level-low{border-color:#2da44e;}")
         _T(".action-card.action-level-medium{border-color:#d4a72c;}")
         _T(".action-card.action-level-high{border-color:#cf222e;}")
-        _T(".action-purpose{font-size:14px;color:#d4d4d4;margin-bottom:4px;}")
-        _T(".action-risk{font-size:12px;font-weight:600;margin-bottom:8px;}")
+        _T(".action-purpose{font-size:16px;color:#d4d4d4;margin-bottom:4px;}")
+        _T(".action-risk{font-size:14px;font-weight:600;margin-bottom:8px;}")
         _T(".action-risk.level-low{color:#2da44e;}")
         _T(".action-risk.level-medium{color:#d4a72c;}")
         _T(".action-risk.level-high{color:#cf222e;}")
-        _T(".action-btn{background:#2da44e;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:14px;cursor:pointer;margin-bottom:6px;}")
+        _T(".action-btn{background:#2da44e;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:16px;cursor:pointer;margin-bottom:6px;}")
         _T(".action-btn:hover{background:#218838;}")
         _T(".action-card.action-level-high .action-btn{background:#cf222e;}")
         _T(".action-card.action-level-high .action-btn:hover{background:#a11c26;}")
         _T(".action-card.action-level-medium .action-btn{background:#d4a72c;}")
         _T(".action-card.action-level-medium .action-btn:hover{background:#b88a1f;}")
-        _T(".action-command{font-size:13px;color:#888;background:#333;padding:4px 8px;border-radius:4px;word-break:break-all;}")
+        _T(".action-command{font-size:15px;color:#888;background:#333;padding:4px 8px;border-radius:4px;word-break:break-all;}")
         _T("</style><script>")
         _T("function execCmd(btn){")
         _T("var data=btn.getAttribute('data-cmd');")
@@ -2249,6 +2249,33 @@ void CMFCApplication1Dlg::DisconnectAiBrowserEvents()
 }
 
 // ============================================================================
+// High-risk confirmation dialog — sets prompt text in OnInitDialog
+// ============================================================================
+class CHighRiskConfirmDlg : public CDialogEx
+{
+public:
+    CString m_input;
+
+    CHighRiskConfirmDlg() : CDialogEx(IDD_INPUT_DLG) {}
+
+protected:
+    BOOL OnInitDialog() override
+    {
+        CDialogEx::OnInitDialog();
+        SetWindowText(_T("高危操作警告"));
+        SetDlgItemText(IDC_INPUT_PROMPT, _T("此操作风险较高，请输入 \"确认执行\" 以继续："));
+        SetDlgItemText(IDC_INPUT_EDIT, _T(""));
+        return TRUE;
+    }
+
+    void DoDataExchange(CDataExchange* pDX) override
+    {
+        CDialogEx::DoDataExchange(pDX);
+        DDX_Text(pDX, IDC_INPUT_EDIT, m_input);
+    }
+};
+
+// ============================================================================
 // Handle AI executable command: validate, confirm, execute
 // ============================================================================
 LRESULT CMFCApplication1Dlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam)
@@ -2310,18 +2337,12 @@ LRESULT CMFCApplication1Dlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam
 
     if (risk == _T("high"))
     {
-        // Use the existing input dialog template for high-risk confirmation
-        CDialogEx inputDlg(IDD_INPUT_DLG);
-        inputDlg.SetWindowText(_T("高危操作警告"));
-        inputDlg.GetDlgItem(IDC_INPUT_PROMPT)->SetWindowText(
-            _T("此操作风险较高，请输入 \"确认执行\" 以继续："));
-        inputDlg.GetDlgItem(IDC_INPUT_EDIT)->SetWindowText(_T(""));
-        if (inputDlg.DoModal() == IDOK)
+        // Use CHighRiskConfirmDlg which sets prompt text in OnInitDialog
+        CHighRiskConfirmDlg dlg;
+        if (dlg.DoModal() == IDOK)
         {
-            CString confirmInput;
-            inputDlg.GetDlgItem(IDC_INPUT_EDIT)->GetWindowText(confirmInput);
-            confirmInput.Trim();
-            bExecute = (confirmInput == _T("确认执行"));
+            dlg.m_input.Trim();
+            bExecute = (dlg.m_input == _T("确认执行"));
             if (!bExecute)
                 MessageBox(_T("输入不匹配，操作已取消。"), _T("取消"), MB_OK | MB_ICONINFORMATION);
         }
@@ -2352,23 +2373,38 @@ LRESULT CMFCApplication1Dlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam
     resultMsg.Format(_T("【命令执行结果】\n命令：%s\n状态：已执行\n\n"),
         command.GetString());
 
-    STARTUPINFO si = { sizeof(si) };
-    PROCESS_INFORMATION pi = { 0 };
-    // Use CREATE_NO_WINDOW for low risk, normal window for others
-    DWORD dwFlags = (risk == _T("low")) ? CREATE_NO_WINDOW : 0;
+    CString cmdTrimmed = command;
+    cmdTrimmed.Trim();
 
-    // Build command line for CreateProcess
-    CString cmdLine = _T("cmd.exe /c ") + command;
+    // Use ShellExecuteEx (more robust than CreateProcess for commands with
+    // complex quoting, e.g. powershell -Command "..." with nested quotes).
+    SHELLEXECUTEINFO sei = { sizeof(sei) };
+    sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_FLAG_NO_UI;
+    sei.lpVerb = _T("open");
+    sei.nShow = (risk == _T("low")) ? SW_HIDE : SW_SHOWNORMAL;
 
-    if (CreateProcess(nullptr, cmdLine.GetBuffer(), nullptr, nullptr, FALSE,
-        dwFlags, nullptr, nullptr, &si, &pi))
+    if (cmdTrimmed.Find(_T("powershell ")) == 0 || cmdTrimmed.Find(_T("PowerShell ")) == 0)
     {
-        cmdLine.ReleaseBuffer();
-        WaitForSingleObject(pi.hProcess, INFINITE);
+        // Use powershell.exe directly; ShellExecuteEx finds it via the shell.
+        sei.lpFile = _T("powershell.exe");
+        CString args = cmdTrimmed.Mid(10); // Remove "powershell " prefix
+        args.Trim();
+        sei.lpParameters = args;
+    }
+    else
+    {
+        // For other commands, use cmd.exe /c.
+        sei.lpFile = _T("cmd.exe");
+        CString params = _T("/c ") + cmdTrimmed;
+        sei.lpParameters = params;
+    }
+
+    if (ShellExecuteEx(&sei))
+    {
+        WaitForSingleObject(sei.hProcess, INFINITE);
         DWORD exitCode = 0;
-        GetExitCodeProcess(pi.hProcess, &exitCode);
-        CloseHandle(pi.hProcess);
-        CloseHandle(pi.hThread);
+        GetExitCodeProcess(sei.hProcess, &exitCode);
+        CloseHandle(sei.hProcess);
 
         CString exitStr;
         exitStr.Format(_T("退出代码：%d\n"), exitCode);
@@ -2376,9 +2412,9 @@ LRESULT CMFCApplication1Dlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam
     }
     else
     {
-        cmdLine.ReleaseBuffer();
+        DWORD err = GetLastError();
         CString errStr;
-        errStr.Format(_T("执行失败，错误代码：%d\n"), GetLastError());
+        errStr.Format(_T("执行失败，错误代码：%d\n"), err);
         resultMsg += errStr;
     }
 
@@ -2401,7 +2437,7 @@ LRESULT CMFCApplication1Dlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam
         }
         else if (msg.first == _T("system") && msg.second.Find(_T("【命令执行结果】")) == 0)
         {
-            body += _T("<div style='color:#569cd6;font-size:13px;border-left:3px solid #569cd6;padding-left:8px;margin:4px 0;'>")
+            body += _T("<div style='color:#569cd6;font-size:15px;border-left:3px solid #569cd6;padding-left:8px;margin:4px 0;'>")
                 + CMarkdownDlg::MarkdownToBody(msg.second) + _T("</div>");
         }
     }
