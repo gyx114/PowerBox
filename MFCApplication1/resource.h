@@ -380,13 +380,25 @@
 #define IDC_STATIC_GIT_OUTPUT_LABEL     1314
 #define IDC_BTN_GIT_CMD_WINDOW          1315
 
+// Conversation history
+#define IDC_BUTTON_AI_HISTORY          1316
+#define IDD_CONVERSATION_HISTORY_DLG   154
+#define IDC_LIST_CONV_HISTORY          1317
+#define IDC_BTN_CONV_LOAD              1318
+#define IDC_BTN_CONV_RENAME            1319
+#define IDC_BTN_CONV_DELETE            1320
+#define IDC_BTN_CONV_PATH              1321
+#define IDM_CONV_LOAD                  32843
+#define IDM_CONV_DELETE                32844
+#define IDM_CONV_RENAME                32845
+
 // Next default values for new objects
 //
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        154
-#define _APS_NEXT_COMMAND_VALUE         32843
-#define _APS_NEXT_CONTROL_VALUE         1315
+#define _APS_NEXT_RESOURCE_VALUE        155
+#define _APS_NEXT_COMMAND_VALUE         32846
+#define _APS_NEXT_CONTROL_VALUE         1322
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

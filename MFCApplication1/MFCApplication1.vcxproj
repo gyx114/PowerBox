@@ -235,6 +235,7 @@ if exist "$(OutDir)Unmerged" rmdir /s /q "$(OutDir)Unmerged"
     <ClInclude Include="MarkdownDlg.h" />
     <ClInclude Include="EncodingConverterDlg.h" />
     <ClInclude Include="ContextMenuDlg.h" />
+    <ClInclude Include="ConversationHistoryDlg.h" />
     <ClInclude Include="EnvVarDlg.h" />
     <ClInclude Include="FileLockDlg.h" />
     <ClInclude Include="GitCmdResultDlg.h" />
@@ -282,6 +283,7 @@ if exist "$(OutDir)Unmerged" rmdir /s /q "$(OutDir)Unmerged"
     <ClCompile Include="MarkdownDlg.cpp" />
     <ClCompile Include="EncodingConverterDlg.cpp" />
     <ClCompile Include="ContextMenuDlg.cpp" />
+    <ClCompile Include="ConversationHistoryDlg.cpp" />
     <ClCompile Include="EnvVarDlg.cpp" />
     <ClCompile Include="FileLockDlg.cpp" />
     <ClCompile Include="GitCmdResultDlg.cpp" />

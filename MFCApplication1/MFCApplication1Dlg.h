@@ -12,6 +12,7 @@
 #include "AutoClicker.h"
 #include "AutoClickerSpeedDlg.h"
 #include "AIApiClient.h"
+#include "ConversationHistoryDlg.h"
 
 // Forward declarations for menu-launched dialogs
 class CQRCodeGenDlg;
@@ -328,6 +329,8 @@ public:
     bool m_aiBrowserReady{false};         // true when WebBrowser document is ready
     CString m_aiPendingHtml;              // buffered HTML before browser is ready
     CString m_aiStreamingContent;         // accumulated streaming content
+    CString m_strConvTitle;               // Current conversation title
+    CString m_strConvPath;                // Current conversation file path (empty if new)
     CString BuildSystemPrompt();
     void InitAIControls();
     CString BuildAiHtmlPage(const CString& bodyContent);
@@ -335,6 +338,12 @@ public:
     afx_msg void OnBnClickedAiSend();
     afx_msg void OnBnClickedAiClear();
     afx_msg void OnBnClickedAiStop();
+    afx_msg void OnBnClickedAiHistory();
+    void SaveCurrentConversation();
+    void LoadConversation(const CString& filePath);
+    afx_msg LRESULT OnConvLoaded(WPARAM wParam, LPARAM lParam);
+    CString GetExeDir();
+    CString GetConversationsFolder();
     afx_msg LRESULT OnAiResponse(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnAiStreamChunk(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnAiStreamDone(WPARAM wParam, LPARAM lParam);

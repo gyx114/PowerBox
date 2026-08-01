@@ -25,6 +25,7 @@
 #include "FileLockDlg.h"
 #include "GitCmdResultDlg.h"
 #include "ProcessScanDlg.h"
+#include "ConversationHistoryDlg.h"
 #include <TlHelp32.h>
 #include <Shellapi.h>
 #include <Psapi.h>
@@ -243,6 +244,8 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_BN_CLICKED(IDC_BUTTON_AI_SEND, &CMFCApplication1Dlg::OnBnClickedAiSend)
     ON_BN_CLICKED(IDC_BUTTON_AI_STOP, &CMFCApplication1Dlg::OnBnClickedAiStop)
     ON_BN_CLICKED(IDC_BUTTON_AI_CLEAR, &CMFCApplication1Dlg::OnBnClickedAiClear)
+    ON_BN_CLICKED(IDC_BUTTON_AI_HISTORY, &CMFCApplication1Dlg::OnBnClickedAiHistory)
+    ON_MESSAGE(WM_CONV_LOADED, &CMFCApplication1Dlg::OnConvLoaded)
     ON_MESSAGE(WM_AI_RESPONSE, &CMFCApplication1Dlg::OnAiResponse)
     ON_MESSAGE(WM_AI_STREAM_CHUNK, &CMFCApplication1Dlg::OnAiStreamChunk)
     ON_MESSAGE(WM_AI_STREAM_DONE, &CMFCApplication1Dlg::OnAiStreamDone)
@@ -510,7 +513,8 @@ void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
     // WebBrowser is handled separately to avoid internal state loss on hide/show
     static const int kAiIds[] = {
         IDC_STATIC_AI_SEP, IDC_STATIC_AI_LABEL, IDC_COMBO_AI_VENDOR,
-        IDC_EDIT_AI_INPUT, IDC_BUTTON_AI_SEND, IDC_BUTTON_AI_STOP, IDC_BUTTON_AI_CLEAR
+        IDC_EDIT_AI_INPUT, IDC_BUTTON_AI_SEND, IDC_BUTTON_AI_STOP, IDC_BUTTON_AI_CLEAR,
+        IDC_BUTTON_AI_HISTORY
     };
     showGroup(kAiIds, _countof(kAiIds), nTab == 0);
 
@@ -622,6 +626,9 @@ void CMFCApplication1Dlg::OnDestroy()
         SetThreadExecutionState(ES_CONTINUOUS);
         m_bPreventLockScreen = false;
     }
+
+    // Auto-save current conversation
+    SaveCurrentConversation();
 
     CDialogEx::OnDestroy();
 }
@@ -1623,6 +1630,10 @@ void CMFCApplication1Dlg::OnBnClickedAiSend()
 
 void CMFCApplication1Dlg::OnBnClickedAiClear()
 {
+    // Auto-save current conversation before clearing
+    SaveCurrentConversation();
+    m_strConvTitle.Empty();
+    m_strConvPath.Empty();
     m_aiHistory.clear();
     m_aiStreamingContent.Empty();
     m_aiPendingHtml.Empty();
@@ -1828,6 +1839,166 @@ void CMFCApplication1Dlg::OnTimer(UINT_PTR nIDEvent)
         }
     }
     CDialogEx::OnTimer(nIDEvent);
+}
+
+void CMFCApplication1Dlg::OnBnClickedAiHistory()
+{
+    CConversationHistoryDlg* pDlg = new CConversationHistoryDlg(this);
+    if (!pDlg->Create(IDD_CONVERSATION_HISTORY_DLG, this))
+    {
+        delete pDlg;
+        return;
+    }
+    pDlg->ShowWindow(SW_SHOW);
+}
+
+void CMFCApplication1Dlg::SaveCurrentConversation()
+{
+    if (m_aiHistory.empty()) return;
+
+    CString convDir = GetConversationsFolder();
+    CreateDirectory(convDir, nullptr);
+
+    // Generate title from first user message
+    if (m_strConvTitle.IsEmpty())
+    {
+        for (auto& msg : m_aiHistory)
+        {
+            if (msg.first == _T("user"))
+            {
+                m_strConvTitle = msg.second.Left(50);
+                m_strConvTitle.Trim();
+                if (m_strConvTitle.IsEmpty()) m_strConvTitle = _T("未命名对话");
+                break;
+            }
+        }
+    }
+
+    // Generate filename from title
+    CString safeTitle = m_strConvTitle;
+    for (int i = 0; i < safeTitle.GetLength(); i++)
+    {
+        if (_tcschr(_T("\\/:*?\"<>|"), safeTitle[i]))
+            safeTitle.SetAt(i, '_');
+    }
+
+    CTime now = CTime::GetCurrentTime();
+    CString fileName;
+    fileName.Format(_T("%s_%s.conv"), now.Format(_T("%Y%m%d_%H%M%S")), safeTitle.GetString());
+
+    CString filePath = convDir + fileName;
+
+    CFile file;
+    if (!file.Open(filePath, CFile::modeCreate | CFile::modeWrite))
+        return;
+
+    CArchive ar(&file, CArchive::store);
+    int nCount = (int)m_aiHistory.size();
+    CString created = m_strConvPath.IsEmpty() ? now.Format(_T("%Y-%m-%d %H:%M:%S")) : CString(_T(""));
+    CString updated = now.Format(_T("%Y-%m-%d %H:%M:%S"));
+
+    ar << nCount;
+    ar << m_strConvTitle;
+    ar << created;
+    ar << updated;
+    for (auto& msg : m_aiHistory)
+        ar << msg.first << msg.second;
+
+    ar.Close();
+    file.Close();
+
+    m_strConvPath = filePath;
+}
+
+void CMFCApplication1Dlg::LoadConversation(const CString& filePath)
+{
+    CFile file;
+    if (!file.Open(filePath, CFile::modeRead))
+        return;
+
+    CArchive ar(&file, CArchive::load);
+    int nCount;
+    CString title, created, updated;
+    ar >> nCount >> title >> created >> updated;
+
+    m_aiHistory.clear();
+    for (int i = 0; i < nCount; i++)
+    {
+        CString role, content;
+        ar >> role >> content;
+        m_aiHistory.push_back({role, content});
+    }
+    ar.Close();
+    file.Close();
+
+    m_strConvTitle = title;
+    m_strConvPath = filePath;
+
+    // Render the conversation in the browser
+    CString body;
+    for (auto& msg : m_aiHistory)
+    {
+        if (msg.first == _T("user"))
+        {
+            body += _T("<div style='color:#888;margin-bottom:4px;'>You: </div>")
+                + CMarkdownDlg::EscapeHtml(msg.second) + _T("<br>");
+        }
+        else if (msg.first == _T("assistant"))
+        {
+            body += _T("<div style='color:#c8c8c8;margin-bottom:4px;'>AI:</div>")
+                + CMarkdownDlg::MarkdownToBody(msg.second);
+        }
+    }
+    SetAiBrowserHtml(BuildAiHtmlPage(body));
+}
+
+LRESULT CMFCApplication1Dlg::OnConvLoaded(WPARAM wParam, LPARAM)
+{
+    CString* pFilePath = reinterpret_cast<CString*>(wParam);
+    if (pFilePath)
+    {
+        LoadConversation(*pFilePath);
+        delete pFilePath;
+    }
+    return 0;
+}
+
+CString CMFCApplication1Dlg::GetExeDir()
+{
+    TCHAR szPath[MAX_PATH];
+    GetModuleFileName(nullptr, szPath, MAX_PATH);
+    CString path(szPath);
+    int pos = path.ReverseFind('\\');
+    if (pos >= 0)
+        path = path.Left(pos + 1);
+    return path;
+}
+
+CString CMFCApplication1Dlg::GetConversationsFolder()
+{
+    // Get config.ini path
+    TCHAR szExePath[MAX_PATH] = {0};
+    GetModuleFileName(nullptr, szExePath, MAX_PATH);
+    CString exePath = szExePath;
+    int nLastSlash = exePath.ReverseFind(_T('\\'));
+    CString configPath = (nLastSlash >= 0) ? exePath.Left(nLastSlash + 1) + _T("config.ini") : CString(_T("config.ini"));
+
+    // Try configured conversation directory
+    TCHAR szPath[MAX_PATH] = {0};
+    GetPrivateProfileString(_T("Paths"), _T("ConversationDir"), _T(""), szPath, MAX_PATH, configPath);
+    CString convDir = szPath;
+    convDir.Trim();
+
+    if (convDir.IsEmpty())
+    {
+        // Fallback to AppData
+        TCHAR szAppData[MAX_PATH] = {0};
+        SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, 0, szAppData);
+        convDir = CString(szAppData) + _T("\\MFCApplication1\\conversations");
+    }
+
+    CreateDirectory(convDir, nullptr);
+    return convDir;
 }
 
 
