@@ -1738,7 +1738,12 @@ CString CMFCApplication1Dlg::BuildSystemPrompt()
         _T("- medium：有潜在影响的操作（如修改文件、重启进程）\n")
         _T("- high：高危操作（如删除文件、修改注册表、格式化磁盘）\n\n")
         _T("注意：包含 del、format、reg delete、net user 等关键词的命令会自动升级为高风险。\n")
-        _T("高风险命令需要用户输入\"确认执行\"才能执行。\n");
+        _T("高风险命令需要用户输入\"确认执行\"才能执行。\n\n")
+        _T("命令执行结果反馈：\n")
+        _T("- 命令执行后，stdout/stderr 输出会被捕获并在 WebBrowser 中显示\n")
+        _T("- 输出内容包括：命令的标准输出、标准错误输出、退出代码\n")
+        _T("- 对于 echo、dir、ipconfig 等产生输出的命令，用户可以直接在对话中看到执行结果\n")
+        _T("- 执行超时限制为 30 秒，超时后进程将被终止\n");
 }
 
 void CMFCApplication1Dlg::OnBnClickedAiSend()
@@ -2376,47 +2381,124 @@ LRESULT CMFCApplication1Dlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam
     CString cmdTrimmed = command;
     cmdTrimmed.Trim();
 
-    // Use ShellExecuteEx (more robust than CreateProcess for commands with
-    // complex quoting, e.g. powershell -Command "..." with nested quotes).
-    SHELLEXECUTEINFO sei = { sizeof(sei) };
-    sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_FLAG_NO_UI;
-    sei.lpVerb = _T("open");
-    sei.nShow = (risk == _T("low")) ? SW_HIDE : SW_SHOWNORMAL;
+    // Use CreateProcess with pipes to capture stdout/stderr and show results in WebBrowser.
+    SECURITY_ATTRIBUTES sa = { sizeof(sa), nullptr, TRUE };
+    HANDLE hReadPipe = nullptr, hWritePipe = nullptr;
+    CString outputStr;
+    DWORD exitCode = 0;
 
-    if (cmdTrimmed.Find(_T("powershell ")) == 0 || cmdTrimmed.Find(_T("PowerShell ")) == 0)
+    if (CreatePipe(&hReadPipe, &hWritePipe, &sa, 0))
     {
-        // Use powershell.exe directly; ShellExecuteEx finds it via the shell.
-        sei.lpFile = _T("powershell.exe");
-        CString args = cmdTrimmed.Mid(10); // Remove "powershell " prefix
-        args.Trim();
-        sei.lpParameters = args;
+        SetHandleInformation(hReadPipe, HANDLE_FLAG_INHERIT, 0);
+
+        // Build command line
+        CString cmdLine;
+        if (cmdTrimmed.Find(_T("powershell ")) == 0 || cmdTrimmed.Find(_T("PowerShell ")) == 0)
+        {
+            cmdLine = _T("powershell.exe ") + cmdTrimmed.Mid(10).Trim();
+        }
+        else
+        {
+            cmdLine = _T("cmd.exe /c ") + cmdTrimmed;
+        }
+
+        STARTUPINFO si = { sizeof(si) };
+        si.dwFlags = STARTF_USESTDHANDLES;
+        si.hStdOutput = hWritePipe;
+        si.hStdError = hWritePipe;
+        PROCESS_INFORMATION pi = { 0 };
+
+        CString cmdLineCopy = cmdLine;
+        LPTSTR pCmdLine = cmdLineCopy.GetBuffer(cmdLineCopy.GetLength() + 1);
+
+        if (CreateProcess(nullptr, pCmdLine, nullptr, nullptr, TRUE,
+            CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
+        {
+            CloseHandle(hWritePipe);
+            hWritePipe = nullptr;
+
+            // Read output while process runs (30s timeout, then terminate)
+            char readBuf[4096];
+            DWORD bytesRead;
+            std::string output;
+            const DWORD timeoutMs = 30000;
+            DWORD waitResult;
+
+            do {
+                waitResult = WaitForSingleObject(pi.hProcess, 100);
+                // Drain any available data from pipe
+                DWORD available = 0;
+                while (PeekNamedPipe(hReadPipe, nullptr, 0, nullptr, &available, nullptr) && available > 0)
+                {
+                    DWORD toRead = __min(available, (DWORD)sizeof(readBuf) - 1);
+                    if (ReadFile(hReadPipe, readBuf, toRead, &bytesRead, nullptr) && bytesRead > 0)
+                    {
+                        readBuf[bytesRead] = '\0';
+                        output.append(readBuf, bytesRead);
+                    }
+                    else break;
+                }
+            } while (waitResult == WAIT_TIMEOUT);
+
+            // Read any remaining output
+            while (ReadFile(hReadPipe, readBuf, sizeof(readBuf) - 1, &bytesRead, nullptr) && bytesRead > 0)
+            {
+                readBuf[bytesRead] = '\0';
+                output.append(readBuf, bytesRead);
+            }
+
+            GetExitCodeProcess(pi.hProcess, &exitCode);
+            if (waitResult == WAIT_TIMEOUT)
+            {
+                TerminateProcess(pi.hProcess, 1);
+                output += "\r\n[执行超时（30秒），进程已终止]";
+                exitCode = 1;
+            }
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+
+            // Convert output: try UTF-8 first, fallback to system ANSI (cmd.exe uses code page)
+            int wlen = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, output.c_str(), (int)output.size(), nullptr, 0);
+            if (wlen > 0)
+            {
+                std::wstring wstr(wlen, 0);
+                MultiByteToWideChar(CP_UTF8, 0, output.c_str(), (int)output.size(), &wstr[0], wlen);
+                outputStr = wstr.c_str();
+            }
+            else
+            {
+                // Not valid UTF-8 → likely system ANSI (e.g. GBK on Chinese Windows)
+                outputStr = CString(output.c_str());
+            }
+            outputStr.Trim();
+        }
+        else
+        {
+            DWORD err = GetLastError();
+            CString errStr;
+            errStr.Format(_T("执行失败，错误代码：%d"), err);
+            outputStr = errStr;
+            exitCode = err;
+        }
+        cmdLineCopy.ReleaseBuffer();
     }
     else
     {
-        // For other commands, use cmd.exe /c.
-        sei.lpFile = _T("cmd.exe");
-        CString params = _T("/c ") + cmdTrimmed;
-        sei.lpParameters = params;
+        outputStr = _T("错误：无法创建输出管道");
+        exitCode = GetLastError();
     }
 
-    if (ShellExecuteEx(&sei))
-    {
-        WaitForSingleObject(sei.hProcess, INFINITE);
-        DWORD exitCode = 0;
-        GetExitCodeProcess(sei.hProcess, &exitCode);
-        CloseHandle(sei.hProcess);
+    if (hWritePipe) CloseHandle(hWritePipe);
+    if (hReadPipe) CloseHandle(hReadPipe);
 
-        CString exitStr;
-        exitStr.Format(_T("退出代码：%d\n"), exitCode);
-        resultMsg += exitStr;
-    }
-    else
+    // Append output to result message
+    if (!outputStr.IsEmpty())
     {
-        DWORD err = GetLastError();
-        CString errStr;
-        errStr.Format(_T("执行失败，错误代码：%d\n"), err);
-        resultMsg += errStr;
+        resultMsg += _T("输出：\n") + outputStr + _T("\n\n");
     }
+    CString exitStr;
+    exitStr.Format(_T("退出代码：%d\n"), exitCode);
+    resultMsg += exitStr;
 
     // Record result in conversation history
     m_aiHistory.push_back({ _T("system"), resultMsg });
