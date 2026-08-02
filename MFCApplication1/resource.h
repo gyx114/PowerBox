@@ -388,6 +388,7 @@
 #define IDC_BTN_CONV_RENAME            1319
 #define IDC_BTN_CONV_DELETE            1320
 #define IDC_BTN_CONV_PATH              1321
+#define IDC_STATIC_CONV_PATH           1322
 #define IDM_CONV_LOAD                  32843
 #define IDM_CONV_DELETE                32844
 #define IDM_CONV_RENAME                32845
@@ -398,7 +399,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        155
 #define _APS_NEXT_COMMAND_VALUE         32846
-#define _APS_NEXT_CONTROL_VALUE         1322
+#define _APS_NEXT_CONTROL_VALUE         1323
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

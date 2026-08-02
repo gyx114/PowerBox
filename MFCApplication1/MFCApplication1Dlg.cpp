@@ -1765,10 +1765,9 @@ void CMFCApplication1Dlg::OnBnClickedAiSend()
 
     m_aiHistory.push_back({ _T("user"), userMsg });
 
-    // Display user message in browser
-    CString body = _T("<div style='color:#888;margin-bottom:4px;'>You: ")
-        + CMarkdownDlg::EscapeHtml(userMsg) + _T("</div>");
-    SetAiBrowserHtml(BuildAiHtmlPage(body));
+    // Display full conversation history in browser
+    SetAiBrowserHtml(BuildAiHtmlPage(BuildAiBodyFromHistory()));
+    ScrollAiBrowserToAnchor(_T("scroll-anchor"));
 
     CString vendor = AfxGetApp()->GetProfileString(_T("AI"), _T("Vendor"), _T("DeepSeek"));
     CString apiKey = AfxGetApp()->GetProfileString(_T("AI"), _T("ApiKey_") + vendor, _T(""));
@@ -1799,6 +1798,7 @@ void CMFCApplication1Dlg::OnBnClickedAiClear()
     SaveCurrentConversation();
     m_strConvTitle.Empty();
     m_strConvPath.Empty();
+    m_strConvCreated.Empty();
     m_aiHistory.clear();
     m_aiStreamingContent.Empty();
     m_aiPendingHtml.Empty();
@@ -1837,9 +1837,9 @@ LRESULT CMFCApplication1Dlg::OnAiResponse(WPARAM wParam, LPARAM lParam)
             m_aiHistory.pop_back();
     }
 
-    // Render Markdown response as HTML
-    CString body = _T("<div style='color:#c8c8c8;margin-bottom:4px;'>AI:</div>") + CMarkdownDlg::MarkdownToBody(response);
-    SetAiBrowserHtml(BuildAiHtmlPage(body));
+    // Render full conversation history
+    SetAiBrowserHtml(BuildAiHtmlPage(BuildAiBodyFromHistory()));
+    ScrollAiBrowserToAnchor(_T("scroll-anchor"));
 
     CWnd* pSend = GetDlgItem(IDC_BUTTON_AI_SEND);
     if (pSend) pSend->EnableWindow(TRUE);
@@ -1857,9 +1857,9 @@ LRESULT CMFCApplication1Dlg::OnAiStreamChunk(WPARAM /*wParam*/, LPARAM lParam)
     m_aiStreamingContent += *pChunk;
     delete pChunk;
 
-    // Render accumulated Markdown as HTML
-    CString body = _T("<div style='color:#c8c8c8;margin-bottom:4px;'>AI:</div>") + CMarkdownDlg::MarkdownToBody(m_aiStreamingContent);
-    SetAiBrowserHtml(BuildAiHtmlPage(body));
+    // Render full history + streaming content
+    SetAiBrowserHtml(BuildAiHtmlPage(BuildAiBodyFromHistory(m_aiStreamingContent)));
+    ScrollAiBrowserToAnchor(_T("scroll-anchor"));
 
     return 0;
 }
@@ -1878,9 +1878,9 @@ LRESULT CMFCApplication1Dlg::OnAiStreamDone(WPARAM wParam, LPARAM lParam)
     {
         m_aiHistory.push_back({ _T("assistant"), *pResult });
 
-        // Final render with full content
-        CString body = _T("<div style='color:#c8c8c8;margin-bottom:4px;'>AI:</div>") + CMarkdownDlg::MarkdownToBody(*pResult);
-        SetAiBrowserHtml(BuildAiHtmlPage(body));
+        // Final render with full conversation history
+        SetAiBrowserHtml(BuildAiHtmlPage(BuildAiBodyFromHistory()));
+        ScrollAiBrowserToAnchor(_T("scroll-anchor"));
     }
     else if (!bSuccess && pResult)
     {
@@ -1932,6 +1932,176 @@ CString CMFCApplication1Dlg::BuildAiHtmlPage(const CString& bodyContent)
         _T("location.href='http://127.0.0.1:1/exec/'+encodeURIComponent(data);")
         _T("}")
         _T("</script></head><body>") + bodyContent + _T("</body></html>");
+}
+
+CString CMFCApplication1Dlg::BuildAiBodyFromHistory(const CString& streamingContent, const CString& scrollToCommand)
+{
+    CString body;
+
+    // Pre-build a map: command → list of system result messages
+    // This allows RenderAssistantWithResults to match action cards to their results
+    // by extracting the command from the action card JSON and looking up the result.
+    std::map<CString, std::vector<CString>> cmdResults;
+    std::map<CString, int> cmdResultIndex;
+    for (auto& msg : m_aiHistory)
+    {
+        if (msg.first == _T("system") && msg.second.Find(_T("【命令执行结果】")) == 0)
+        {
+            // Extract command from: "【命令执行结果】\n命令：<command>\n..."
+            CString cmdPrefix = _T("【命令执行结果】\n命令：");
+            int cmdStart = cmdPrefix.GetLength();
+            int cmdEnd = msg.second.Find(_T("\n"), cmdStart);
+            if (cmdEnd > cmdStart)
+            {
+                CString cmd = msg.second.Mid(cmdStart, cmdEnd - cmdStart);
+                cmdResults[cmd].push_back(msg.second);
+            }
+        }
+    }
+
+    for (auto& msg : m_aiHistory)
+    {
+        if (msg.first == _T("system") && msg.second.Find(_T("【命令执行结果】")) == 0)
+        {
+            // Command results are now rendered inline within the assistant message,
+            // so skip them here to avoid duplication.
+            continue;
+        }
+        else if (msg.first == _T("system"))
+        {
+            continue; // Skip system prompt and other system messages
+        }
+        else if (msg.first == _T("user"))
+        {
+            body += _T("<div style='color:#888;margin-bottom:4px;'>You: </div>")
+                + CMarkdownDlg::EscapeHtml(msg.second) + _T("<br>");
+        }
+        else if (msg.first == _T("assistant"))
+        {
+            body += _T("<div style='color:#c8c8c8;margin-bottom:4px;'>AI:</div>");
+            // Render assistant message with action cards interleaved with results
+            body += RenderAssistantWithResults(msg.second, cmdResults, cmdResultIndex);
+        }
+    }
+
+    // Append streaming content if present
+    if (!streamingContent.IsEmpty())
+    {
+        body += _T("<div style='color:#c8c8c8;margin-bottom:4px;'>AI:</div>")
+            + CMarkdownDlg::MarkdownToBody(streamingContent);
+    }
+
+    // Always add scroll anchor at the end so the browser can scroll to the latest content
+    body += _T("<div id=\"scroll-anchor\"></div>");
+
+    // If a specific command result should be scrolled to, embed an inline script
+    // that executes during document parsing (after all markers are in the DOM).
+    // This is more reliable than execScript() after SetAiBrowserHtml().
+    if (!scrollToCommand.IsEmpty())
+    {
+        // Escape the command for JavaScript single-quoted string literal
+        CString escCmd;
+        for (int i = 0; i < scrollToCommand.GetLength(); i++)
+        {
+            wchar_t c = scrollToCommand[i];
+            if (c == L'\\')      escCmd += L"\\\\";
+            else if (c == L'\'') escCmd += L"\\'";
+            else if (c == L'\n') escCmd += L"\\n";
+            else if (c == L'\r') escCmd += L"\\r";
+            else if (c == L'\t') escCmd += L"\\t";
+            else                 escCmd += c;
+        }
+
+        body += _T("<script>")
+            _T("(function(){")
+            _T("var m=document.querySelectorAll('.cmd-result-marker');")
+            _T("for(var i=0;i<m.length;i++){")
+            _T("if(m[i].getAttribute('data-command')==='") + escCmd + _T("'){")
+            _T("m[i].scrollIntoView(true);return;")
+            _T("}")
+            _T("}")
+            _T("if(m.length>0)m[m.length-1].scrollIntoView(true);")
+            _T("})()")
+            _T("</script>");
+    }
+
+    return body;
+}
+
+CString CMFCApplication1Dlg::RenderAssistantWithResults(const CString& content,
+    std::map<CString, std::vector<CString>>& cmdResults,
+    std::map<CString, int>& cmdResultIndex)
+{
+    CString html;
+    int pos = 0;
+
+    while (true)
+    {
+        // Find the next ```action block
+        int actionStart = content.Find(_T("```action"), pos);
+        if (actionStart < 0)
+        {
+            // No more action cards, render the remaining text
+            CString rest = content.Mid(pos);
+            if (!rest.IsEmpty())
+                html += CMarkdownDlg::MarkdownToBody(rest);
+            break;
+        }
+
+        // Render text before this action card (if any)
+        if (actionStart > pos)
+        {
+            CString beforeText = content.Mid(pos, actionStart - pos);
+            if (!beforeText.IsEmpty())
+                html += CMarkdownDlg::MarkdownToBody(beforeText);
+        }
+
+        // Find the closing ``` of this code block
+        int codeEnd = content.Find(_T("```"), actionStart + 9);
+        if (codeEnd < 0 || codeEnd <= actionStart + 9)
+        {
+            // No closing ``` or empty block, render the rest as markdown and bail out
+            html += CMarkdownDlg::MarkdownToBody(content.Mid(actionStart));
+            break;
+        }
+
+        // Render the action card itself (including the ```action ... ``` wrapper)
+        CString actionBlock = content.Mid(actionStart, codeEnd + 3 - actionStart);
+        html += CMarkdownDlg::MarkdownToBody(actionBlock);
+
+        // Extract the JSON content inside the action card to get the command
+        CString jsonContent = content.Mid(actionStart + 9, codeEnd - actionStart - 9);
+        jsonContent.Trim();
+
+        if (!jsonContent.IsEmpty())
+        {
+            CString matchedCommand;
+            try {
+                std::string s = (LPCSTR)CT2A(jsonContent, CP_UTF8);
+                nlohmann::json j = nlohmann::json::parse(s);
+                matchedCommand = CString(CA2T(j["command"].get<std::string>().c_str(), CP_UTF8));
+            }
+            catch (...) { }
+
+            if (!matchedCommand.IsEmpty())
+            {
+                // Look up the next unconsumed result for this command
+                auto& results = cmdResults[matchedCommand];
+                int idx = cmdResultIndex[matchedCommand];
+                if (idx < (int)results.size())
+                {
+                    html += _T("<div style='color:#569cd6;font-size:15px;border-left:3px solid #569cd6;padding-left:8px;margin:4px 0;'>")
+                        + CMarkdownDlg::MarkdownToBody(results[idx]) + _T("</div>")
+                        + _T("<div class=\"cmd-result-marker\" data-command=\"") + CMarkdownDlg::EscapeHtml(matchedCommand) + _T("\"></div>");
+                    cmdResultIndex[matchedCommand] = idx + 1;
+                }
+            }
+        }
+
+        pos = codeEnd + 3;
+    }
+
+    return html;
 }
 
 bool CMFCApplication1Dlg::SetAiBrowserHtml(const CString& html)
@@ -2011,6 +2181,52 @@ bool CMFCApplication1Dlg::SetAiBrowserHtml(const CString& html)
     return true;
 }
 
+void CMFCApplication1Dlg::ScrollAiBrowserToAnchor(const CString& elementId)
+{
+    // Use IHTMLDocument3::getElementById + IHTMLElement::scrollIntoView to scroll the browser.
+    // This runs after the document is fully written, so it's more reliable than inline <script>.
+    if (!m_aiBrowser.m_hWnd || !::IsWindow(m_aiBrowser.m_hWnd))
+        return;
+
+    LPUNKNOWN pUnk = m_aiBrowser.GetControlUnknown();
+    if (!pUnk) return;
+
+    IWebBrowser2* pWeb2 = nullptr;
+    if (FAILED(pUnk->QueryInterface(IID_IWebBrowser2, (void**)&pWeb2)))
+        return;
+
+    IDispatch* pDocDisp = nullptr;
+    if (FAILED(pWeb2->get_Document(&pDocDisp)) || !pDocDisp)
+    {
+        pWeb2->Release();
+        return;
+    }
+
+    IHTMLDocument3* pDoc3 = nullptr;
+    if (FAILED(pDocDisp->QueryInterface(IID_IHTMLDocument3, (void**)&pDoc3)))
+    {
+        pDocDisp->Release();
+        pWeb2->Release();
+        return;
+    }
+
+    BSTR bstrId = elementId.AllocSysString();
+    IHTMLElement* pElement = nullptr;
+    if (SUCCEEDED(pDoc3->getElementById(bstrId, &pElement)) && pElement)
+    {
+        VARIANT vTop = { 0 };
+        vTop.vt = VT_BOOL;
+        vTop.boolVal = VARIANT_TRUE; // align to top
+        pElement->scrollIntoView(vTop);
+        pElement->Release();
+    }
+    SysFreeString(bstrId);
+
+    pDoc3->Release();
+    pDocDisp->Release();
+    pWeb2->Release();
+}
+
 void CMFCApplication1Dlg::OnTimer(UINT_PTR nIDEvent)
 {
     if (nIDEvent == 1)
@@ -2044,6 +2260,33 @@ void CMFCApplication1Dlg::SaveCurrentConversation()
 {
     if (m_aiHistory.empty()) return;
 
+    CTime now = CTime::GetCurrentTime();
+
+    // If we loaded an existing conversation, overwrite the original file
+    if (!m_strConvPath.IsEmpty())
+    {
+        CFile file;
+        if (!file.Open(m_strConvPath, CFile::modeCreate | CFile::modeWrite))
+            return;
+
+        CArchive ar(&file, CArchive::store);
+        int nCount = (int)m_aiHistory.size();
+        CString created = m_strConvCreated.IsEmpty() ? now.Format(_T("%Y-%m-%d %H:%M:%S")) : m_strConvCreated;
+        CString updated = now.Format(_T("%Y-%m-%d %H:%M:%S"));
+
+        ar << nCount;
+        ar << m_strConvTitle;
+        ar << created;
+        ar << updated;
+        for (auto& msg : m_aiHistory)
+            ar << msg.first << msg.second;
+
+        ar.Close();
+        file.Close();
+        return;
+    }
+
+    // New conversation: generate filename from title
     CString convDir = GetConversationsFolder();
     CreateDirectory(convDir, nullptr);
 
@@ -2070,7 +2313,6 @@ void CMFCApplication1Dlg::SaveCurrentConversation()
             safeTitle.SetAt(i, '_');
     }
 
-    CTime now = CTime::GetCurrentTime();
     CString fileName;
     fileName.Format(_T("%s_%s.conv"), now.Format(_T("%Y%m%d_%H%M%S")), safeTitle.GetString());
 
@@ -2082,7 +2324,7 @@ void CMFCApplication1Dlg::SaveCurrentConversation()
 
     CArchive ar(&file, CArchive::store);
     int nCount = (int)m_aiHistory.size();
-    CString created = m_strConvPath.IsEmpty() ? now.Format(_T("%Y-%m-%d %H:%M:%S")) : CString(_T(""));
+    CString created = now.Format(_T("%Y-%m-%d %H:%M:%S"));
     CString updated = now.Format(_T("%Y-%m-%d %H:%M:%S"));
 
     ar << nCount;
@@ -2121,23 +2363,11 @@ void CMFCApplication1Dlg::LoadConversation(const CString& filePath)
 
     m_strConvTitle = title;
     m_strConvPath = filePath;
+    m_strConvCreated = created;
 
-    // Render the conversation in the browser
-    CString body;
-    for (auto& msg : m_aiHistory)
-    {
-        if (msg.first == _T("user"))
-        {
-            body += _T("<div style='color:#888;margin-bottom:4px;'>You: </div>")
-                + CMarkdownDlg::EscapeHtml(msg.second) + _T("<br>");
-        }
-        else if (msg.first == _T("assistant"))
-        {
-            body += _T("<div style='color:#c8c8c8;margin-bottom:4px;'>AI:</div>")
-                + CMarkdownDlg::MarkdownToBody(msg.second);
-        }
-    }
-    SetAiBrowserHtml(BuildAiHtmlPage(body));
+    // Render the full conversation in the browser
+    SetAiBrowserHtml(BuildAiHtmlPage(BuildAiBodyFromHistory()));
+    ScrollAiBrowserToAnchor(_T("scroll-anchor"));
 }
 
 LRESULT CMFCApplication1Dlg::OnConvLoaded(WPARAM wParam, LPARAM)
@@ -2184,6 +2414,10 @@ CString CMFCApplication1Dlg::GetConversationsFolder()
         SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, 0, szAppData);
         convDir = CString(szAppData) + _T("\\MFCApplication1\\conversations");
     }
+
+    // Ensure trailing backslash
+    if (convDir.Right(1) != _T("\\"))
+        convDir += _T("\\");
 
     CreateDirectory(convDir, nullptr);
     return convDir;
@@ -2364,12 +2598,23 @@ LRESULT CMFCApplication1Dlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam
         CString resultMsg;
         resultMsg.Format(_T("【命令执行结果】\n命令：%s\n状态：已取消（用户未确认）\n"),
             command.GetString());
-        m_aiHistory.push_back({ _T("system"), resultMsg });
-        CString body = _T("<div style='color:#c8c8c8;margin-bottom:4px;'>AI:</div>")
-            + CMarkdownDlg::MarkdownToBody(m_aiStreamingContent.IsEmpty()
-                ? (m_aiHistory.empty() ? CString() : m_aiHistory.back().second)
-                : m_aiStreamingContent);
-        SetAiBrowserHtml(BuildAiHtmlPage(body));
+        // Insert after the last assistant message so results stay with their action cards
+        {
+            int insertPos = (int)m_aiHistory.size();
+            for (int i = (int)m_aiHistory.size() - 1; i >= 0; i--)
+            {
+                if (m_aiHistory[i].first == _T("assistant"))
+                {
+                    insertPos = i + 1;
+                    // Skip past any system results that already follow this assistant
+                    while (insertPos < (int)m_aiHistory.size() && m_aiHistory[insertPos].first == _T("system"))
+                        insertPos++;
+                    break;
+                }
+            }
+            m_aiHistory.insert(m_aiHistory.begin() + insertPos, { _T("system"), resultMsg });
+        }
+        SetAiBrowserHtml(BuildAiHtmlPage(BuildAiBodyFromHistory(CString(), command)));
         return 0;
     }
 
@@ -2500,30 +2745,25 @@ LRESULT CMFCApplication1Dlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam
     exitStr.Format(_T("退出代码：%d\n"), exitCode);
     resultMsg += exitStr;
 
-    // Record result in conversation history
-    m_aiHistory.push_back({ _T("system"), resultMsg });
-
-    // Re-render browser with the latest assistant content + result
-    CString body;
-    for (auto& msg : m_aiHistory)
+    // Record result in conversation history — insert after the last assistant message
     {
-        if (msg.first == _T("user"))
+        int insertPos = (int)m_aiHistory.size();
+        for (int i = (int)m_aiHistory.size() - 1; i >= 0; i--)
         {
-            body += _T("<div style='color:#888;margin-bottom:4px;'>You: </div>")
-                + CMarkdownDlg::EscapeHtml(msg.second) + _T("<br>");
+            if (m_aiHistory[i].first == _T("assistant"))
+            {
+                insertPos = i + 1;
+                // Skip past any system results that already follow this assistant
+                while (insertPos < (int)m_aiHistory.size() && m_aiHistory[insertPos].first == _T("system"))
+                    insertPos++;
+                break;
+            }
         }
-        else if (msg.first == _T("assistant"))
-        {
-            body += _T("<div style='color:#c8c8c8;margin-bottom:4px;'>AI:</div>")
-                + CMarkdownDlg::MarkdownToBody(msg.second);
-        }
-        else if (msg.first == _T("system") && msg.second.Find(_T("【命令执行结果】")) == 0)
-        {
-            body += _T("<div style='color:#569cd6;font-size:15px;border-left:3px solid #569cd6;padding-left:8px;margin:4px 0;'>")
-                + CMarkdownDlg::MarkdownToBody(msg.second) + _T("</div>");
-        }
+        m_aiHistory.insert(m_aiHistory.begin() + insertPos, { _T("system"), resultMsg });
     }
-    SetAiBrowserHtml(BuildAiHtmlPage(body));
+
+    // Re-render full conversation with command result, auto-scroll to result
+    SetAiBrowserHtml(BuildAiHtmlPage(BuildAiBodyFromHistory(CString(), command)));
 
     // Re-enable send button
     CWnd* pSend = GetDlgItem(IDC_BUTTON_AI_SEND);

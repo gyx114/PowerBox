@@ -40,6 +40,7 @@ protected:
 
 private:
     CListCtrl m_list;
+    CStatic m_staticPath;
     std::vector<ConversationInfo> m_conversations;
 
     CString GetConversationsFolder();

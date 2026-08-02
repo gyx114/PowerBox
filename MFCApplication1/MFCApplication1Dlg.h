@@ -9,6 +9,7 @@
 #include <string>
 #include <memory>
 #include <utility>
+#include <map>
 #include "AutoClicker.h"
 #include "AutoClickerSpeedDlg.h"
 #include "AIApiClient.h"
@@ -334,10 +335,16 @@ public:
     CString m_aiStreamingContent;         // accumulated streaming content
     CString m_strConvTitle;               // Current conversation title
     CString m_strConvPath;                // Current conversation file path (empty if new)
+    CString m_strConvCreated;             // Original creation time (preserved from loaded file)
     CString BuildSystemPrompt();
     void InitAIControls();
     CString BuildAiHtmlPage(const CString& bodyContent);
-    bool SetAiBrowserHtml(const CString& html);
+    CString BuildAiBodyFromHistory(const CString& streamingContent = CString(), const CString& scrollToCommand = CString());
+	CString RenderAssistantWithResults(const CString& content,
+		std::map<CString, std::vector<CString>>& cmdResults,
+		std::map<CString, int>& cmdResultIndex);
+	bool SetAiBrowserHtml(const CString& html);
+	void ScrollAiBrowserToAnchor(const CString& elementId);
     afx_msg void OnBnClickedAiSend();
     afx_msg void OnBnClickedAiClear();
     afx_msg void OnBnClickedAiStop();

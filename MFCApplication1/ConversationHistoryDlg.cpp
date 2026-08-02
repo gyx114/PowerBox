@@ -27,6 +27,7 @@ void CConversationHistoryDlg::DoDataExchange(CDataExchange* pDX)
 {
     CDialogEx::DoDataExchange(pDX);
     DDX_Control(pDX, IDC_LIST_CONV_HISTORY, m_list);
+    DDX_Control(pDX, IDC_STATIC_CONV_PATH, m_staticPath);
 }
 
 BEGIN_MESSAGE_MAP(CConversationHistoryDlg, CDialogEx)
@@ -62,6 +63,10 @@ CString CConversationHistoryDlg::GetConversationsFolder()
         convDir = CString(szAppData) + _T("\\MFCApplication1\\conversations");
     }
 
+    // Ensure trailing backslash
+    if (convDir.Right(1) != _T("\\"))
+        convDir += _T("\\");
+
     CreateDirectory(convDir, nullptr);
     return convDir;
 }
@@ -72,6 +77,7 @@ void CConversationHistoryDlg::RefreshList()
     m_conversations.clear();
 
     CString folder = GetConversationsFolder();
+    m_staticPath.SetWindowText(_T("保存位置: ") + folder);
     CString pattern = folder + _T("*.conv");
 
     CFileFind finder;
