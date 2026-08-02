@@ -2412,7 +2412,7 @@ CString CMFCApplication1Dlg::GetConversationsFolder()
         // Fallback to AppData
         TCHAR szAppData[MAX_PATH] = {0};
         SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, 0, szAppData);
-        convDir = CString(szAppData) + _T("\\MFCApplication1\\conversations");
+        convDir = CString(szAppData) + _T("\\PowerBox\\conversations");
     }
 
     // Ensure trailing backslash
