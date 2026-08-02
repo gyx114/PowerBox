@@ -296,7 +296,7 @@ if exist "$(OutDir)Unmerged" rmdir /s /q "$(OutDir)Unmerged"
     <None Include="res\MFCApplication1.rc2" />
   </ItemGroup>
   <ItemGroup>
-    <Image Include="res\MFCApplication1.ico" />
+    <Image Include="res\PowerBox_icon.ico" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

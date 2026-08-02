@@ -131,7 +131,7 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="res\MFCApplication1.ico">
+    <Image Include="res\PowerBox_icon.ico">
       <Filter>资源文件</Filter>
     </Image>
   </ItemGroup>
