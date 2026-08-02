@@ -385,7 +385,7 @@ void CContextMenuDlg::LoadGuidDictionary()
 		TCHAR szAppData[MAX_PATH] = { 0 };
 		if (SUCCEEDED(SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, 0, szAppData)))
 		{
-			s_dictPath = CString(szAppData) + _T("\\MFCApplication1");
+			s_dictPath = CString(szAppData) + _T("\\PowerBox");
 			CreateDirectory(s_dictPath, nullptr);
 		}
 	}
@@ -1729,7 +1729,7 @@ bool CContextMenuDlg::IsRunningAsAdmin()
 void CContextMenuDlg::LoadSelfContextMenuState()
 {
 	HKEY hKey = nullptr;
-	CString path = _T("Directory\\shell\\MFCApplication1");
+	CString path = _T("Directory\\shell\\PowerBox");
 	if (RegOpenKeyEx(HKEY_CLASSES_ROOT, path, 0, KEY_READ, &hKey) == ERROR_SUCCESS)
 	{
 		RegCloseKey(hKey);
@@ -1747,7 +1747,7 @@ void CContextMenuDlg::SaveSelfContextMenuState(bool bEnable)
 	GetModuleFileName(nullptr, szExe, MAX_PATH);
 	CString exePath = szExe;
 
-	CString baseKey = _T("Directory\\shell\\MFCApplication1");
+	CString baseKey = _T("Directory\\shell\\PowerBox");
 
 	if (bEnable)
 	{
@@ -1757,8 +1757,8 @@ void CContextMenuDlg::SaveSelfContextMenuState(bool bEnable)
 			KEY_WRITE, nullptr, &hKey, &dwDisp) == ERROR_SUCCESS)
 		{
 			RegSetValueEx(hKey, nullptr, 0, REG_SZ,
-				(LPBYTE)_T("用 MFC工具箱打开"),
-				(DWORD)((_tcslen(_T("用 MFC工具箱打开")) + 1) * sizeof(TCHAR)));
+				(LPBYTE)_T("用 PowerBox 打开"),
+				(DWORD)((_tcslen(_T("用 PowerBox 打开")) + 1) * sizeof(TCHAR)));
 			RegSetValueEx(hKey, _T("Icon"), 0, REG_SZ,
 				(LPBYTE)exePath.GetString(),
 				(exePath.GetLength() + 1) * sizeof(TCHAR));
@@ -2590,7 +2590,7 @@ void CContextMenuDlg::OnBnClickedDictOpen()
 		TCHAR szPath[MAX_PATH] = { 0 };
 		if (SUCCEEDED(SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, 0, szPath)))
 		{
-			dictPath = CString(szPath) + _T("\\MFCApplication1");
+			dictPath = CString(szPath) + _T("\\PowerBox");
 			CreateDirectory(dictPath, nullptr);
 		}
 	}
@@ -2621,7 +2621,7 @@ CString CContextMenuDlg::GetCachePath()
 	TCHAR szPath[MAX_PATH] = { 0 };
 	if (SUCCEEDED(SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, 0, szPath)))
 	{
-		CString dir = CString(szPath) + _T("\\MFCApplication1");
+		CString dir = CString(szPath) + _T("\\PowerBox");
 		CreateDirectory(dir, nullptr);
 		return dir + _T("\\GuidInfosDic.cache.ini");
 	}
@@ -2636,7 +2636,7 @@ CString CContextMenuDlg::GetUserOverridePath()
 		TCHAR szPath[MAX_PATH] = { 0 };
 		if (SUCCEEDED(SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, 0, szPath)))
 		{
-			dir = CString(szPath) + _T("\\MFCApplication1");
+			dir = CString(szPath) + _T("\\PowerBox");
 			CreateDirectory(dir, nullptr);
 		}
 	}
@@ -3412,7 +3412,7 @@ CString CContextMenuDlg::GetBackupDir()
     TCHAR szAppData[MAX_PATH]{};
     if (SUCCEEDED(SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, 0, szAppData)))
     {
-        fs::path backupDir = fs::path(szAppData) / L"MFCApplication1" / L"ContextMenuBackups";
+        fs::path backupDir = fs::path(szAppData) / L"PowerBox" / L"ContextMenuBackups";
         return CString(backupDir.c_str());
     }
     // Fallback to exe directory

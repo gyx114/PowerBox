@@ -226,7 +226,7 @@ std::string CAIApiClient::SendRequestInternal(
     bool bSecure = (port == 443);
 
     WinHttpHandle hSession(WinHttpOpen(
-        L"MFCApplication1/1.0",
+        L"PowerBox/1.0",
         WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
         WINHTTP_NO_PROXY_NAME,
         WINHTTP_NO_PROXY_BYPASS, 0));
@@ -564,7 +564,7 @@ void CAIApiClient::SendAsyncStreaming(
 
             // Use SendRequestInternal for common HTTP setup, then read SSE stream
             bool bSecure = (port == 443);
-            WinHttpHandle hSession(WinHttpOpen(L"MFCApplication1/1.0",
+            WinHttpHandle hSession(WinHttpOpen(L"PowerBox/1.0",
                 WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME,
                 WINHTTP_NO_PROXY_BYPASS, 0));
             if (!hSession.IsValid())
