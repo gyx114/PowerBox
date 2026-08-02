@@ -1504,11 +1504,12 @@ void CContextMenuDlg::TranslateUI()
 	SetDlgItemText(IDC_CHECK_CM_FOLDER, loc.GetString(_T("ContextMenu"), _T("FolderMenuLabel")));
 	SetDlgItemText(IDC_CHECK_CM_WIN11_CLASSIC, loc.GetString(_T("ContextMenu"), _T("Win11ClassicLabel")));
 
-	// Set extension edit box placeholder
+	// Set extension edit box placeholder (cue banner, not actual text)
 	CEdit* pExt = (CEdit*)GetDlgItem(IDC_EDIT_CM_EXTENSION);
 	if (pExt)
 	{
-		pExt->SetWindowText(loc.GetString(_T("ContextMenu"), _T("ExtensionPlaceholder")));
+		CString hint = loc.GetString(_T("ContextMenu"), _T("ExtensionPlaceholder"));
+		pExt->SendMessage(EM_SETCUEBANNER, (WPARAM)TRUE, (LPARAM)(LPCTSTR)hint);
 	}
 }
 

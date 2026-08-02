@@ -37,13 +37,18 @@ bool CLocalizationManager::LoadLanguage(const CString& langId)
 {
     m_currentLang = langId;
 
+    CString langFile;
+    langFile.Format(_T("%s\\%s.ini"), GetLangDir().GetString(), langId.GetString());
+
+    // Refresh INI file cache to ensure changes are picked up immediately
+    // Without this, GetPrivateProfileString may return stale cached data
+    WritePrivateProfileString(NULL, NULL, NULL, langFile);
+
     // For zh-CN, built-in defaults are always available, no file needed
     if (langId == _T("zh-CN"))
         return true;
 
     // For other languages, check that the .ini file exists
-    CString langFile;
-    langFile.Format(_T("%s\\%s.ini"), GetLangDir().GetString(), langId.GetString());
     if (GetFileAttributes(langFile) == INVALID_FILE_ATTRIBUTES)
     {
         // File not found, fall back to zh-CN
@@ -58,25 +63,22 @@ CString CLocalizationManager::GetString(LPCTSTR section, LPCTSTR key, LPCTSTR de
 {
     CString result;
 
-    // If current language is not zh-CN, try the external .ini file first
-    if (m_currentLang != _T("zh-CN"))
-    {
-        CString langFile;
-        langFile.Format(_T("%s\\%s.ini"), GetLangDir().GetString(), m_currentLang.GetString());
+    // Try the external .ini file first (all languages, including zh-CN)
+    CString langFile;
+    langFile.Format(_T("%s\\%s.ini"), GetLangDir().GetString(), m_currentLang.GetString());
 
-        TCHAR buf[4096] = {};
-        GetPrivateProfileString(section, key, _T(""), buf, 4096, langFile);
-        if (buf[0] != _T('\0'))
-        {
-            result = CString(buf);
-            // Convert literal escape sequences to actual characters
-            // INI files don't support escape sequences natively, so we handle common ones
-            result.Replace(_T("\\r\\n"), _T("\r\n"));
-            result.Replace(_T("\\n"), _T("\n"));
-            result.Replace(_T("\\\""), _T("\""));
-            result.Replace(_T("\\\\"), _T("\\"));
-            return result;
-        }
+    TCHAR buf[4096] = {};
+    GetPrivateProfileString(section, key, _T(""), buf, 4096, langFile);
+    if (buf[0] != _T('\0'))
+    {
+        result = CString(buf);
+        // Convert literal escape sequences to actual characters
+        // INI files don't support escape sequences natively, so we handle common ones
+        result.Replace(_T("\\r\\n"), _T("\r\n"));
+        result.Replace(_T("\\n"), _T("\n"));
+        result.Replace(_T("\\\""), _T("\""));
+        result.Replace(_T("\\\\"), _T("\\"));
+        return result;
     }
 
     // Fall back to built-in defaults
@@ -388,6 +390,59 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("GitTab"), _T("Locate"))] = _T("定位");
     m_defaults[MakeKey(_T("GitTab"), _T("DefaultDir"))] = _T("(默认)");
 
+    // ===== MainCtrl (main dialog controls) =====
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnRegex"))] = _T("正则");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnAiScan"))] = _T("AI扫描");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnRegexHelp"))] = _T("帮助");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnWeChat"))] = _T("微信");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnQQ"))] = _T("QQ");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnBilibili"))] = _T("B站");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnYuanbao"))] = _T("元宝");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnVS"))] = _T("VS");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnVSCode"))] = _T("VSCode");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnStudy"))] = _T("学习");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnMOOC"))] = _T("MOOC");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnDownloads"))] = _T("下载");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnSDUCS"))] = _T("SDUCS");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnLeetCode"))] = _T("LeetCode");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnNextTrack"))] = _T("下一首");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("LabelShutdown"))] = _T("关机");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnExecute"))] = _T("执行");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnCancelShutdown"))] = _T("解除关机");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("LabelHourUnit"))] = _T("时");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("LabelMinuteUnit"))] = _T("分");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("LabelSecondUnit"))] = _T("秒");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("LabelVolume"))] = _T("音量");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnApply"))] = _T("应用");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnMute"))] = _T("静音");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("LabelSystem"))] = _T("系统");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnTaskManager"))] = _T("任务管理器");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("LabelCmdLine"))] = _T("命令行");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("LabelRunCmd"))] = _T("运行");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnRun"))] = _T("运行");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnClear"))] = _T("清空");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnSend"))] = _T("发送");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnStop"))] = _T("停止");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnNewChat"))] = _T("新对话");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnHistory"))] = _T("对话历史");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("LabelLocateHint"))] = _T("点击定位窗口按钮后点击目标窗口");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("GroupGenerate"))] = _T("生成文件副本");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnGenerate"))] = _T("生成");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnLocateWindow"))] = _T("定位窗口");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("DropHint"))] = _T("拖拽文件到此");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("CheckAutoStart"))] = _T("开机自启动");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("CheckTopmost"))] = _T("窗口置顶");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("CheckAutoClicker"))] = _T("连点器");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("CheckMinimizeToTray"))] = _T("最小化到托盘");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("CheckPreventLock"))] = _T("禁止自动锁屏");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("GroupRename"))] = _T("修改文件名");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnModify"))] = _T("修改");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnDelete"))] = _T("删除");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnCopyTo"))] = _T("复制到");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnMoveTo"))] = _T("移动到");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("GroupCopyMove"))] = _T("复制 / 移动");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("GitDropHint"))] = _T("拖拽文件夹或文件目录到此");
+
     // ===== Shutdown combo =====
     m_defaults[MakeKey(_T("Shutdown"), _T("Restart1Min"))] = _T("1分钟后重启");
     m_defaults[MakeKey(_T("Shutdown"), _T("Shutdown3Min"))] = _T("默认3分钟关机");
@@ -477,6 +532,10 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("ContextMenu"), _T("RClickCustomParse"))] = _T("自定义名称解析");
     m_defaults[MakeKey(_T("ContextMenu"), _T("RClickAiAnalyze"))] = _T("AI解析");
     m_defaults[MakeKey(_T("ContextMenu"), _T("RClickEnableAll"))] = _T("启用全部");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("RClickLocateReg"))] = _T("定位(注册表)");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("DictInfoCurrent"))] = _T("当前字典: %s  |  缓存: %s");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("DictInfoEmbeddedCache"))] = _T("当前字典: 内置 + 缓存  |  缓存: %s");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("DictInfoEmbedded"))] = _T("当前字典: 内置(硬编码)  |  缓存: %s");
     m_defaults[MakeKey(_T("ContextMenu"), _T("FolderMenuLabel"))] = _T("文件夹右键菜单: 用本程序打开");
     m_defaults[MakeKey(_T("ContextMenu"), _T("Win11ClassicLabel"))] = _T("Win11经典菜单(Shift右键效果)");
     m_defaults[MakeKey(_T("ContextMenu"), _T("BtnRefresh"))] = _T("刷新");
@@ -508,6 +567,9 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("EnvVar"), _T("RClickDelete"))] = _T("删除");
     m_defaults[MakeKey(_T("EnvVar"), _T("RClickCopyName"))] = _T("复制名称");
     m_defaults[MakeKey(_T("EnvVar"), _T("RClickCopyValue"))] = _T("复制值");
+    m_defaults[MakeKey(_T("EnvVar"), _T("RClickCopy"))] = _T("复制");
+    m_defaults[MakeKey(_T("EnvVar"), _T("RClickMoveUp"))] = _T("上移");
+    m_defaults[MakeKey(_T("EnvVar"), _T("RClickMoveDown"))] = _T("下移");
 
     // ===== File Lock Viewer =====
     m_defaults[MakeKey(_T("FileLock"), _T("ColFilePath"))] = _T("文件路径");
@@ -526,6 +588,8 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("BatchRename"), _T("ColOriginal"))] = _T("原文件名");
     m_defaults[MakeKey(_T("BatchRename"), _T("ColNew"))] = _T("新文件名");
     m_defaults[MakeKey(_T("BatchRename"), _T("ColStatus"))] = _T("状态");
+    m_defaults[MakeKey(_T("BatchRename"), _T("ColSerial"))] = _T("#");
+    m_defaults[MakeKey(_T("BatchRename"), _T("ColFolderName"))] = _T("文件夹名");
     m_defaults[MakeKey(_T("BatchRename"), _T("TabFolder"))] = _T("文件夹操作");
     m_defaults[MakeKey(_T("BatchRename"), _T("TabFile"))] = _T("文件批量处理");
     m_defaults[MakeKey(_T("BatchRename"), _T("BtnBrowse"))] = _T("浏览");
@@ -537,8 +601,8 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("BatchRename"), _T("BtnResetAll"))] = _T("全部重置");
     m_defaults[MakeKey(_T("BatchRename"), _T("PrefixLabel"))] = _T("前缀");
     m_defaults[MakeKey(_T("BatchRename"), _T("SuffixLabel"))] = _T("后缀");
-    m_defaults[MakeKey(_T("BatchRename"), _T("ReplaceFromLabel"))] = _T("查找");
-    m_defaults[MakeKey(_T("BatchRename"), _T("ReplaceToLabel"))] = _T("替换为");
+    m_defaults[MakeKey(_T("BatchRename"), _T("ReplaceFromLabel"))] = _T("替换");
+    m_defaults[MakeKey(_T("BatchRename"), _T("ReplaceToLabel"))] = _T("为");
     m_defaults[MakeKey(_T("BatchRename"), _T("NumberLabel"))] = _T("自动编号");
     m_defaults[MakeKey(_T("BatchRename"), _T("RegexLabel"))] = _T("正则");
     m_defaults[MakeKey(_T("BatchRename"), _T("IgnoreExtLabel"))] = _T("忽略扩展名");
@@ -883,4 +947,292 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("Msg"), _T("CannotCreatePipe"))] = _T("错误：无法创建输出管道");
     m_defaults[MakeKey(_T("Msg"), _T("OutputLabel"))] = _T("输出：\n");
     m_defaults[MakeKey(_T("Msg"), _T("ExitCodeFmt"))] = _T("退出代码：%d\n");
+
+    // ===== Batch Rename - additional keys =====
+    m_defaults[MakeKey(_T("BatchRename"), _T("RenameFolder"))] = _T("重命名");
+    m_defaults[MakeKey(_T("BatchRename"), _T("MoveTo"))] = _T("移动");
+    m_defaults[MakeKey(_T("BatchRename"), _T("MarkedDeleted"))] = _T("标记删除");
+    m_defaults[MakeKey(_T("BatchRename"), _T("LocateInExplorer"))] = _T("在资源管理器中打开");
+    m_defaults[MakeKey(_T("BatchRename"), _T("SelectAll"))] = _T("全选");
+    m_defaults[MakeKey(_T("BatchRename"), _T("DeselectAll"))] = _T("取消全选");
+    m_defaults[MakeKey(_T("BatchRename"), _T("Ignore"))] = _T("忽略");
+    m_defaults[MakeKey(_T("BatchRename"), _T("Unignore"))] = _T("取消忽略");
+    m_defaults[MakeKey(_T("BatchRename"), _T("Track"))] = _T("跟踪");
+    m_defaults[MakeKey(_T("BatchRename"), _T("Untrack"))] = _T("取消跟踪");
+    m_defaults[MakeKey(_T("BatchRename"), _T("MarkDelete"))] = _T("标记删除");
+    m_defaults[MakeKey(_T("BatchRename"), _T("UnmarkDelete"))] = _T("取消删除标记");
+    m_defaults[MakeKey(_T("BatchRename"), _T("ChangeExt"))] = _T("修改扩展名");
+    m_defaults[MakeKey(_T("BatchRename"), _T("RestoreExt"))] = _T("恢复原始扩展名");
+    m_defaults[MakeKey(_T("BatchRename"), _T("MoveUpOne"))] = _T("上移一个");
+    m_defaults[MakeKey(_T("BatchRename"), _T("MoveUpTo"))] = _T("移动到指定位置");
+    m_defaults[MakeKey(_T("BatchRename"), _T("MoveUpMenu"))] = _T("上移");
+    m_defaults[MakeKey(_T("BatchRename"), _T("MoveDownOne"))] = _T("下移一个");
+    m_defaults[MakeKey(_T("BatchRename"), _T("MoveDownTo"))] = _T("移动到指定位置");
+    m_defaults[MakeKey(_T("BatchRename"), _T("MoveDownMenu"))] = _T("下移");
+    m_defaults[MakeKey(_T("BatchRename"), _T("AiAnalyze"))] = _T("AI分析");
+    m_defaults[MakeKey(_T("BatchRename"), _T("CancelAiMark"))] = _T("取消AI标记");
+    m_defaults[MakeKey(_T("BatchRename"), _T("BrowseTitle"))] = _T("选择文件夹");
+    m_defaults[MakeKey(_T("BatchRename"), _T("DragFolderOnly"))] = _T("请拖入文件夹，不支持拖入文件。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("Tip"))] = _T("提示");
+    m_defaults[MakeKey(_T("BatchRename"), _T("SelectedCount"))] = _T("已选 %d / %d 个文件夹");
+    m_defaults[MakeKey(_T("BatchRename"), _T("SelectFoldersFirst"))] = _T("请先勾选要操作的文件夹。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("EnterNewFolderName"))] = _T("输入新文件夹名称：");
+    m_defaults[MakeKey(_T("BatchRename"), _T("InvalidFolderName"))] = _T("文件夹名无效。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("Error"))] = _T("错误");
+    m_defaults[MakeKey(_T("BatchRename"), _T("RenameFailed"))] = _T("重命名失败。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("RenameSuccess"))] = _T("重命名成功！");
+    m_defaults[MakeKey(_T("BatchRename"), _T("Result"))] = _T("结果");
+    m_defaults[MakeKey(_T("BatchRename"), _T("RenameResult"))] = _T("重命名完成：成功 %d 个，失败 %d 个。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("SelectFoldersToMove"))] = _T("请先勾选要移动的文件夹。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("SelectTargetFolder"))] = _T("选择目标文件夹");
+    m_defaults[MakeKey(_T("BatchRename"), _T("MoveResult"))] = _T("移动完成：成功 %d 个，失败 %d 个。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("SelectFoldersToDelete"))] = _T("请先勾选要删除的文件夹。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("ConfirmDeleteFolders"))] = _T("确定要删除选中的 %d 个文件夹吗？\n此操作不可撤销！");
+    m_defaults[MakeKey(_T("BatchRename"), _T("ConfirmDelete"))] = _T("确认删除");
+    m_defaults[MakeKey(_T("BatchRename"), _T("DeleteResult"))] = _T("删除完成：成功 %d 个，失败 %d 个。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("EnterNewDirName"))] = _T("输入新目录名：");
+    m_defaults[MakeKey(_T("BatchRename"), _T("RenameCurrentDir"))] = _T("重命名当前目录");
+    m_defaults[MakeKey(_T("BatchRename"), _T("InvalidDirName"))] = _T("目录名无效。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("ConfirmMoveDir"))] = _T("确定要将 \"%s\" 移动到 \"%s\"？");
+    m_defaults[MakeKey(_T("BatchRename"), _T("ConfirmMove"))] = _T("确认移动");
+    m_defaults[MakeKey(_T("BatchRename"), _T("MoveFailed"))] = _T("移动失败。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("MoveSuccess"))] = _T("移动成功！");
+    m_defaults[MakeKey(_T("BatchRename"), _T("ConfirmDeleteCurrentDir"))] = _T("确定要删除当前目录 \"%s\" 吗？\n此操作不可撤销！");
+    m_defaults[MakeKey(_T("BatchRename"), _T("MoveToRecycleFailed"))] = _T("移动到回收站失败。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("DeleteSuccess"))] = _T("删除成功！");
+    m_defaults[MakeKey(_T("BatchRename"), _T("AlreadyAtTop"))] = _T("已在顶部。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("EnterTargetPosition"))] = _T("输入目标位置 (1~%d)：");
+    m_defaults[MakeKey(_T("BatchRename"), _T("EnterValidNumber"))] = _T("请输入有效数字 (1~%d)。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("AlreadyAtBottom"))] = _T("已在底部。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("EnterTargetPositionRange"))] = _T("输入目标位置 (%d~%d)：");
+    m_defaults[MakeKey(_T("BatchRename"), _T("MoveToBottom"))] = _T("移动到末尾");
+    m_defaults[MakeKey(_T("BatchRename"), _T("EnterValidNumberRange"))] = _T("请输入有效数字 (%d~%d)。");
+
+    // ===== Batch Rename AI Dialog =====
+    m_defaults[MakeKey(_T("BatchRename"), _T("ColCurrentName"))] = _T("当前文件名");
+    m_defaults[MakeKey(_T("BatchRename"), _T("ColAiSuggestion"))] = _T("AI 建议新名");
+    m_defaults[MakeKey(_T("BatchRename"), _T("AiDlgStatus"))] = _T("共 %d 个文件");
+    m_defaults[MakeKey(_T("BatchRename"), _T("AiDlgEnterDesc"))] = _T("请先输入重命名描述。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("AiDlgWaiting"))] = _T("正在请求 AI，请稍候...");
+    m_defaults[MakeKey(_T("BatchRename"), _T("AiDlgEmptyResponse"))] = _T("AI 返回为空，请重试。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("AiDlgGenerated"))] = _T("已生成 %d 个映射");
+    m_defaults[MakeKey(_T("BatchRename"), _T("AiDlgNoJson"))] = _T("AI 未返回有效 JSON，请重试。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("AiDlgParseError"))] = _T("解析 AI 返回的 JSON 失败。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("AiDlgParseErrorTitle"))] = _T("解析错误");
+    m_defaults[MakeKey(_T("BatchRename"), _T("AiDlgInvalidJson"))] = _T("AI 返回的 JSON 格式无效。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("AiDlgWarning"))] = _T("警告：");
+    m_defaults[MakeKey(_T("BatchRename"), _T("AiDlgSkipped"))] = _T("跳过了 %d 个无效条目。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("AiDlgIllegal"))] = _T("清理了 %d 个含非法字符的文件名。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("AiDlgDupFixed"))] = _T("修正了 %d 个重复项。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("AiDlgProcessNote"))] = _T("处理提示");
+    m_defaults[MakeKey(_T("BatchRename"), _T("AiDlgJsonParseFail"))] = _T("JSON 解析失败：%s");
+    m_defaults[MakeKey(_T("BatchRename"), _T("AiDlgUnchanged"))] = _T("(保持不变)");
+    m_defaults[MakeKey(_T("BatchRename"), _T("AiDlgSendFirst"))] = _T("请先发送描述给 AI。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("AiDlgConflict"))] = _T("文件名 \"%s\" 已存在（冲突）。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("AiDlgConflictTitle"))] = _T("文件名冲突");
+    m_defaults[MakeKey(_T("BatchRename"), _T("AiDlgDuplicate"))] = _T("\"%s\" 在列表中重复。");
+
+    // ===== Environment Variable Manager - additional keys =====
+    m_defaults[MakeKey(_T("EnvVar"), _T("PathListCol"))] = _T("路径条目");
+
+    // ===== Conversation History - additional keys =====
+    m_defaults[MakeKey(_T("ConvHistory"), _T("ColMessageCount"))] = _T("消息数");
+    m_defaults[MakeKey(_T("ConvHistory"), _T("ColUpdated"))] = _T("更新时间");
+    m_defaults[MakeKey(_T("ConvHistory"), _T("SaveLocation"))] = _T("保存位置: ");
+
+    // ===== Msg - Additional keys =====
+    m_defaults[MakeKey(_T("Msg"), _T("GitMenuExec"))] = _T("执行命令");
+    m_defaults[MakeKey(_T("Msg"), _T("GitMenuCopy"))] = _T("复制命令");
+    m_defaults[MakeKey(_T("Msg"), _T("GitMenuEdit"))] = _T("编辑命令");
+    m_defaults[MakeKey(_T("Msg"), _T("GitMenuDelete"))] = _T("删除命令");
+    m_defaults[MakeKey(_T("Msg"), _T("DropGitFolderHint"))] = _T("拖拽文件夹或文件目录到此");
+    m_defaults[MakeKey(_T("Msg"), _T("DropFileHint"))] = _T("拖拽文件到此");
+    m_defaults[MakeKey(_T("Msg"), _T("GitRepoDetached"))] = _T("HEAD 分离");
+    m_defaults[MakeKey(_T("Msg"), _T("GitRepoBranch"))] = _T("分支: %s");
+    m_defaults[MakeKey(_T("Msg"), _T("GitNotRepo"))] = _T("不是 Git 仓库");
+    m_defaults[MakeKey(_T("Msg"), _T("GitNoWorkDir"))] = _T("请先设置工作目录。");
+    m_defaults[MakeKey(_T("Msg"), _T("GitCurrentBranch"))] = _T("当前分支: ");
+    m_defaults[MakeKey(_T("Msg"), _T("GitConfirmExec"))] = _T("确定要执行以下命令？\n\n%s\n\n%s");
+    m_defaults[MakeKey(_T("Msg"), _T("GitConfirmTitle"))] = _T("确认执行 Git 命令");
+    m_defaults[MakeKey(_T("Msg"), _T("GitResultWindowFailed"))] = _T("无法创建结果窗口。");
+    m_defaults[MakeKey(_T("Msg"), _T("GitCmdWindowFailed"))] = _T("无法创建 Git 命令窗口。");
+    m_defaults[MakeKey(_T("Msg"), _T("GitEditPrompt"))] = _T("编辑命令：");
+    m_defaults[MakeKey(_T("Msg"), _T("EnterCommand"))] = _T("请输入命令。");
+    m_defaults[MakeKey(_T("Msg"), _T("ExecCmdFailed"))] = _T("执行命令失败：%s");
+    m_defaults[MakeKey(_T("Msg"), _T("PreventLockFailed"))] = _T("设置防锁屏失败。");
+    m_defaults[MakeKey(_T("Msg"), _T("PowerShellConfirm"))] = _T("确定要启动 PowerShell 吗？");
+    m_defaults[MakeKey(_T("Msg"), _T("PowerShellTitle"))] = _T("启动 PowerShell");
+    m_defaults[MakeKey(_T("Msg"), _T("PowerShellNonAdminFailed"))] = _T("启动 PowerShell 失败：%s");
+    m_defaults[MakeKey(_T("Msg"), _T("PowerShellAdminFailed"))] = _T("以管理员权限启动 PowerShell 失败：%s");
+    m_defaults[MakeKey(_T("Msg"), _T("WslLaunchFailed"))] = _T("启动 WSL 失败。");
+    m_defaults[MakeKey(_T("Msg"), _T("OpenLinkFailed"))] = _T("无法打开链接。");
+    m_defaults[MakeKey(_T("Msg"), _T("GitBashNotFound"))] = _T("未找到 Git Bash，请检查设置。");
+    m_defaults[MakeKey(_T("Msg"), _T("StudyFolderNotFound"))] = _T("未找到学习文件夹。");
+    m_defaults[MakeKey(_T("Msg"), _T("DownloadFolderNotFound"))] = _T("未找到下载文件夹。");
+    m_defaults[MakeKey(_T("Msg"), _T("DlgTitleStudyFolder"))] = _T("选择学习文件夹");
+    m_defaults[MakeKey(_T("Msg"), _T("DlgTitleDownloadFolder"))] = _T("选择下载文件夹");
+    m_defaults[MakeKey(_T("Msg"), _T("PleaseSelectProcess"))] = _T("请先选择进程。");
+    m_defaults[MakeKey(_T("Msg"), _T("ConfirmEndProcesses"))] = _T("确定要结束选中的 %zu 个进程吗？");
+    m_defaults[MakeKey(_T("Msg"), _T("EndMoreHint"))] = _T("\n（仅显示前 10 个，共 %zu 个进程）");
+    m_defaults[MakeKey(_T("Msg"), _T("UnsavedDataWarning"))] = _T("\n\n警告：未保存的数据可能会丢失！");
+    m_defaults[MakeKey(_T("Msg"), _T("NoLockFound"))] = _T("未找到文件占用信息。");
+    m_defaults[MakeKey(_T("Msg"), _T("ConfirmEndAllLocks"))] = _T("确定要结束所有 %zu 个占用进程吗？");
+    m_defaults[MakeKey(_T("Msg"), _T("ConfirmEndAllTitle"))] = _T("确认全部结束");
+
+    // ===== File Lock - additional keys =====
+    m_defaults[MakeKey(_T("FileLock"), _T("AppTypeScanning"))] = _T("扫描中...");
+    m_defaults[MakeKey(_T("FileLock"), _T("AppTypeMainWindow"))] = _T("主窗口");
+    m_defaults[MakeKey(_T("FileLock"), _T("AppTypeOtherWindow"))] = _T("其他窗口");
+    m_defaults[MakeKey(_T("FileLock"), _T("AppTypeService"))] = _T("服务");
+    m_defaults[MakeKey(_T("FileLock"), _T("AppTypeExplorer"))] = _T("资源管理器");
+    m_defaults[MakeKey(_T("FileLock"), _T("AppTypeConsole"))] = _T("控制台");
+    m_defaults[MakeKey(_T("FileLock"), _T("AppTypeCritical"))] = _T("关键进程");
+    m_defaults[MakeKey(_T("FileLock"), _T("AppTypeUnknown"))] = _T("未知");
+    m_defaults[MakeKey(_T("FileLock"), _T("AppTypeLocked"))] = _T("已锁定");
+    m_defaults[MakeKey(_T("FileLock"), _T("AppTypeNotLocked"))] = _T("未锁定");
+    m_defaults[MakeKey(_T("FileLock"), _T("AppTypeNotFound"))] = _T("未找到");
+    m_defaults[MakeKey(_T("FileLock"), _T("HintLoaded"))] = _T("已加载 %d 个文件，%d 个占用进程");
+
+    // ===== Menu - right-click items =====
+    m_defaults[MakeKey(_T("Menu"), _T("EndProcess"))] = _T("结束进程");
+    m_defaults[MakeKey(_T("Menu"), _T("EndSameName"))] = _T("结束所有同名进程");
+    m_defaults[MakeKey(_T("Menu"), _T("Locate"))] = _T("定位");
+    m_defaults[MakeKey(_T("Menu"), _T("AiAnalyze"))] = _T("AI分析");
+    m_defaults[MakeKey(_T("Menu"), _T("CloseWindow"))] = _T("关闭窗口");
+    m_defaults[MakeKey(_T("Menu"), _T("Cancel"))] = _T("取消");
+
+    // ===== ContextMenu - Scene names (for location filter dropdown) =====
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneAll"))] = _T("全部");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneFile"))] = _T("文件 (*)");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneFolder"))] = _T("文件夹(所有文件夹)");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneVirtualFolder"))] = _T("文件夹(虚拟文件夹)");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneDirBackground"))] = _T("目录背景");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneDesktopBg"))] = _T("桌面背景");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneDrive"))] = _T("驱动器");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneAllFiles"))] = _T("所有文件");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneThisPC"))] = _T("此电脑");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneRecycleBin"))] = _T("回收站");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneLibrary"))] = _T("库文件夹");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneUWP"))] = _T("UWP快捷方式");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneExe"))] = _T("exe 文件");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneUnknown"))] = _T("未知文件");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneShortcut"))] = _T("快捷方式");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneJpg"))] = _T(".jpg / .jpeg (JPEG图片)");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("ScenePng"))] = _T(".png (PNG图片)");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneGif"))] = _T(".gif (GIF图片)");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneBmp"))] = _T(".bmp (BMP图片)");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneTxt"))] = _T(".txt (文本文件)");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("ScenePdf"))] = _T(".pdf (PDF文档)");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneDoc"))] = _T(".doc / .docx (Word文档)");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneMp4"))] = _T(".mp4 (视频文件)");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneMp3"))] = _T(".mp3 (音频文件)");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneZip"))] = _T(".zip / .rar (压缩文件)");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneExeFile"))] = _T(".exe (可执行文件)");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneDll"))] = _T(".dll (库文件)");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("SceneHtml"))] = _T(".html / .htm (网页文件)");
+
+    // ===== ContextMenu - Status messages =====
+    m_defaults[MakeKey(_T("ContextMenu"), _T("StatusFoundItems"))] = _T("发现 %d 个右键菜单项");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("StatusDictPath"))] = _T("  |  字典: %s");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("StatusDictEmbeddedCache"))] = _T("  |  字典: 内置 + 缓存 (%s)");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("StatusDictEmbedded"))] = _T("  |  字典: 内置(硬编码)");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("StatusQueryExt"))] = _T("查询后缀 %s: 发现 %d 个右键菜单项");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("StatusDictPathUpdated"))] = _T("字典文件夹已更新: %s");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("StatusFolderMenuAdded"))] = _T("文件夹右键菜单项已添加");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("StatusFolderMenuRemoved"))] = _T("文件夹右键菜单项已移除");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("StatusWin11Enabled"))] = _T("Win11经典菜单已启用，正在重启资源管理器...");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("StatusWin11Disabled"))] = _T("Win11新菜单已恢复，正在重启资源管理器...");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("StatusToggleFormat"))] = _T("%s: %s");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("StatusActionEnabled"))] = _T("已启用");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("StatusActionDisabled"))] = _T("已禁用");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("StatusDisabledCount"))] = _T("%d 项已禁用");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("StatusEnabledCount"))] = _T("%d 项已启用");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("StatusCustomParseDeleted"))] = _T("\"%s\" 的自定义解析已删除");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("StatusCustomParseSaved"))] = _T("\"%s\" 的自定义解析已保存为: %s");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("StatusRebuildProgress"))] = _T("正在重建字典: %d 个CLSID (%d 个场景)，请稍候...");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("StatusRebuildComplete"))] = _T("字典重建完成: %d/%d 个CLSID已解析 (注册表: %d, COM: %d, 回退: %d)。缓存: %s");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("StatusRebuildFailed"))] = _T("字典重建完成: %d/%d 个CLSID已解析，但缓存保存失败。");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("StatusNoClsidFound"))] = _T("未找到ShellEx CLSID，无需重建。");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("StatusBackupDirFail"))] = _T("无法创建备份目录");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("StatusUndoFormat"))] = _T("已撤销: %s");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("StatusHistoryRecent"))] = _T("... (仅显示最近50条记录)");
+
+    // ===== ContextMenu - Dialog messages =====
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgNoSelection"))] = _T("请先选择一个项目。");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgNoHistory"))] = _T("无操作历史。");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgNoHistoryUndo"))] = _T("没有可撤销的操作。");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgItemNotFound"))] = _T("找不到对应的菜单项，可能已被删除。");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgAllSelectedDisabled"))] = _T("所选项目均已禁用。");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgAllSelectedEnabled"))] = _T("所选项目均已启用。");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgNoClsid"))] = _T("无法获取该项目的CLSID，无法进行自定义名称解析。");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgEnterCustomName"))] = _T("CLSID: %s\n当前名称: %s\n\n输入自定义显示名称(留空则删除自定义解析):");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgDictFolderNotFound"))] = _T("字典文件夹不存在。");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgCantParseShellExPath"))] = _T("无法解析ShellEx注册表路径。");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgCantOpenRegKey"))] = _T("无法打开注册表键: %s\n错误代码: %d");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgCopyRegKeyFailed"))] = _T("复制注册表键失败。\n\n源: %s\\%s\n目标: %s\\%s");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgDeleteOldRegFailed"))] = _T("删除旧注册表键失败，已回滚。\n错误代码: %d");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgUnrecognizedShellEx"))] = _T("无法识别的ShellEx文件夹: %s");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgAiNoApiKey"))] = _T("请先在 文件→设置→AI助手 中配置API Key。");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgAiAnalyzeFail"))] = _T("AI分析失败: %s");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgAiAnalyzeResult"))] = _T("AI分析结果");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgConfirmDisableCount"))] = _T("确定要禁用 %d 个右键菜单项吗？\n禁用后可通过右键菜单重新启用。");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgConfirmEnableCount"))] = _T("确定要启用 %d 个右键菜单项吗？");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgCriticalWarning"))] = _T("警告：部分选中项是系统关键右键菜单项！\n\n禁用它们可能会影响正常的Windows资源管理器行为。\n修改前将自动创建注册表备份。\n\n确定要继续吗？");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgCriticalWarningTitle"))] = _T("严重警告 - 确认禁用");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgUndoConfirm"))] = _T("确定要撤销以下操作吗？\n\n时间: %s\n操作: %s\n项目: %s\n详情: %s\n\n这将恢复项目到之前的状态。");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgUndoConfirmTitle"))] = _T("确认撤销");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgOpenSourceParentFail"))] = _T("无法打开源注册表键。");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgCreateTargetFail"))] = _T("无法创建目标注册表键。");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgRebuildPrompt"))] = _T("将扫描所有已注册的ShellEx CLSID并通过注册表和COM接口解析显示名称。\n此过程可能需要几秒钟，是否继续？");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgHistoryTitle"))] = _T("操作历史 (最近在先)");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("CustomParseTitle"))] = _T("自定义名称解析");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("RebuildTitle"))] = _T("重建字典");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("AiAnalyzeTitle"))] = _T("AI分析");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("AiPromptHeader"))] = _T("分析Windows右键菜单注册表项:");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("AiPromptScene"))] = _T("场景: %s");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("AiPromptKeyName"))] = _T("键名: %s");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("AiPromptDisplayName"))] = _T("显示名称: %s");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("AiPromptCommand"))] = _T("命令: %s");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("AiPromptType"))] = _T("类型: %s");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("AiPromptFooter"))] = _T("猜测此右键菜单项属于哪个软件及提供什么功能。30字以内回答。");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("InputExtHint"))] = _T("请输入要查询的文件后缀名，如 .mp4、.txt 等");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("ConfirmDisable"))] = _T("确认禁用");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("ConfirmEnable"))] = _T("确认启用");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("ConfirmUndo"))] = _T("确认撤销");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("ConfirmRebuild"))] = _T("确认重建");
+
+    // ===== Environment Variable Manager - Status messages =====
+    m_defaults[MakeKey(_T("EnvVar"), _T("StatusRefreshed"))] = _T("已刷新");
+    m_defaults[MakeKey(_T("EnvVar"), _T("StatusTotal"))] = _T("系统: %d 个  用户: %d 个");
+    m_defaults[MakeKey(_T("EnvVar"), _T("StatusSearch"))] = _T("搜索 \"%s\": 系统 %d/%d  用户 %d/%d");
+    m_defaults[MakeKey(_T("EnvVar"), _T("StatusAdded"))] = _T("已添加 %s 变量: %s (备份: %s)");
+    m_defaults[MakeKey(_T("EnvVar"), _T("StatusUpdated"))] = _T("已更新 %s 变量: %s (备份: %s)");
+    m_defaults[MakeKey(_T("EnvVar"), _T("StatusDeleted"))] = _T("已删除 %s 变量: %s (备份: %s)");
+    m_defaults[MakeKey(_T("EnvVar"), _T("StatusCopiedName"))] = _T("已复制变量名: %s");
+    m_defaults[MakeKey(_T("EnvVar"), _T("StatusCopiedValue"))] = _T("已复制变量值: %s");
+    m_defaults[MakeKey(_T("EnvVar"), _T("StatusExported"))] = _T("已导出到: %s");
+
+    // ===== Environment Variable Manager - Error messages =====
+    m_defaults[MakeKey(_T("EnvVar"), _T("ErrNameEmpty"))] = _T("变量名不能为空。");
+    m_defaults[MakeKey(_T("EnvVar"), _T("ErrSelectEdit"))] = _T("请先选择要编辑的路径条目。");
+    m_defaults[MakeKey(_T("EnvVar"), _T("ErrSelectDelete"))] = _T("请先选择要删除的路径条目。");
+    m_defaults[MakeKey(_T("EnvVar"), _T("ErrSelectVar"))] = _T("请先选择一个环境变量。");
+    m_defaults[MakeKey(_T("EnvVar"), _T("ErrSelectVarDel"))] = _T("请先选择要删除的环境变量。");
+    m_defaults[MakeKey(_T("EnvVar"), _T("ErrWriteFail"))] = _T("写入环境变量失败: %s");
+    m_defaults[MakeKey(_T("EnvVar"), _T("ErrDeleteFail"))] = _T("删除环境变量失败: %s");
+    m_defaults[MakeKey(_T("EnvVar"), _T("ErrCreateFile"))] = _T("无法创建文件，请检查权限。");
+
+    // ===== Environment Variable Manager - Dialog titles =====
+    m_defaults[MakeKey(_T("EnvVar"), _T("DlgAddTitle"))] = _T("添加环境变量");
+    m_defaults[MakeKey(_T("EnvVar"), _T("DlgEditTitle"))] = _T("编辑环境变量");
+    m_defaults[MakeKey(_T("EnvVar"), _T("DlgWriteFail"))] = _T("写入失败");
+    m_defaults[MakeKey(_T("EnvVar"), _T("DlgDeleteFail"))] = _T("删除失败");
+    m_defaults[MakeKey(_T("EnvVar"), _T("DlgExportFail"))] = _T("导出失败");
+    m_defaults[MakeKey(_T("EnvVar"), _T("DlgConfirmDelete"))] = _T("确认删除");
+    m_defaults[MakeKey(_T("EnvVar"), _T("ConfirmAddType"))] = _T("添加到系统变量(是)还是用户变量(否)？");
+    m_defaults[MakeKey(_T("EnvVar"), _T("ConfirmDeleteVar"))] = _T("确定要删除 %s 变量 \"%s\" 吗？\n此操作不可撤销，建议先导出备份。");
+    m_defaults[MakeKey(_T("EnvVar"), _T("PathEditTitle"))] = _T("编辑 %s - PATH 变量");
+    m_defaults[MakeKey(_T("EnvVar"), _T("PathSelectFolder"))] = _T("选择要添加的文件夹路径");
+    m_defaults[MakeKey(_T("EnvVar"), _T("PathSelectNewFolder"))] = _T("选择新的文件夹路径");
+    m_defaults[MakeKey(_T("EnvVar"), _T("ExportFilter"))] = _T("文本文件 (*.txt)|*.txt|所有文件 (*.*)|*.*||");
 }

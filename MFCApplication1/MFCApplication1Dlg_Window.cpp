@@ -107,9 +107,9 @@ void CMFCApplication1Dlg::OnTargetSelected(HWND hTarget, POINT pt)
     CMenu menu;
     menu.CreatePopupMenu();
     // Provide only topmost and close options
-    menu.AppendMenu(MF_STRING, 1, loc.GetString(_T("Menu"), _T("TopmostEn")));
-    menu.AppendMenu(MF_STRING, 3, loc.GetString(_T("Menu"), _T("CloseWindowEn")));
-    menu.AppendMenu(MF_STRING, 0, loc.GetString(_T("Menu"), _T("Cancel")));
+    menu.AppendMenu(MF_STRING, 1, loc.GetString(_T("WindowTab"), _T("RClickTopmost")));
+    menu.AppendMenu(MF_STRING, 3, loc.GetString(_T("WindowTab"), _T("RClickCloseWindow")));
+    menu.AppendMenu(MF_STRING, 0, loc.GetString(_T("WindowTab"), _T("RClickCancel")));
 
     ::SetForegroundWindow(m_hWnd);
     int cmd = menu.TrackPopupMenu(TPM_RETURNCMD | TPM_LEFTALIGN | TPM_TOPALIGN, pt.x, pt.y, this);

@@ -44,8 +44,8 @@ LRESULT CMFCApplication1Dlg::OnTrayNotification(WPARAM wParam, LPARAM lParam)
         auto& loc = CLocalizationManager::GetInstance();
         CMenu menu;
         menu.CreatePopupMenu();
-        menu.AppendMenu(MF_STRING, 2001, loc.GetString(_T("Tray"), _T("ShowWindow")));
-        menu.AppendMenu(MF_STRING, 2002, loc.GetString(_T("Tray"), _T("ExitApp")));
+        menu.AppendMenu(MF_STRING, 2001, loc.GetString(_T("TrayMenu"), _T("ShowWindow")));
+        menu.AppendMenu(MF_STRING, 2002, loc.GetString(_T("TrayMenu"), _T("Exit")));
 
         POINT pt;
         GetCursorPos(&pt);

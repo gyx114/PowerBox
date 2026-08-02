@@ -138,12 +138,12 @@ void CMFCApplication1Dlg::OnRclickProcessList(NMHDR* pNMHDR, LRESULT* pResult)
 
     CMenu menu;
     menu.CreatePopupMenu();
-    menu.AppendMenu(MF_STRING, 32771, loc.GetString(_T("Menu"), _T("EndProcess")));
-    menu.AppendMenu(MF_STRING, IDM_KILL_SAME_NAME, loc.GetString(_T("Menu"), _T("EndSameName")));
+    menu.AppendMenu(MF_STRING, 32771, loc.GetString(_T("ProcessMenu"), _T("EndProcess")));
+    menu.AppendMenu(MF_STRING, IDM_KILL_SAME_NAME, loc.GetString(_T("ProcessMenu"), _T("EndSameName")));
     menu.AppendMenu(MF_SEPARATOR);
-    menu.AppendMenu(MF_STRING, 32774, loc.GetString(_T("Menu"), _T("Locate")));
+    menu.AppendMenu(MF_STRING, 32774, loc.GetString(_T("ProcessMenu"), _T("Locate")));
     menu.AppendMenu(MF_SEPARATOR);
-    menu.AppendMenu(MF_STRING, IDM_PROCESS_AI_ANALYZE, loc.GetString(_T("Menu"), _T("AiAnalyze")));
+    menu.AppendMenu(MF_STRING, IDM_PROCESS_AI_ANALYZE, loc.GetString(_T("ProcessMenu"), _T("AiAnalyze")));
 
     menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, this);
     *pResult = 0;
