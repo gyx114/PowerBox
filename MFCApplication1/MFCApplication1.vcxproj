@@ -108,7 +108,7 @@
       <Command>if exist "$(OutDir)microsoft" rmdir /s /q "$(OutDir)microsoft"
 if exist "$(OutDir)Merged" rmdir /s /q "$(OutDir)Merged"
 if exist "$(OutDir)Unmerged" rmdir /s /q "$(OutDir)Unmerged"
-</Command>
+xcopy /y /e /i "$(ProjectDir)lang" "$(OutDir)lang"</Command>
     </PostBuildEvent>
     <Midl>
       <MkTypLibCompatible>false</MkTypLibCompatible>
@@ -200,7 +200,7 @@ if exist "$(OutDir)Unmerged" rmdir /s /q "$(OutDir)Unmerged"
       <Command>if exist "$(OutDir)microsoft" rmdir /s /q "$(OutDir)microsoft"
 if exist "$(OutDir)Merged" rmdir /s /q "$(OutDir)Merged"
 if exist "$(OutDir)Unmerged" rmdir /s /q "$(OutDir)Unmerged"
-</Command>
+xcopy /y /e /i "$(ProjectDir)lang" "$(OutDir)lang"</Command>
     </PostBuildEvent>
     <Midl>
       <MkTypLibCompatible>false</MkTypLibCompatible>
@@ -240,6 +240,7 @@ if exist "$(OutDir)Unmerged" rmdir /s /q "$(OutDir)Unmerged"
     <ClInclude Include="EnvVarDlg.h" />
     <ClInclude Include="FileLockDlg.h" />
     <ClInclude Include="GitCmdResultDlg.h" />
+    <ClInclude Include="LocalizationManager.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
@@ -288,6 +289,7 @@ if exist "$(OutDir)Unmerged" rmdir /s /q "$(OutDir)Unmerged"
     <ClCompile Include="EnvVarDlg.cpp" />
     <ClCompile Include="FileLockDlg.cpp" />
     <ClCompile Include="GitCmdResultDlg.cpp" />
+    <ClCompile Include="LocalizationManager.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="MFCApplication1.rc" />

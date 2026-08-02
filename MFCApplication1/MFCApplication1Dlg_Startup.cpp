@@ -3,6 +3,7 @@
 #include "MFCApplication1Dlg.h"
 #include "resource.h"
 #include "Utils.h"
+#include "LocalizationManager.h"
 
 // Forward declaration for static helper function
 static UINT EnumStartupsThread(LPVOID pParam);
@@ -48,16 +49,17 @@ void CMFCApplication1Dlg::OnNMDblclkList4(NMHDR* pNMHDR, LRESULT* pResult)
 // Delete selected dropped file (move to Recycle Bin)
 void CMFCApplication1Dlg::OnBnClickedButton24()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     // Delete (move to Recycle Bin) the currently selected dropped file
     if (m_strDroppedFilePath.IsEmpty())
     {
-        MessageBox(_T("请先拖入文件！"), _T("提示"), MB_OK | MB_ICONWARNING);
+        MessageBox(loc.GetString(_T("Msg"), _T("FileNotFound")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
         return;
     }
 
     CString msg;
-    msg.Format(_T("确定要将以下文件移到回收站？\n%s"), m_strDroppedFilePath);
-    if (MessageBox(msg, _T("确认删除"), MB_YESNO | MB_ICONQUESTION) != IDYES)
+    msg.Format(loc.GetString(_T("Msg"), _T("DeleteConfirm")), m_strDroppedFilePath);
+    if (MessageBox(msg, loc.GetString(_T("Msg"), _T("ConfirmDelete")), MB_YESNO | MB_ICONQUESTION) != IDYES)
         return;
 
     // Prepare SHFILEOPSTRUCT for moving to recycle bin
@@ -75,9 +77,9 @@ void CMFCApplication1Dlg::OnBnClickedButton24()
     int ret = SHFileOperation(&sh);
     if (ret == 0 && !sh.fAnyOperationsAborted)
     {
-        MessageBox(_T("文件已移到回收站。"), _T("完成"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(loc.GetString(_T("Msg"), _T("DeleteSuccess")), loc.GetString(_T("Msg"), _T("Completed")), MB_OK | MB_ICONINFORMATION);
         m_strDroppedFilePath.Empty();
-        SetDlgItemText(IDC_STATIC_PATH, _T("拖拽文件到此"));
+        SetDlgItemText(IDC_STATIC_PATH, loc.GetString(_T("FileTab"), _T("DropHint")));
         // clear rename edits
         SetDlgItemText(IDC_EDIT7, _T(""));
         SetDlgItemText(IDC_EDIT8, _T(""));
@@ -85,8 +87,8 @@ void CMFCApplication1Dlg::OnBnClickedButton24()
     else
     {
         CString err;
-        err.Format(_T("无法删除文件，错误代码：%d"), ret);
-        MessageBox(err, _T("错误"), MB_OK | MB_ICONERROR);
+        err.Format(loc.GetString(_T("Msg"), _T("DeleteFail")), ret);
+        MessageBox(err, loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
     }
 }
 
@@ -100,6 +102,7 @@ void CMFCApplication1Dlg::RefreshStartupList()
 // Add startup: select executable via file dialog, use filename as entry name
 void CMFCApplication1Dlg::OnAddStartup()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     CFileDialog dlg(TRUE, _T("exe"), NULL, OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST, _T("Executable Files (*.exe)|*.exe||"));
     if (dlg.DoModal() == IDOK)
     {
@@ -115,19 +118,20 @@ void CMFCApplication1Dlg::OnAddStartup()
             RegCloseKey(hKey);
             if (ret == ERROR_SUCCESS)
             {
-                MessageBox(_T("启动项已添加。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+                MessageBox(loc.GetString(_T("Msg"), _T("StartupAdded")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONINFORMATION);
                 RefreshStartupList();
                 return;
             }
         }
 
-        MessageBox(_T("添加启动项失败！请检查权限。"), _T("错误"), MB_OK | MB_ICONERROR);
+        MessageBox(loc.GetString(_T("Msg"), _T("StartupAddFail")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
     }
 }
 
 // Delete selected startup item
 void CMFCApplication1Dlg::OnRemoveStartup()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST2);
     if (!pList) return;
 
@@ -137,8 +141,8 @@ void CMFCApplication1Dlg::OnRemoveStartup()
     CString name = pList->GetItemText(idx, 0);
 
     CString msg;
-    msg.Format(_T("确定要删除启动项\n%s 吗？"), name);
-    if (MessageBox(msg, _T("确认删除"), MB_YESNO | MB_ICONQUESTION) != IDYES) return;
+    msg.Format(loc.GetString(_T("Msg"), _T("ConfirmRemoveStartup")), name);
+    if (MessageBox(msg, loc.GetString(_T("Msg"), _T("ConfirmDelete")), MB_YESNO | MB_ICONQUESTION) != IDYES) return;
 
     HKEY hKey = NULL;
     if (RegOpenKeyEx(HKEY_CURRENT_USER, _T("Software\\Microsoft\\Windows\\CurrentVersion\\Run"), 0, KEY_SET_VALUE, &hKey) == ERROR_SUCCESS)
@@ -147,13 +151,13 @@ void CMFCApplication1Dlg::OnRemoveStartup()
         RegCloseKey(hKey);
         if (ret == ERROR_SUCCESS)
         {
-            MessageBox(_T("启动项已删除。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+            MessageBox(loc.GetString(_T("Msg"), _T("StartupRemoved")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONINFORMATION);
             RefreshStartupList();
             return;
         }
     }
 
-    MessageBox(_T("删除启动项失败！请检查权限。"), _T("错误"), MB_OK | MB_ICONERROR);
+    MessageBox(loc.GetString(_T("Msg"), _T("StartupRemoveFail")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
 }
 
 static UINT EnumStartupsThread(LPVOID pParam)

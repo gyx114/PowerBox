@@ -71,7 +71,7 @@ bool OcrRecognizeFromFile(const wchar_t* filePath, wchar_t* output, int outputSi
         auto engine = CreateBestEngine(preferChinese);
         if (!engine)
         {
-            wcsncpy_s(output, outputSize, L"OCR引擎创建失败，请确保系统已安装语言包。", _TRUNCATE);
+            wcsncpy_s(output, outputSize, L"OCR engine creation failed. Please ensure the language pack is installed.", _TRUNCATE);
             return false;
         }
 
@@ -84,7 +84,7 @@ bool OcrRecognizeFromFile(const wchar_t* filePath, wchar_t* output, int outputSi
         auto swBitmap = frame.GetSoftwareBitmapAsync().get();
         if (!swBitmap)
         {
-            wcsncpy_s(output, outputSize, L"无法解码截图。", _TRUNCATE);
+            wcsncpy_s(output, outputSize, L"Unable to decode screenshot.", _TRUNCATE);
             return false;
         }
 
@@ -106,14 +106,14 @@ bool OcrRecognizeFromFile(const wchar_t* filePath, wchar_t* output, int outputSi
         }
 
         if (text.empty())
-            text = L"未能识别出文字。";
+            text = L"No text recognized.";
 
         wcsncpy_s(output, outputSize, text.c_str(), _TRUNCATE);
         return true;
     }
     catch (const winrt::hresult_error& e)
     {
-        std::wstring err = L"OCR 识别失败 (0x";
+        std::wstring err = L"OCR recognition failed (0x";
         wchar_t hex[16];
         swprintf_s(hex, L"%08X)", static_cast<unsigned int>(e.code()));
         err += hex;

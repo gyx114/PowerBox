@@ -5,6 +5,7 @@
 #include "framework.h"
 #include "MFCApplication1.h"
 #include "MarkdownDlg.h"
+#include "LocalizationManager.h"
 #include "afxdialogex.h"
 #include <MsHTML.h>
 #include <ExDisp.h>
@@ -59,6 +60,8 @@ END_MESSAGE_MAP()
 BOOL CMarkdownDlg::OnInitDialog()
 {
 	CDialogEx::OnInitDialog();
+
+	SetWindowText(CLocalizationManager::GetInstance().GetString(_T("DlgCaption"), _T("MarkdownDlg")));
 
 	DragAcceptFiles(TRUE);
 
@@ -266,7 +269,8 @@ void CMarkdownDlg::LoadFile(const CString& path)
 	CFile file;
 	if (!file.Open(path, CFile::modeRead))
 	{
-		MessageBox(_T("Failed to open file."), _T("Error"), MB_ICONERROR);
+		MessageBox(CLocalizationManager::GetInstance().GetString(_T("Markdown"), _T("FailedToOpen")), 
+			CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("Error")), MB_ICONERROR);
 		return;
 	}
 
@@ -275,7 +279,8 @@ void CMarkdownDlg::LoadFile(const CString& path)
 	{
 		file.Close();
 		if (size > 10 * 1024 * 1024)
-			MessageBox(_T("File too large (max 10 MB)."), _T("Error"), MB_ICONERROR);
+			MessageBox(CLocalizationManager::GetInstance().GetString(_T("Markdown"), _T("FileTooLarge")), 
+					  CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("Error")), MB_ICONERROR);
 		return;
 	}
 
@@ -310,7 +315,7 @@ void CMarkdownDlg::LoadFile(const CString& path)
 	RefreshPreview();
 
 	CString title;
-	title.Format(_T("Markdown Preview - %s"), PathFindFileName(path));
+	title.Format(CLocalizationManager::GetInstance().GetString(_T("Markdown"), _T("MarkdownTitle")), PathFindFileName(path));
 	SetWindowText(title);
 
 	// Show file path in the label
@@ -613,7 +618,7 @@ CString CMarkdownDlg::FormatInline(const CString& text)
 CString CMarkdownDlg::MarkdownToHtml(const CString& markdown)
 {
 	CString html;
-	html += _T("<!DOCTYPE html><html><head><meta charset=\"UTF-8\">");
+	html += _T("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">");
 	html += _T("<style>");
 	html += _T("body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;");
 	html += _T("font-size:14px;line-height:1.6;color:#24292f;background:#ffffff;padding:16px;margin:0;}");
@@ -729,20 +734,21 @@ CString CMarkdownDlg::MarkdownToHtml(const CString& markdown)
 			}
 		}
 
+		auto& loc = CLocalizationManager::GetInstance();
 		CString riskText, riskLevel;
 		if (risk == _T("high"))
 		{
-			riskText = _T("高风险");
+			riskText = loc.GetString(_T("Markdown"), _T("RiskHigh"));
 			riskLevel = _T("level-high");
 		}
 		else if (risk == _T("low"))
 		{
-			riskText = _T("低风险");
+			riskText = loc.GetString(_T("Markdown"), _T("RiskLow"));
 			riskLevel = _T("level-low");
 		}
 		else
 		{
-			riskText = _T("中等风险");
+			riskText = loc.GetString(_T("Markdown"), _T("RiskMedium"));
 			riskLevel = _T("level-medium");
 		}
 
@@ -760,9 +766,9 @@ CString CMarkdownDlg::MarkdownToHtml(const CString& markdown)
 		CString escCmd = EscapeHtml(command);
 
 		body += _T("<div class=\"action-card action-") + riskLevel + _T("\">");
-		body += _T("<div class=\"action-purpose\">用途：") + escPurpose + _T("</div>");
-		body += _T("<div class=\"action-risk ") + riskLevel + _T("\">风险等级：") + riskText + _T("</div>");
-		body += _T("<button class=\"action-btn\" data-cmd=\"") + EscapeHtml(jsonAttr) + _T("\" onclick=\"execCmd(this)\">▶ 执行命令</button>");
+		body += _T("<div class=\"action-purpose\">") + loc.GetString(_T("Markdown"), _T("PurposeLabel")) + escPurpose + _T("</div>");
+		body += _T("<div class=\"action-risk ") + riskLevel + _T("\">") + loc.GetString(_T("Markdown"), _T("RiskLevelLabel")) + riskText + _T("</div>");
+		body += _T("<button class=\"action-btn\" data-cmd=\"") + EscapeHtml(jsonAttr) + _T("\" onclick=\"execCmd(this)\">") + loc.GetString(_T("Markdown"), _T("ExecuteBtn")) + _T("</button>");
 		body += _T("<div class=\"action-command\">$ ") + escCmd + _T("</div>");
 		body += _T("</div>");
 	};

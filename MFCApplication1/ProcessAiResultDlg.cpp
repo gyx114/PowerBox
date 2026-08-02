@@ -3,6 +3,7 @@
 #include "ProcessAiResultDlg.h"
 #include "resource.h"
 #include "AIApiClient.h"
+#include "LocalizationManager.h"
 #include <fstream>
 
 IMPLEMENT_DYNAMIC(CProcessAiResultDlg, CDialogEx)
@@ -31,15 +32,26 @@ BOOL CProcessAiResultDlg::OnInitDialog()
 {
     CDialogEx::OnInitDialog();
 
+    SetWindowText(CLocalizationManager::GetInstance().GetString(_T("DlgCaption"), _T("ProcessAiResultDlg")));
+
     if (m_procInfos.empty())
     {
-        SetResult(_T("未选择任何进程。"));
+        SetResult(CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("NoProcessSelected")));
         return TRUE;
     }
 
     // Build prompt with all selected processes
     CString prompt;
-    prompt = _T("分析以下Windows进程，判断每个进程是否为恶意/可疑/无用进程，并简要解释其用途：\n\n");
+    BOOL bIsEnglish = (CLocalizationManager::GetInstance().GetCurrentLanguage() == _T("en-US"));
+
+    if (bIsEnglish)
+    {
+        prompt = _T("Analyze the following Windows processes, determine if each process is malicious/suspicious/unnecessary, and briefly explain its purpose:\n\n");
+    }
+    else
+    {
+        prompt = _T("分析以下Windows进程，判断每个进程是否为恶意/可疑/无用进程，并简要解释其用途：\n\n");
+    }
 
     for (int i = 0; i < (int)m_procInfos.size(); i++)
     {
@@ -48,11 +60,22 @@ BOOL CProcessAiResultDlg::OnInitDialog()
         prompt += idx + m_procInfos[i] + _T("\n");
     }
 
-    prompt += _T("\n请用以下格式回答（每个进程一段，用---分隔）：\n");
-    prompt += _T("【进程名】xxx (PID: 123)\n");
-    prompt += _T("【安全等级】安全/可疑/恶意/无用\n");
-    prompt += _T("【用途】简要说明\n");
-    prompt += _T("【建议】如有必要，给出操作建议\n");
+    if (bIsEnglish)
+    {
+        prompt += _T("\nPlease answer in the following format (one paragraph per process, separated by ---):\n");
+        prompt += _T("[Process Name] xxx (PID: 123)\n");
+        prompt += _T("[Security Level] Safe/Suspicious/Malicious/Unnecessary\n");
+        prompt += _T("[Purpose] Brief description\n");
+        prompt += _T("[Suggestion] If necessary, give suggestions\n");
+    }
+    else
+    {
+        prompt += _T("\n请用以下格式回答（每个进程一段，用---分隔）：\n");
+        prompt += _T("【进程名】xxx (PID: 123)\n");
+        prompt += _T("【安全等级】安全/可疑/恶意/无用\n");
+        prompt += _T("【用途】简要说明\n");
+        prompt += _T("【建议】如有必要，给出操作建议\n");
+    }
     prompt += _T("---\n");
 
     // Get AI config
@@ -64,18 +87,21 @@ BOOL CProcessAiResultDlg::OnInitDialog()
 
     if (apiKey.IsEmpty())
     {
-        SetResult(_T("请先在设置中配置AI API密钥。"));
+        SetResult(CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("ConfigApiKeyFirst")));
         return TRUE;
     }
 
     // Show "analyzing" status
     CString countStr;
-    countStr.Format(_T("正在分析 %d 个进程，请稍候..."), (int)m_procInfos.size());
+    countStr.Format(CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("AnalyzingProcesses")), (int)m_procInfos.size());
     SetResult(countStr);
 
     // Build messages
     std::vector<std::pair<CString, CString>> messages;
-    messages.push_back({ _T("system"), _T("你是一个Windows系统安全专家。请用中文回答。") });
+    if (bIsEnglish)
+        messages.push_back({ _T("system"), _T("You are a Windows system security expert.") });
+    else
+        messages.push_back({ _T("system"), _T("你是一个Windows系统安全专家。请用中文回答。") });
     messages.push_back({ _T("user"), prompt });
 
     CAIApiClient::SendAsync(messages, vendor, apiKey, model, m_hWnd);
@@ -145,9 +171,10 @@ void CProcessAiResultDlg::OnBnClickedSaveResult()
     GetDlgItemText(IDC_RICHEDIT_AI_RESULT, text);
     if (text.IsEmpty()) return;
 
-    CFileDialog dlg(FALSE, _T("txt"), _T("AI分析结果.txt"),
+    auto& loc = CLocalizationManager::GetInstance();
+    CFileDialog dlg(FALSE, _T("txt"), loc.GetString(_T("ProcessAiResult"), _T("DefaultFileName")),
         OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT,
-        _T("文本文件 (*.txt)|*.txt|所有文件 (*.*)|*.*||"), this);
+        loc.GetString(_T("ProcessAiResult"), _T("FileFilter")), this);
     if (dlg.DoModal() == IDOK)
     {
         CString path = dlg.GetPathName();
@@ -177,8 +204,8 @@ LRESULT CProcessAiResultDlg::OnAiResponse(WPARAM wParam, LPARAM lParam)
     }
     else
     {
-        CString errorMsg = pResponse ? *pResponse : CString(_T("未知错误"));
-        SetResult(_T("AI分析失败: ") + errorMsg);
+        CString errorMsg = pResponse ? *pResponse : CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("UnknownError"));
+        SetResult(CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("AiAnalysisFailed")) + errorMsg);
     }
 
     if (pResponse) delete pResponse;

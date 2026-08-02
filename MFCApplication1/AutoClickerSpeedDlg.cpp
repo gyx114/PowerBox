@@ -2,6 +2,7 @@
 #include "framework.h"
 #include "AutoClickerSpeedDlg.h"
 #include "resource.h"
+#include "LocalizationManager.h"
 
 CAutoClickerSpeedDlg::CAutoClickerSpeedDlg(CAutoClicker* pClicker, CWnd* pParent /*= nullptr*/)
     : CDialogEx(IDD_CLICK_SPEED_DIALOG, pParent), m_pClicker(pClicker) {}
@@ -22,6 +23,7 @@ int CAutoClickerSpeedDlg::GetInterval() const { return m_interval; }
 BOOL CAutoClickerSpeedDlg::OnInitDialog()
 {
     CDialogEx::OnInitDialog();
+    SetWindowText(CLocalizationManager::GetInstance().GetString(_T("DlgCaption"), _T("ClickSpeedDlg")));
     CSliderCtrl* pSlider = static_cast<CSliderCtrl*>(GetDlgItem(IDC_SLIDER_CLICK_SPEED));
     if (pSlider)
     {
@@ -111,7 +113,7 @@ void CAutoClickerSpeedDlg::UpdateStatus()
         if (m_lastStatus != ClickStatus::Stopped)
         {
             m_lastStatus = ClickStatus::Stopped;
-            pStatus->SetWindowText(_T("已停止"));
+            pStatus->SetWindowText(CLocalizationManager::GetInstance().GetString(_T("AutoClicker"), _T("StatusStopped")));
             pStatus->Invalidate();
         }
         // Self-destroy: auto-clicker has stopped, close window
@@ -126,7 +128,7 @@ void CAutoClickerSpeedDlg::UpdateStatus()
         {
             m_lastStatus = ClickStatus::Clicking;
             CString strMsg;
-            strMsg.Format(_T("正在点击 (按 %c 停止)"), m_pClicker->GetKeyStop());
+            strMsg.Format(CLocalizationManager::GetInstance().GetString(_T("AutoClicker"), _T("StatusClicking")), m_pClicker->GetKeyStop());
             pStatus->SetWindowText(strMsg);
             pStatus->Invalidate();
         }
@@ -137,7 +139,7 @@ void CAutoClickerSpeedDlg::UpdateStatus()
         {
             m_lastStatus = ClickStatus::Waiting;
             CString strMsg;
-            strMsg.Format(_T("等待触发 (按 %c 开始, %c 停止)"),
+            strMsg.Format(CLocalizationManager::GetInstance().GetString(_T("AutoClicker"), _T("StatusWaiting")),
                 m_pClicker->GetKeyStart(), m_pClicker->GetKeyStop());
             pStatus->SetWindowText(strMsg);
             pStatus->Invalidate();

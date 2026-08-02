@@ -3,6 +3,7 @@
 #include "QRCodeGenDlg.h"
 #include "qrcodegen.hpp"
 #include "resource.h"
+#include "LocalizationManager.h"
 #include <gdiplus.h>
 #include <fstream>
 
@@ -27,6 +28,8 @@ END_MESSAGE_MAP()
 BOOL CQRCodeGenDlg::OnInitDialog()
 {
     CDialogEx::OnInitDialog();
+
+    SetWindowText(CLocalizationManager::GetInstance().GetString(_T("DlgCaption"), _T("QRCodeDlg")));
 
     GetDlgItem(IDC_BTN_QR_COPY)->EnableWindow(FALSE);
     GetDlgItem(IDC_BTN_QR_SAVE)->EnableWindow(FALSE);
@@ -58,7 +61,7 @@ void CQRCodeGenDlg::OnBnClickedGenerate()
     GetDlgItemText(IDC_EDIT_QR_TEXT, text);
     if (text.IsEmpty())
     {
-        MessageBox(_T("请输入要生成二维码的文本。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(CLocalizationManager::GetInstance().GetString(_T("QRCode"), _T("EnterText")), CLocalizationManager::GetInstance().GetString(_T("QRCode"), _T("Tip")), MB_OK | MB_ICONINFORMATION);
         return;
     }
     GenerateQRCode(text);
@@ -73,7 +76,7 @@ void CQRCodeGenDlg::OnBnClickedCopy()
         ::EmptyClipboard();
         ::SetClipboardData(CF_BITMAP, CopyImage(m_hBitmap, IMAGE_BITMAP, 0, 0, 0));
         ::CloseClipboard();
-        MessageBox(_T("二维码已复制到剪贴板。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(CLocalizationManager::GetInstance().GetString(_T("QRCode"), _T("QrCopied")), CLocalizationManager::GetInstance().GetString(_T("QRCode"), _T("Tip")), MB_OK | MB_ICONINFORMATION);
     }
 }
 
@@ -83,7 +86,7 @@ void CQRCodeGenDlg::OnBnClickedSave()
 
     CFileDialog dlg(FALSE, _T("png"), _T("qrcode.png"),
         OFN_OVERWRITEPROMPT | OFN_HIDEREADONLY,
-        _T("PNG 图片 (*.png)|*.png|BMP 图片 (*.bmp)|*.bmp||"));
+        CLocalizationManager::GetInstance().GetString(_T("QRCode"), _T("PngFilter")));
     if (dlg.DoModal() != IDOK) return;
 
     CString filePath = dlg.GetPathName();
@@ -102,7 +105,7 @@ void CQRCodeGenDlg::OnBnClickedSave()
 
     USES_CONVERSION;
     bmp.Save(T2CW(filePath), &pngClsid, nullptr);
-    MessageBox(_T("二维码已保存。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+    MessageBox(CLocalizationManager::GetInstance().GetString(_T("QRCode"), _T("QrSaved")), CLocalizationManager::GetInstance().GetString(_T("QRCode"), _T("Tip")), MB_OK | MB_ICONINFORMATION);
 }
 
 void CQRCodeGenDlg::GenerateQRCode(const CString& text)
@@ -136,8 +139,8 @@ void CQRCodeGenDlg::GenerateQRCode(const CString& text)
     catch (const std::exception& e)
     {
         CString err;
-        err.Format(_T("生成二维码失败: %hs"), e.what());
-        MessageBox(err, _T("错误"), MB_OK | MB_ICONERROR);
+        err.Format(CLocalizationManager::GetInstance().GetString(_T("QRCode"), _T("GenFail")), e.what());
+        MessageBox(err, CLocalizationManager::GetInstance().GetString(_T("QRCode"), _T("Error")), MB_OK | MB_ICONERROR);
     }
 }
 

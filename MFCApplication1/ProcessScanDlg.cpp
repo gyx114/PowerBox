@@ -2,6 +2,7 @@
 #include "pch.h"
 #include "ProcessScanDlg.h"
 #include "resource.h"
+#include "LocalizationManager.h"
 #include "AIApiClient.h"
 #include <Shellapi.h>
 #include <Psapi.h>
@@ -53,6 +54,10 @@ BOOL CProcessScanDlg::OnInitDialog()
 {
     CDialogEx::OnInitDialog();
 
+    SetWindowText(CLocalizationManager::GetInstance().GetString(_T("DlgCaption"), _T("ProcessScanDlg")));
+
+    auto& loc = CLocalizationManager::GetInstance();
+
     // Initialize list control
     CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST_SCAN_RESULTS));
     if (pList)
@@ -63,10 +68,10 @@ BOOL CProcessScanDlg::OnInitDialog()
         m_colRatios[1] = 10;
         m_colRatios[2] = 12;
         m_colRatios[3] = 60;
-        pList->InsertColumn(0, _T("进程名"), LVCFMT_LEFT, 0);
-        pList->InsertColumn(1, _T("PID"), LVCFMT_LEFT, 0);
-        pList->InsertColumn(2, _T("风险等级"), LVCFMT_LEFT, 0);
-        pList->InsertColumn(3, _T("AI分析结果"), LVCFMT_LEFT, 0);
+        pList->InsertColumn(0, loc.GetString(_T("ProcessScan"), _T("ColProcessName")), LVCFMT_LEFT, 0);
+        pList->InsertColumn(1, loc.GetString(_T("ProcessScan"), _T("ColPID")), LVCFMT_LEFT, 0);
+        pList->InsertColumn(2, loc.GetString(_T("ProcessScan"), _T("ColSecurityLevel")), LVCFMT_LEFT, 0);
+        pList->InsertColumn(3, loc.GetString(_T("ProcessScan"), _T("ColDescription")), LVCFMT_LEFT, 0);
     }
 
     // Save original layout positions from RC file
@@ -112,13 +117,15 @@ BOOL CProcessScanDlg::OnInitDialog()
     CComboBox* pCmbLevel = static_cast<CComboBox*>(GetDlgItem(IDC_COMBO_SCAN_LEVEL));
     if (pCmbLevel)
     {
-        pCmbLevel->AddString(_T("保守"));
-        pCmbLevel->AddString(_T("标准"));
-        pCmbLevel->AddString(_T("激进"));
+        pCmbLevel->AddString(loc.GetString(_T("ProcessScan"), _T("LevelConservative")));
+        pCmbLevel->AddString(loc.GetString(_T("ProcessScan"), _T("LevelStandard")));
+        pCmbLevel->AddString(loc.GetString(_T("ProcessScan"), _T("LevelAggressive")));
         pCmbLevel->SetCurSel(1); // Default to "标准"
     }
 
-    UpdateStatus(_T("就绪 - 请选择审查级别后点击""开始扫描"""));
+    CString statusReady;
+    statusReady.Format(loc.GetString(_T("ProcessScan"), _T("StatusReadyFormat")), loc.GetString(_T("ProcessScan"), _T("BtnStartScan")));
+    UpdateStatus(statusReady);
 
     return TRUE;
 }
@@ -186,6 +193,7 @@ int CProcessScanDlg::GetScanLevel() const
 
 LRESULT CProcessScanDlg::OnAiResponse(WPARAM wParam, LPARAM lParam)
 {
+    auto& loc = CLocalizationManager::GetInstance();
     int success = static_cast<int>(wParam);
     CString* pResponse = reinterpret_cast<CString*>(lParam);
 
@@ -195,10 +203,13 @@ LRESULT CProcessScanDlg::OnAiResponse(WPARAM wParam, LPARAM lParam)
     }
     else
     {
-        CString errorMsg = pResponse ? *pResponse : CString(_T("未知错误"));
-        UpdateStatus(_T("AI扫描失败: ") + errorMsg);
-        MessageBox(_T("AI扫描失败，请检查网络连接和API密钥。\n") + errorMsg,
-            _T("AI扫描"), MB_OK | MB_ICONERROR);
+        CString errorMsg = pResponse ? *pResponse : loc.GetString(_T("Msg"), _T("UnknownError"));
+        CString status;
+        status.Format(loc.GetString(_T("Msg"), _T("AiScanFailedStatus")), errorMsg.GetString());
+        UpdateStatus(status);
+        CString msg;
+        msg.Format(loc.GetString(_T("Msg"), _T("AiScanFailedMsg")), errorMsg.GetString());
+        MessageBox(msg, loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
     }
 
     if (pResponse) delete pResponse;
@@ -218,6 +229,7 @@ LRESULT CProcessScanDlg::OnAiStreamChunk(WPARAM wParam, LPARAM lParam)
 
 LRESULT CProcessScanDlg::OnAiStreamDone(WPARAM wParam, LPARAM lParam)
 {
+    auto& loc = CLocalizationManager::GetInstance();
     int success = static_cast<int>(wParam);
     CString* pFinal = reinterpret_cast<CString*>(lParam);
 
@@ -232,15 +244,18 @@ LRESULT CProcessScanDlg::OnAiStreamDone(WPARAM wParam, LPARAM lParam)
         }
         else
         {
-            UpdateStatus(_T("AI扫描完成但无返回内容"));
+            UpdateStatus(loc.GetString(_T("Msg"), _T("AiScanNoContent")));
         }
     }
     else
     {
-        CString errorMsg = pFinal ? *pFinal : CString(_T("未知错误"));
-        UpdateStatus(_T("AI扫描失败: ") + errorMsg);
-        MessageBox(_T("AI扫描失败，请检查网络连接和API密钥。\n") + errorMsg,
-            _T("AI扫描"), MB_OK | MB_ICONERROR);
+        CString errorMsg = pFinal ? *pFinal : loc.GetString(_T("Msg"), _T("UnknownError"));
+        CString status;
+        status.Format(loc.GetString(_T("Msg"), _T("AiScanFailedStatus")), errorMsg.GetString());
+        UpdateStatus(status);
+        CString msg;
+        msg.Format(loc.GetString(_T("Msg"), _T("AiScanFailedMsg")), errorMsg.GetString());
+        MessageBox(msg, loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
     }
 
     m_streamBuffer.Empty();
@@ -250,6 +265,7 @@ LRESULT CProcessScanDlg::OnAiStreamDone(WPARAM wParam, LPARAM lParam)
 
 void CProcessScanDlg::ParseAIResponse(const CString& jsonStr)
 {
+    auto& loc = CLocalizationManager::GetInstance();
     m_entries.clear();
 
     try
@@ -311,7 +327,7 @@ void CProcessScanDlg::ParseAIResponse(const CString& jsonStr)
             }
             else
             {
-                UpdateStatus(_T("AI返回格式异常，未找到有效JSON"));
+                UpdateStatus(loc.GetString(_T("Msg"), _T("AiParseError")));
                 return;
             }
         }
@@ -324,7 +340,7 @@ void CProcessScanDlg::ParseAIResponse(const CString& jsonStr)
 
         if (!j.is_array())
         {
-            UpdateStatus(_T("AI返回格式异常"));
+            UpdateStatus(loc.GetString(_T("Msg"), _T("AiParseError")));
             return;
         }
 
@@ -357,13 +373,13 @@ void CProcessScanDlg::ParseAIResponse(const CString& jsonStr)
         }
 
         CString status;
-        status.Format(_T("扫描完成，发现 %d 个可疑/无用进程"), (int)m_entries.size());
+        status.Format(loc.GetString(_T("ProcessScan"), _T("ScanCompleteMsg")), (int)m_entries.size());
         UpdateStatus(status);
     }
     catch (const std::exception& e)
     {
         CString errorMsg;
-        errorMsg.Format(_T("AI响应解析失败: %hs"), e.what());
+        errorMsg.Format(loc.GetString(_T("Msg"), _T("AiParseFailMsg")), e.what());
         UpdateStatus(errorMsg);
         OutputDebugStringA(("ParseAIResponse error: " + std::string(e.what()) + "\n").c_str());
     }
@@ -432,43 +448,45 @@ CString CProcessScanDlg::GetSelectedPath()
 
 void CProcessScanDlg::EndProcess(int index)
 {
+    auto& loc = CLocalizationManager::GetInstance();
     if (index < 0 || index >= (int)m_entries.size()) return;
 
     auto& entry = m_entries[index];
     CString msg;
-    msg.Format(_T("确定要结束进程\n%s (PID: %u) 吗？"), entry.name, entry.pid);
-    if (MessageBox(msg, _T("确认结束进程"), MB_YESNO | MB_ICONWARNING) != IDYES) return;
+    msg.Format(loc.GetString(_T("Msg"), _T("ConfirmEndProcess")), entry.name.GetString(), entry.pid);
+    if (MessageBox(msg, loc.GetString(_T("Msg"), _T("ConfirmEndProcessTitle")), MB_YESNO | MB_ICONWARNING) != IDYES) return;
 
     HANDLE hProc = OpenProcess(PROCESS_TERMINATE, FALSE, entry.pid);
     if (hProc)
     {
         if (TerminateProcess(hProc, 0))
         {
-            MessageBox(_T("进程已成功结束。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+            MessageBox(loc.GetString(_T("Msg"), _T("ProcessEnded")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONINFORMATION);
             // Remove from list
             m_entries.erase(m_entries.begin() + index);
             RefreshList();
         }
         else
         {
-            MessageBox(_T("结束进程失败。"), _T("错误"), MB_OK | MB_ICONERROR);
+            MessageBox(loc.GetString(_T("Msg"), _T("ProcessEndFailSimple")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         }
         CloseHandle(hProc);
     }
     else
     {
-        MessageBox(_T("无法打开进程，权限不足。"), _T("错误"), MB_OK | MB_ICONERROR);
+        MessageBox(loc.GetString(_T("Msg"), _T("CannotOpenProcessSimple")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
     }
 }
 
 void CProcessScanDlg::LocateProcess(int index)
 {
+    auto& loc = CLocalizationManager::GetInstance();
     if (index < 0 || index >= (int)m_entries.size()) return;
 
     CString path = GetSelectedPath();
     if (path.IsEmpty())
     {
-        MessageBox(_T("无法获取进程路径。"), _T("提示"), MB_OK | MB_ICONWARNING);
+        MessageBox(loc.GetString(_T("Msg"), _T("CannotGetPath")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
         return;
     }
 
@@ -480,12 +498,13 @@ void CProcessScanDlg::LocateProcess(int index)
     }
     else
     {
-        MessageBox(_T("找不到该文件。"), _T("提示"), MB_OK | MB_ICONWARNING);
+        MessageBox(loc.GetString(_T("Msg"), _T("FileNotFoundMsg")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
     }
 }
 
 void CProcessScanDlg::OnBnClickedScanEnd()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST_SCAN_RESULTS));
     if (!pList) return;
 
@@ -507,8 +526,8 @@ void CProcessScanDlg::OnBnClickedScanEnd()
 
     // Multi-select: confirm first, then batch-terminate
     CString msg;
-    msg.Format(_T("确定要结束选中的 %d 个进程吗？\n此操作可能导致相关程序异常退出。"), (int)selected.size());
-    if (MessageBox(msg, _T("确认结束多个进程"), MB_YESNO | MB_ICONWARNING) != IDYES) return;
+    msg.Format(loc.GetString(_T("Msg"), _T("ConfirmBatchEndMsg")), (int)selected.size());
+    if (MessageBox(msg, loc.GetString(_T("Msg"), _T("ConfirmBatchEnd")), MB_YESNO | MB_ICONWARNING) != IDYES) return;
 
     int success = 0, fail = 0;
     // Sort indices descending so erasing larger ones doesn't invalidate smaller ones
@@ -535,8 +554,8 @@ void CProcessScanDlg::OnBnClickedScanEnd()
     RefreshList();
 
     CString result;
-    result.Format(_T("已结束 %d 个进程，失败 %d 个。"), success, fail);
-    MessageBox(result, _T("批量结束结果"), MB_OK | MB_ICONINFORMATION);
+    result.Format(loc.GetString(_T("Msg"), _T("BatchEndResult")), success, fail);
+    MessageBox(result, loc.GetString(_T("Msg"), _T("BatchEndResultTitle")), MB_OK | MB_ICONINFORMATION);
 }
 
 void CProcessScanDlg::OnBnClickedScanLocate()
@@ -552,9 +571,10 @@ void CProcessScanDlg::OnBnClickedScanLocate()
 
 void CProcessScanDlg::OnBnClickedScanEndAll()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     if (m_entries.empty())
     {
-        MessageBox(_T("没有可结束的进程。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(loc.GetString(_T("Msg"), _T("NoProcessToEnd")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONINFORMATION);
         return;
     }
 
@@ -572,29 +592,22 @@ void CProcessScanDlg::OnBnClickedScanEndAll()
     if (nTotal > previewCount)
     {
         CString more;
-        more.Format(_T("  ......以及另外 %d 个进程\n"), nTotal - previewCount);
+        more.Format(loc.GetString(_T("Msg"), _T("EndAllPreviewMore")), nTotal - previewCount);
         preview += more;
     }
 
     // First confirmation (critical warning, default button = NO)
     CString step1;
-    step1.Format(_T("【警告】即将结束列表中全部 %d 个进程！\n\n")
-        _T("此操作不可撤销，可能导致：\n")
-        _T("  · 相关程序异常退出或系统功能异常\n")
-        _T("  · 未保存的数据丢失\n")
-        _T("  · 如AI分析存在误判，可能影响系统关键组件\n\n")
-        _T("请确认以下进程是否可以结束：\n%s\n")
-        _T("你是否清楚此操作的后果并确认继续？"),
+    step1.Format(loc.GetString(_T("Msg"), _T("EndAllStep1")),
         nTotal, preview.GetString());
-    if (MessageBox(step1, _T("警告：全部结束（第一步确认）"),
+    if (MessageBox(step1, loc.GetString(_T("Msg"), _T("EndAllStep1Title")),
         MB_YESNO | MB_ICONSTOP | MB_DEFBUTTON2) != IDYES)
         return;
 
     // Second confirmation (double-check)
     CString step2;
-    step2.Format(_T("最后确认：是否真的要强制结束列表中全部 %d 个进程？\n")
-        _T("请再次确认：这些进程中不包含系统正常运行所必需的关键进程。"), nTotal);
-    if (MessageBox(step2, _T("最终确认：全部结束"),
+    step2.Format(loc.GetString(_T("Msg"), _T("EndAllStep2")), nTotal);
+    if (MessageBox(step2, loc.GetString(_T("Msg"), _T("EndAllStep2Title")),
         MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) != IDYES)
         return;
 
@@ -617,18 +630,19 @@ void CProcessScanDlg::OnBnClickedScanEndAll()
     }
 
     CString result;
-    result.Format(_T("全部结束操作完成：\n成功 %d 个，失败 %d 个。"), success, fail);
-    MessageBox(result, _T("结束结果"), MB_OK | MB_ICONINFORMATION);
+    result.Format(loc.GetString(_T("Msg"), _T("EndAllResult")), success, fail);
+    MessageBox(result, loc.GetString(_T("Msg"), _T("EndAllResultTitle")), MB_OK | MB_ICONINFORMATION);
 
     m_entries.clear();
     RefreshList();
-    UpdateStatus(_T("全部结束操作完成"));
+    UpdateStatus(loc.GetString(_T("Msg"), _T("EndAllDone")));
 }
 
 void CProcessScanDlg::OnBnClickedScanStart()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     int level = GetScanLevel();
-    UpdateStatus(_T("正在扫描进程..."));
+    UpdateStatus(loc.GetString(_T("Msg"), _T("Scanning")));
 
     // Notify parent (main dialog) to start the AI scan
     CWnd* pParent = GetParent();
@@ -640,6 +654,7 @@ void CProcessScanDlg::OnBnClickedScanStart()
 
 void CProcessScanDlg::OnNMRClickList(NMHDR* pNMHDR, LRESULT* pResult)
 {
+    auto& loc = CLocalizationManager::GetInstance();
     CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST_SCAN_RESULTS));
     if (!pList) return;
 
@@ -651,10 +666,10 @@ void CProcessScanDlg::OnNMRClickList(NMHDR* pNMHDR, LRESULT* pResult)
 
     CMenu menu;
     menu.CreatePopupMenu();
-    menu.AppendMenu(MF_STRING, IDM_SCAN_END, _T("结束进程"));
-    menu.AppendMenu(MF_STRING, IDM_SCAN_LOCATE, _T("定位"));
+    menu.AppendMenu(MF_STRING, IDM_SCAN_END, loc.GetString(_T("ProcessScan"), _T("RClickEnd")));
+    menu.AppendMenu(MF_STRING, IDM_SCAN_LOCATE, loc.GetString(_T("ProcessScan"), _T("RClickLocate")));
     menu.AppendMenu(MF_SEPARATOR);
-    menu.AppendMenu(MF_STRING, IDM_SCAN_COPY_PATH, _T("复制路径"));
+    menu.AppendMenu(MF_STRING, IDM_SCAN_COPY_PATH, loc.GetString(_T("ProcessScan"), _T("RClickCopyPath")));
 
     menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, this);
     *pResult = 0;
@@ -679,6 +694,7 @@ void CProcessScanDlg::OnMenuScanLocate()
 
 void CProcessScanDlg::OnMenuScanCopyPath()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST_SCAN_RESULTS));
     if (!pList) return;
 
@@ -688,7 +704,7 @@ void CProcessScanDlg::OnMenuScanCopyPath()
     CString path = GetSelectedPath();
     if (path.IsEmpty())
     {
-        MessageBox(_T("无法获取进程路径。"), _T("提示"), MB_OK | MB_ICONWARNING);
+        MessageBox(loc.GetString(_T("Msg"), _T("CannotGetPath")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
         return;
     }
 

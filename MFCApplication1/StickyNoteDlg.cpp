@@ -5,6 +5,7 @@
 #include "framework.h"
 #include "MFCApplication1.h"
 #include "StickyNoteDlg.h"
+#include "LocalizationManager.h"
 #include "afxdialogex.h"
 #include <fstream>
 #include <filesystem>
@@ -173,6 +174,8 @@ BOOL CStickyNoteDlg::OnInitDialog()
 {
 	CDialogEx::OnInitDialog();
 
+	SetWindowText(CLocalizationManager::GetInstance().GetString(_T("DlgCaption"), _T("StickyNoteDlg")));
+
 	// Remove dialog icon from title bar
 	SetIcon(NULL, FALSE);
 	SetIcon(NULL, TRUE);
@@ -308,7 +311,7 @@ void CStickyNoteDlg::OnNcRButtonUp(UINT nHitTest, CPoint point)
 	{
 		CMenu menu;
 		menu.CreatePopupMenu();
-		menu.AppendMenu(MF_STRING, 1, L"退出便签(&X)");
+		menu.AppendMenu(MF_STRING, 1, CLocalizationManager::GetInstance().GetString(_T("StickyNote"), _T("RClickExit")));
 
 		// point is already in screen coordinates for NC messages
 		menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON, point.x, point.y, this);

@@ -4,6 +4,7 @@
 #include "resource.h"
 #include "Utils.h"
 #include "StickyNoteDlg.h"
+#include "LocalizationManager.h"
 #include <Shellapi.h>
 
 // ========== Tray-related functionality ==========
@@ -40,10 +41,11 @@ LRESULT CMFCApplication1Dlg::OnTrayNotification(WPARAM wParam, LPARAM lParam)
     if (lParam == WM_RBUTTONUP)
     {
         // Show tray menu
+        auto& loc = CLocalizationManager::GetInstance();
         CMenu menu;
         menu.CreatePopupMenu();
-        menu.AppendMenu(MF_STRING, 2001, _T("显示窗口"));
-        menu.AppendMenu(MF_STRING, 2002, _T("退出程序"));
+        menu.AppendMenu(MF_STRING, 2001, loc.GetString(_T("Tray"), _T("ShowWindow")));
+        menu.AppendMenu(MF_STRING, 2002, loc.GetString(_T("Tray"), _T("ExitApp")));
 
         POINT pt;
         GetCursorPos(&pt);

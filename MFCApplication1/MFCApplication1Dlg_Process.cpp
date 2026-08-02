@@ -6,6 +6,7 @@
 #include "AIApiClient.h"
 #include "ProcessScanDlg.h"
 #include "ProcessAiResultDlg.h"
+#include "LocalizationManager.h"
 #include <TlHelp32.h>
 #include <Shellapi.h>
 #include <Psapi.h>
@@ -85,8 +86,9 @@ void CMFCApplication1Dlg::OnKillProcess()
     DWORD dwPID = _ttoi(pidStr);
 
     CString strMsg;
-    strMsg.Format(_T("确定要结束进程\n%s (PID: %s) 吗？"), procName, pidStr);
-    if (MessageBox(strMsg, _T("确认结束进程"), MB_YESNO | MB_ICONWARNING) != IDYES) return;
+    auto& loc = CLocalizationManager::GetInstance();
+    strMsg.Format(loc.GetString(_T("Msg"), _T("ConfirmEndProcess")), procName, pidStr);
+    if (MessageBox(strMsg, loc.GetString(_T("Msg"), _T("ConfirmEndProcessTitle")), MB_YESNO | MB_ICONWARNING) != IDYES) return;
 
     HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, dwPID);
     if (hProcess)
@@ -97,33 +99,34 @@ void CMFCApplication1Dlg::OnKillProcess()
         if (TerminateProcess(hProcess, 0))
         {
             CloseHandle(hProcess);
-            MessageBox(_T("进程已成功结束。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+            MessageBox(loc.GetString(_T("Msg"), _T("ProcessEnded")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONINFORMATION);
             RefreshProcessList();
         }
         else
         {
             DWORD err = GetLastError();
             CString msg;
-            msg.Format(_T("结束进程失败：%s"), FormatLastError(err));
-            MessageBox(msg, _T("错误"), MB_OK | MB_ICONERROR);
+            msg.Format(loc.GetString(_T("Msg"), _T("ProcessEndFail")), FormatLastError(err));
+            MessageBox(msg, loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         }
     }
     else
     {
         DWORD err = GetLastError();
         CString msg;
-        msg.Format(_T("无法打开进程以终止。错误：%s"), FormatLastError(err));
+        msg.Format(loc.GetString(_T("Msg"), _T("CannotOpenProcess")), FormatLastError(err));
         if (err == ERROR_ACCESS_DENIED)
         {
             if (PromptRestartElevated())
                 ::PostMessage(this->GetSafeHwnd(), WM_NULL, 0, 0);
         }
-        MessageBox(msg, _T("权限不足"), MB_OK | MB_ICONERROR);
+        MessageBox(msg, loc.GetString(_T("Msg"), _T("AccessDenied")), MB_OK | MB_ICONERROR);
     }
 }
 
 void CMFCApplication1Dlg::OnRclickProcessList(NMHDR* pNMHDR, LRESULT* pResult)
 {
+    auto& loc = CLocalizationManager::GetInstance();
     CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST1);
     if (!pList) return;
 
@@ -135,12 +138,12 @@ void CMFCApplication1Dlg::OnRclickProcessList(NMHDR* pNMHDR, LRESULT* pResult)
 
     CMenu menu;
     menu.CreatePopupMenu();
-    menu.AppendMenu(MF_STRING, 32771, _T("结束进程"));
-    menu.AppendMenu(MF_STRING, IDM_KILL_SAME_NAME, _T("结束所有同名进程"));
+    menu.AppendMenu(MF_STRING, 32771, loc.GetString(_T("Menu"), _T("EndProcess")));
+    menu.AppendMenu(MF_STRING, IDM_KILL_SAME_NAME, loc.GetString(_T("Menu"), _T("EndSameName")));
     menu.AppendMenu(MF_SEPARATOR);
-    menu.AppendMenu(MF_STRING, 32774, _T("定位"));
+    menu.AppendMenu(MF_STRING, 32774, loc.GetString(_T("Menu"), _T("Locate")));
     menu.AppendMenu(MF_SEPARATOR);
-    menu.AppendMenu(MF_STRING, IDM_PROCESS_AI_ANALYZE, _T("AI分析"));
+    menu.AppendMenu(MF_STRING, IDM_PROCESS_AI_ANALYZE, loc.GetString(_T("Menu"), _T("AiAnalyze")));
 
     menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, this);
     *pResult = 0;
@@ -148,6 +151,7 @@ void CMFCApplication1Dlg::OnRclickProcessList(NMHDR* pNMHDR, LRESULT* pResult)
 
 void CMFCApplication1Dlg::OnKillSameName()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST1);
     if (!pList) return;
 
@@ -166,8 +170,8 @@ void CMFCApplication1Dlg::OnKillSameName()
     if (sameNamePids.empty()) return;
 
     CString strMsg;
-    strMsg.Format(_T("确定要结束所有 \"%s\" 进程吗？\n共 %d 个实例。"), procName, (int)sameNamePids.size());
-    if (MessageBox(strMsg, _T("确认批量结束"), MB_YESNO | MB_ICONWARNING) != IDYES) return;
+    strMsg.Format(loc.GetString(_T("Msg"), _T("ConfirmEndSameName")), procName, (int)sameNamePids.size());
+    if (MessageBox(strMsg, loc.GetString(_T("Msg"), _T("ConfirmBatchEnd")), MB_YESNO | MB_ICONWARNING) != IDYES) return;
 
     int success = 0, fail = 0;
     for (DWORD pid : sameNamePids)
@@ -190,13 +194,14 @@ void CMFCApplication1Dlg::OnKillSameName()
     }
 
     CString resultMsg;
-    resultMsg.Format(_T("已结束 %d 个进程，失败 %d 个。"), success, fail);
-    MessageBox(resultMsg, _T("批量结束完成"), MB_OK | MB_ICONINFORMATION);
+    resultMsg.Format(loc.GetString(_T("Msg"), _T("BatchEndResult")), success, fail);
+    MessageBox(resultMsg, loc.GetString(_T("Msg"), _T("Completed")), MB_OK | MB_ICONINFORMATION);
     RefreshProcessList();
 }
 
 void CMFCApplication1Dlg::OnBnClickedButton20()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     HINSTANCE h = ::ShellExecute(m_hWnd, _T("open"), _T("taskmgr.exe"), NULL, NULL, SW_SHOWNORMAL);
     if ((INT_PTR)h <= 32)
     {
@@ -208,18 +213,19 @@ void CMFCApplication1Dlg::OnBnClickedButton20()
             HINSTANCE h2 = ::ShellExecute(m_hWnd, _T("open"), full, NULL, NULL, SW_SHOWNORMAL);
             if ((INT_PTR)h2 <= 32)
             {
-                MessageBox(_T("无法启动任务管理器，请手动运行 taskmgr.exe"), _T("错误"), MB_OK | MB_ICONERROR);
+                MessageBox(loc.GetString(_T("Msg"), _T("TaskMgrFail")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
             }
         }
         else
         {
-            MessageBox(_T("无法启动任务管理器，请手动运行 taskmgr.exe"), _T("错误"), MB_OK | MB_ICONERROR);
+            MessageBox(loc.GetString(_T("Msg"), _T("TaskMgrFail")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         }
     }
 }
 
 void CMFCApplication1Dlg::OnLocateProcess()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST1);
     if (!pList) return;
 
@@ -230,7 +236,7 @@ void CMFCApplication1Dlg::OnLocateProcess()
     CString path = pList->GetItemText(idx, 2);
     if (path.IsEmpty())
     {
-        MessageBox(_T("无法获取该进程的路径或路径为空。"), _T("提示"), MB_OK | MB_ICONWARNING);
+        MessageBox(loc.GetString(_T("Msg"), _T("NoPathForProcess")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
         return;
     }
 
@@ -242,7 +248,7 @@ void CMFCApplication1Dlg::OnLocateProcess()
     }
     else
     {
-        MessageBox(_T("找不到该文件，可能无权访问或进程已退出。"), _T("提示"), MB_OK | MB_ICONWARNING);
+        MessageBox(loc.GetString(_T("Msg"), _T("FileNotFoundForProcess")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
     }
 }
 
@@ -251,7 +257,8 @@ void CMFCApplication1Dlg::OnLocateProcess()
 // ============================================================================
 bool CMFCApplication1Dlg::GetProcessSignatureInfo(const CString& path, CString& outSigner, bool& outValid)
 {
-    outSigner = _T("无签名");
+    auto& loc = CLocalizationManager::GetInstance();
+    outSigner = loc.GetString(_T("Msg"), _T("NoSignature"));
     outValid = false;
 
     if (path.IsEmpty())
@@ -378,7 +385,8 @@ void CMFCApplication1Dlg::OnProcessAiAnalyze()
 
     if (selectedIndices.empty())
     {
-        MessageBox(_T("请先选择要分析的进程。"), _T("AI分析"), MB_OK | MB_ICONWARNING);
+        auto& loc = CLocalizationManager::GetInstance();
+        MessageBox(loc.GetString(_T("Msg"), _T("NoProcessSelected")), loc.GetString(_T("Msg"), _T("AiAnalyze")), MB_OK | MB_ICONWARNING);
         return;
     }
 
@@ -390,11 +398,13 @@ void CMFCApplication1Dlg::OnProcessAiAnalyze()
 
     if (apiKey.IsEmpty())
     {
-        MessageBox(_T("请先在设置中配置AI API密钥。"), _T("AI分析"), MB_OK | MB_ICONWARNING);
+        auto& loc = CLocalizationManager::GetInstance();
+        MessageBox(loc.GetString(_T("Msg"), _T("ConfigApiKeyFirst")), loc.GetString(_T("Msg"), _T("AiAnalyze")), MB_OK | MB_ICONWARNING);
         return;
     }
 
     // Build process info strings for each selected process
+    auto& loc = CLocalizationManager::GetInstance();
     std::vector<CString> procInfos;
     for (int i : selectedIndices)
     {
@@ -412,16 +422,12 @@ void CMFCApplication1Dlg::OnProcessAiAnalyze()
         GetProcessVersionInfo(path, company, origName);
 
         CString info;
-        info.Format(_T("进程名: %s, PID: %s, ")
-            _T("路径: %s, ")
-            _T("数字签名: %s, ")
-            _T("公司: %s, ")
-            _T("原始文件名: %s"),
+        info.Format(loc.GetString(_T("Msg"), _T("ProcInfoFmt")),
             procName, pidStr,
-            path.IsEmpty() ? CString(_T("无")) : path,
-            bValid ? (signer.IsEmpty() ? CString(_T("有效")) : CString(_T("有效 - ") + signer)) : CString(_T("无效/无签名")),
+            path.IsEmpty() ? loc.GetString(_T("Msg"), _T("None")) : path,
+            bValid ? (signer.IsEmpty() ? loc.GetString(_T("Msg"), _T("Valid")) : loc.GetString(_T("Msg"), _T("ValidPrefix")) + signer) : loc.GetString(_T("Msg"), _T("InvalidNoSig")),
             company,
-            origName.IsEmpty() ? CString(_T("无")) : origName);
+            origName.IsEmpty() ? loc.GetString(_T("Msg"), _T("None")) : origName);
         procInfos.push_back(info);
     }
 
@@ -437,9 +443,10 @@ void CMFCApplication1Dlg::OnProcessAiAnalyze()
 // ============================================================================
 void CMFCApplication1Dlg::OnBnClickedProcessAiScan()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     if (m_processes.empty())
     {
-        MessageBox(_T("请先刷新进程列表。"), _T("AI扫描"), MB_OK | MB_ICONWARNING);
+        MessageBox(loc.GetString(_T("Msg"), _T("RefreshProcessListFirst")), loc.GetString(_T("Msg"), _T("AiScan")), MB_OK | MB_ICONWARNING);
         return;
     }
 
@@ -464,7 +471,8 @@ LRESULT CMFCApplication1Dlg::OnProcessScanStart(WPARAM wParam, LPARAM lParam)
 
     if (apiKey.IsEmpty())
     {
-        ::MessageBox(hScanDlg, _T("请先在设置中配置AI API密钥。"), _T("AI扫描"), MB_OK | MB_ICONWARNING);
+        auto& loc = CLocalizationManager::GetInstance();
+        ::MessageBox(hScanDlg, loc.GetString(_T("Msg"), _T("ConfigApiKeyFirst")), loc.GetString(_T("Msg"), _T("AiScan")), MB_OK | MB_ICONWARNING);
         return 0;
     }
 

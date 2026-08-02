@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "framework.h"
 #include "MFCApplication1Dlg.h"
+#include "LocalizationManager.h"
 #include "resource.h"
 #include "Utils.h"
 #include <algorithm>
@@ -12,12 +13,13 @@ void CMFCApplication1Dlg::InitTabControl()
     CTabCtrl* pTab = static_cast<CTabCtrl*>(GetDlgItem(IDC_TAB1));
     if (!pTab) return;
 
-    pTab->InsertItem(0, _T("进程管理"));
-    pTab->InsertItem(1, _T("启动项管理"));
-    pTab->InsertItem(2, _T("剪贴板"));
-    pTab->InsertItem(3, _T("窗口处理"));
-    pTab->InsertItem(4, _T("文件管理"));
-    pTab->InsertItem(5, _T("git工具箱"));
+    auto& loc = CLocalizationManager::GetInstance();
+    pTab->InsertItem(0, loc.GetString(_T("MainDlg"), _T("Tab1")));
+    pTab->InsertItem(1, loc.GetString(_T("MainDlg"), _T("Tab2")));
+    pTab->InsertItem(2, loc.GetString(_T("MainDlg"), _T("Tab3")));
+    pTab->InsertItem(3, loc.GetString(_T("MainDlg"), _T("Tab4")));
+    pTab->InsertItem(4, loc.GetString(_T("MainDlg"), _T("Tab5")));
+    pTab->InsertItem(5, loc.GetString(_T("MainDlg"), _T("Tab6")));
 }
 
 void CMFCApplication1Dlg::InitProcessTab()
@@ -25,13 +27,14 @@ void CMFCApplication1Dlg::InitProcessTab()
     CListCtrl* pList1 = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST1));
     if (!pList1) return;
 
+    auto& loc = CLocalizationManager::GetInstance();
     pList1->ModifyStyle(0, LVS_REPORT);
     pList1->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
-    pList1->InsertColumn(0, _T("进程名"), LVCFMT_LEFT, 200);
-	pList1->InsertColumn(1, _T("CPU%"), LVCFMT_RIGHT, 80);
-	pList1->InsertColumn(2, _T("路径"), LVCFMT_LEFT, 480);
-	pList1->InsertColumn(3, _T("内存(KB)"), LVCFMT_RIGHT, 100);
-	pList1->InsertColumn(4, _T("PID"), LVCFMT_LEFT, 80);
+    pList1->InsertColumn(0, loc.GetString(_T("ProcessTab"), _T("ColName")), LVCFMT_LEFT, 200);
+	pList1->InsertColumn(1, loc.GetString(_T("ProcessTab"), _T("ColCPU")), LVCFMT_RIGHT, 80);
+	pList1->InsertColumn(2, loc.GetString(_T("ProcessTab"), _T("ColPath")), LVCFMT_LEFT, 480);
+	pList1->InsertColumn(3, loc.GetString(_T("ProcessTab"), _T("ColMemory")), LVCFMT_RIGHT, 100);
+	pList1->InsertColumn(4, loc.GetString(_T("ProcessTab"), _T("ColPID")), LVCFMT_LEFT, 80);
 
     // Force header redraw
     if (pList1->GetHeaderCtrl())
@@ -43,10 +46,11 @@ void CMFCApplication1Dlg::InitStartupTab()
     CListCtrl* pList2 = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST2));
     if (!pList2) return;
 
+    auto& loc = CLocalizationManager::GetInstance();
     pList2->ModifyStyle(0, LVS_REPORT);
     pList2->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
-    pList2->InsertColumn(0, _T("启动项名"), LVCFMT_LEFT, 200);
-    pList2->InsertColumn(1, _T("命令(路径)"), LVCFMT_LEFT, 840);
+    pList2->InsertColumn(0, loc.GetString(_T("StartupTab"), _T("ColName")), LVCFMT_LEFT, 200);
+    pList2->InsertColumn(1, loc.GetString(_T("StartupTab"), _T("ColCmd")), LVCFMT_LEFT, 840);
 }
 
 void CMFCApplication1Dlg::InitClipboardTab()
@@ -54,20 +58,22 @@ void CMFCApplication1Dlg::InitClipboardTab()
     CListCtrl* pList3 = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST3));
     if (!pList3) return;
 
+    auto& loc = CLocalizationManager::GetInstance();
     pList3->ModifyStyle(0, LVS_REPORT);
     pList3->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
-    pList3->InsertColumn(0, _T("文本内容(双击复制)"), LVCFMT_LEFT, 780);
+    pList3->InsertColumn(0, loc.GetString(_T("ClipboardTab"), _T("ColText")), LVCFMT_LEFT, 780);
 }
 
 void CMFCApplication1Dlg::InitWindowTab()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     CListCtrl* pList5 = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST5));
     if (pList5)
     {
         pList5->ModifyStyle(0, LVS_REPORT);
         pList5->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
-        pList5->InsertColumn(0, _T("字段"), LVCFMT_LEFT, 84);
-        pList5->InsertColumn(1, _T("值"), LVCFMT_LEFT, 980);
+        pList5->InsertColumn(0, loc.GetString(_T("WindowTab"), _T("ColField")), LVCFMT_LEFT, 84);
+        pList5->InsertColumn(1, loc.GetString(_T("WindowTab"), _T("ColValue")), LVCFMT_LEFT, 980);
     }
 
     // Initialize transparency slider (resource control)
@@ -78,7 +84,7 @@ void CMFCApplication1Dlg::InitWindowTab()
         pSlider2->SetPos(255);
         pSlider2->SetTicFreq(25);
     }
-    SetDlgItemText(IDC_STATIC18, _T("透明度: 100%"));
+    SetDlgItemText(IDC_STATIC18, loc.GetString(_T("WindowTab"), _T("TranparencyLabel")));
 
     // Initialize topmost window list
     CListCtrl* pList6 = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST6));
@@ -86,8 +92,8 @@ void CMFCApplication1Dlg::InitWindowTab()
     {
         pList6->ModifyStyle(0, LVS_REPORT);
         pList6->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
-        pList6->InsertColumn(0, _T("类型"), LVCFMT_LEFT, 80);
-        pList6->InsertColumn(1, _T("窗口标题"), LVCFMT_LEFT, 280);
+        pList6->InsertColumn(0, loc.GetString(_T("WindowTab"), _T("ColType")), LVCFMT_LEFT, 80);
+        pList6->InsertColumn(1, loc.GetString(_T("WindowTab"), _T("ColTitle")), LVCFMT_LEFT, 280);
     }
 
     // Initialize history window list
@@ -96,8 +102,8 @@ void CMFCApplication1Dlg::InitWindowTab()
     {
         pList7->ModifyStyle(0, LVS_REPORT);
         pList7->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
-        pList7->InsertColumn(0, _T("序号"), LVCFMT_LEFT, 60);
-        pList7->InsertColumn(1, _T("窗口标题"), LVCFMT_LEFT, 280);
+        pList7->InsertColumn(0, loc.GetString(_T("WindowTab"), _T("ColIndex")), LVCFMT_LEFT, 60);
+        pList7->InsertColumn(1, loc.GetString(_T("WindowTab"), _T("ColTitle")), LVCFMT_LEFT, 280);
     }
 }
 
@@ -112,10 +118,11 @@ void CMFCApplication1Dlg::InitGitTab()
     CListCtrl* pList4 = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST4));
     if (!pList4) return;
 
+    auto& loc = CLocalizationManager::GetInstance();
     pList4->ModifyStyle(0, LVS_REPORT);
     pList4->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
-    pList4->InsertColumn(0, _T("说明"), LVCFMT_LEFT, 190);
-    pList4->InsertColumn(1, _T("命令"), LVCFMT_LEFT, 400);
+    pList4->InsertColumn(0, loc.GetString(_T("GitTab"), _T("ColDesc")), LVCFMT_LEFT, 190);
+    pList4->InsertColumn(1, loc.GetString(_T("GitTab"), _T("ColCmd")), LVCFMT_LEFT, 400);
 
     // If config.ini does not exist, create default Git commands
     const TCHAR* section = _T("GitCommands");
@@ -129,26 +136,26 @@ void CMFCApplication1Dlg::InitGitTab()
 
     if (GetFileAttributes(configPath) == INVALID_FILE_ATTRIBUTES)
     {
-        WritePrivateProfileString(section, _T("Cmd1"),  _T("初始化本地仓库|git init"), configPath);
-        WritePrivateProfileString(section, _T("Cmd2"),  _T("添加所有文件到暂存区|git add ."), configPath);
-        WritePrivateProfileString(section, _T("Cmd3"),  _T("提交到本地仓库|git commit -m \"第一次提交\""), configPath);
-        WritePrivateProfileString(section, _T("Cmd4"),  _T("添加远程仓库地址|git remote add origin <地址>"), configPath);
-        WritePrivateProfileString(section, _T("Cmd5"),  _T("重命名分支为main|git branch -M main"), configPath);
-        WritePrivateProfileString(section, _T("Cmd6"),  _T("首次推送并建立关联|git push -u origin main"), configPath);
-        WritePrivateProfileString(section, _T("Cmd7"),  _T("拉取远程更新|git pull"), configPath);
-        WritePrivateProfileString(section, _T("Cmd8"),  _T("克隆远程仓库到本地|git clone <地址>"), configPath);
-        WritePrivateProfileString(section, _T("Cmd9"),  _T("查看当前状态|git status"), configPath);
-        WritePrivateProfileString(section, _T("Cmd10"), _T("添加所有修改到暂存区|git add ."), configPath);
-        WritePrivateProfileString(section, _T("Cmd11"), _T("提交到本地仓库|git commit -m \"说明\""), configPath);
-        WritePrivateProfileString(section, _T("Cmd12"), _T("推送到远程仓库|git push"), configPath);
-        WritePrivateProfileString(section, _T("Cmd13"), _T("查看所有分支含远程|git branch -a"), configPath);
-        WritePrivateProfileString(section, _T("Cmd14"), _T("创建并切换分支|git checkout -b <分支名>"), configPath);
-        WritePrivateProfileString(section, _T("Cmd15"), _T("切换分支|git checkout <分支名>"), configPath);
-        WritePrivateProfileString(section, _T("Cmd16"), _T("合并指定分支到当前分支|git merge <分支名>"), configPath);
-        WritePrivateProfileString(section, _T("Cmd17"), _T("删除已合并的分支|git branch -d <分支名>"), configPath);
-        WritePrivateProfileString(section, _T("Cmd18"), _T("查看简洁版提交历史|git log --oneline"), configPath);
-        WritePrivateProfileString(section, _T("Cmd19"), _T("撤销工作区修改|git restore <文件>"), configPath);
-        WritePrivateProfileString(section, _T("Cmd20"), _T("把暂存区文件撤回来|git restore --staged <文件>"), configPath);
+        WritePrivateProfileString(section, _T("Cmd1"),  _T("Init local repo|git init"), configPath);
+        WritePrivateProfileString(section, _T("Cmd2"),  _T("Stage all files|git add ."), configPath);
+        WritePrivateProfileString(section, _T("Cmd3"),  _T("Commit to local repo|git commit -m \"first commit\""), configPath);
+        WritePrivateProfileString(section, _T("Cmd4"),  _T("Add remote origin|git remote add origin <url>"), configPath);
+        WritePrivateProfileString(section, _T("Cmd5"),  _T("Rename branch to main|git branch -M main"), configPath);
+        WritePrivateProfileString(section, _T("Cmd6"),  _T("Push and set upstream|git push -u origin main"), configPath);
+        WritePrivateProfileString(section, _T("Cmd7"),  _T("Pull remote updates|git pull"), configPath);
+        WritePrivateProfileString(section, _T("Cmd8"),  _T("Clone remote repo|git clone <url>"), configPath);
+        WritePrivateProfileString(section, _T("Cmd9"),  _T("Check status|git status"), configPath);
+        WritePrivateProfileString(section, _T("Cmd10"), _T("Stage all changes|git add ."), configPath);
+        WritePrivateProfileString(section, _T("Cmd11"), _T("Commit to local repo|git commit -m \"message\""), configPath);
+        WritePrivateProfileString(section, _T("Cmd12"), _T("Push to remote|git push"), configPath);
+        WritePrivateProfileString(section, _T("Cmd13"), _T("List all branches (including remote)|git branch -a"), configPath);
+        WritePrivateProfileString(section, _T("Cmd14"), _T("Create and switch branch|git checkout -b <branch>"), configPath);
+        WritePrivateProfileString(section, _T("Cmd15"), _T("Switch branch|git checkout <branch>"), configPath);
+        WritePrivateProfileString(section, _T("Cmd16"), _T("Merge branch into current|git merge <branch>"), configPath);
+        WritePrivateProfileString(section, _T("Cmd17"), _T("Delete merged branch|git branch -d <branch>"), configPath);
+        WritePrivateProfileString(section, _T("Cmd18"), _T("View concise commit log|git log --oneline"), configPath);
+        WritePrivateProfileString(section, _T("Cmd19"), _T("Restore working tree changes|git restore <file>"), configPath);
+        WritePrivateProfileString(section, _T("Cmd20"), _T("Unstage files|git restore --staged <file>"), configPath);
     }
 
     // Load command list from INI
@@ -276,7 +283,7 @@ void CMFCApplication1Dlg::UpdateTabVisibility(int nTab)
 
     if (showFile)
     {
-        CString stDisplay = m_strDroppedFilePath.IsEmpty() ? CString(_T("拖拽文件到此")) : m_strDroppedFilePath;
+        CString stDisplay = m_strDroppedFilePath.IsEmpty() ? CLocalizationManager::GetInstance().GetString(_T("FileTab"), _T("DropHint")) : m_strDroppedFilePath;
         SetDlgItemText(IDC_STATIC_PATH, stDisplay);
     }
 
@@ -334,7 +341,7 @@ void CMFCApplication1Dlg::UpdateTabVisibility(int nTab)
                 ::GetWindowText(h, title, _countof(title));
 
                 CString label;
-                label.Format(_T("置顶[%zu]"), i + 1);
+                label.Format(CLocalizationManager::GetInstance().GetString(_T("WindowTab"), _T("TopmostLabel")), i + 1);
                 int idx = pList6->InsertItem(row, label);
                 pList6->SetItemText(idx, 1, CString(title));
                 pList6->SetItemData(idx, static_cast<DWORD_PTR>(i));

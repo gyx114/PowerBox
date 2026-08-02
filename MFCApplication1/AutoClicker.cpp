@@ -2,6 +2,7 @@
 #include "pch.h"
 #include "framework.h"
 #include "AutoClicker.h"
+#include "LocalizationManager.h"
 
 CAutoClicker::~CAutoClicker()
 {
@@ -158,7 +159,16 @@ int CAutoClicker::PromptForIntervalMs(HWND hwndParent)
 
     CString vbs;
     vbs += _T("On Error Resume Next\r\n");
-    vbs += _T("s = InputBox(\"点击频率：(ms/次)\", \"连点器\", \"100\")\r\n");
+    {
+        auto& loc = CLocalizationManager::GetInstance();
+        CString prompt = loc.GetString(_T("AutoClicker"), _T("VbsPrompt"));
+        CString title = loc.GetString(_T("AutoClicker"), _T("VbsTitle"));
+        vbs += _T("s = InputBox(\"");
+        vbs += prompt;
+        vbs += _T("\", \"");
+        vbs += title;
+        vbs += _T("\", \"100\")\r\n");
+    }
     vbs += _T("If Not IsNull(s) And s <> \"\" Then\r\n");
     {
         CString part;

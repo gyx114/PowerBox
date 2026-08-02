@@ -6,6 +6,7 @@
 #include "MFCApplication1.h"
 #include "MFCApplication1Dlg.h"
 #include "AIApiClient.h"
+#include "LocalizationManager.h"
 #include <afxole.h>
 #include <gdiplus.h>
 #pragma comment(lib, "gdiplus.lib")
@@ -93,7 +94,7 @@ BOOL CMFCApplication1App::InitInstance()
     // Initialize OLE libraries for drag/drop and other OLE features
 	if (!AfxOleInit())
 	{
-		AfxMessageBox(_T("初始化 OLE 失败，无法使用拖放功能。"));
+		AfxMessageBox(CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("OleInitFail")));
 		return FALSE;
 	}
 
@@ -156,7 +157,7 @@ BOOL CMFCApplication1App::InitInstance()
 			{
 				TCHAR szTitle[256] = { 0 };
 				GetWindowText(hWnd, szTitle, 256);
-				if (CString(szTitle).Find(_T("ctrl+alt+空格唤起此窗口")) >= 0)
+				if (CString(szTitle).Find(_T("ctrl+alt+空格唤起此窗口")) >= 0 || CString(szTitle).Find(_T("ctrl+alt+space")) >= 0)
 				{
 					hWndExisting = hWnd;
 					break;

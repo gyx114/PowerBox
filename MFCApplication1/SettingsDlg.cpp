@@ -1,22 +1,23 @@
 #include "pch.h"
 #include "framework.h"
 #include "SettingsDlg.h"
+#include "LocalizationManager.h"
 #include "AIApiClient.h"
 #include "resource.h"
 
 CSettingsDlg::CSettingsDlg(CWnd* pParent /*= nullptr*/) : CDialogEx(IDD_SETTINGS_DIALOG, pParent) {}
 
-void CSettingsDlg::OnBrowseBili() { BrowseFile(IDC_EDIT_BILI_PATH, _T("选择Bilibili可执行文件")); }
-void CSettingsDlg::OnBrowseWeChat() { BrowseFile(IDC_EDIT_WECHAT_PATH, _T("选择微信可执行文件")); }
-void CSettingsDlg::OnBrowseQQ() { BrowseFile(IDC_EDIT_QQ_PATH, _T("选择QQ可执行文件")); }
-void CSettingsDlg::OnBrowseVSCode() { BrowseFile(IDC_EDIT_VSCODE_PATH, _T("选择VS Code可执行文件")); }
-void CSettingsDlg::OnBrowseVS() { BrowseFile(IDC_EDIT_VS_PATH, _T("选择Visual Studio可执行文件")); }
-void CSettingsDlg::OnBrowseGitBash() { BrowseFile(IDC_EDIT_GITBASH_PATH, _T("选择Git Bash可执行文件")); }
-void CSettingsDlg::OnBrowseYuanbao() { BrowseFile(IDC_EDIT_YUANBAO_PATH, _T("选择元宝可执行文件")); }
-void CSettingsDlg::OnBrowseStudy() { BrowseFolder(IDC_EDIT_STUDY_PATH, _T("选择学习文件夹")); }
-void CSettingsDlg::OnBrowseDownload() { BrowseFolder(IDC_EDIT_DOWNLOAD_PATH, _T("选择下载文件夹")); }
-void CSettingsDlg::OnBrowseScreenshot() { BrowseFolder(IDC_EDIT_SCREENSHOT_DIR, _T("选择截图保存目录")); }
-void CSettingsDlg::OnBrowseStickyDir() { BrowseFolder(IDC_EDIT_STICKY_DIR, _T("选择便签保存目录")); }
+void CSettingsDlg::OnBrowseBili() { BrowseFile(IDC_EDIT_BILI_PATH, CLocalizationManager::GetInstance().GetString(_T("Settings"), _T("DlgTitleBili"))); }
+void CSettingsDlg::OnBrowseWeChat() { BrowseFile(IDC_EDIT_WECHAT_PATH, CLocalizationManager::GetInstance().GetString(_T("Settings"), _T("DlgTitleWeChat"))); }
+void CSettingsDlg::OnBrowseQQ() { BrowseFile(IDC_EDIT_QQ_PATH, CLocalizationManager::GetInstance().GetString(_T("Settings"), _T("DlgTitleQQ"))); }
+void CSettingsDlg::OnBrowseVSCode() { BrowseFile(IDC_EDIT_VSCODE_PATH, CLocalizationManager::GetInstance().GetString(_T("Settings"), _T("DlgTitleVSCode"))); }
+void CSettingsDlg::OnBrowseVS() { BrowseFile(IDC_EDIT_VS_PATH, CLocalizationManager::GetInstance().GetString(_T("Settings"), _T("DlgTitleVS"))); }
+void CSettingsDlg::OnBrowseGitBash() { BrowseFile(IDC_EDIT_GITBASH_PATH, CLocalizationManager::GetInstance().GetString(_T("Settings"), _T("DlgTitleGitBash"))); }
+void CSettingsDlg::OnBrowseYuanbao() { BrowseFile(IDC_EDIT_YUANBAO_PATH, CLocalizationManager::GetInstance().GetString(_T("Settings"), _T("DlgTitleYuanbao"))); }
+void CSettingsDlg::OnBrowseStudy() { BrowseFolder(IDC_EDIT_STUDY_PATH, CLocalizationManager::GetInstance().GetString(_T("Settings"), _T("DlgTitleStudy"))); }
+void CSettingsDlg::OnBrowseDownload() { BrowseFolder(IDC_EDIT_DOWNLOAD_PATH, CLocalizationManager::GetInstance().GetString(_T("Settings"), _T("DlgTitleDownload"))); }
+void CSettingsDlg::OnBrowseScreenshot() { BrowseFolder(IDC_EDIT_SCREENSHOT_DIR, CLocalizationManager::GetInstance().GetString(_T("Settings"), _T("DlgTitleScreenshot"))); }
+void CSettingsDlg::OnBrowseStickyDir() { BrowseFolder(IDC_EDIT_STICKY_DIR, CLocalizationManager::GetInstance().GetString(_T("Settings"), _T("DlgTitleSticky"))); }
 
 BEGIN_MESSAGE_MAP(CSettingsDlg, CDialogEx)
     ON_BN_CLICKED(IDC_BROWSE_BILI, &CSettingsDlg::OnBrowseBili)
@@ -32,12 +33,78 @@ BEGIN_MESSAGE_MAP(CSettingsDlg, CDialogEx)
     ON_BN_CLICKED(IDC_BROWSE_STICKY_DIR, &CSettingsDlg::OnBrowseStickyDir)
     ON_BN_CLICKED(IDC_BUTTON_AI_KEY_SHOW, &CSettingsDlg::OnBnClickedAiKeyShow)
     ON_CBN_SELCHANGE(IDC_COMBO_AI_VENDOR_CFG, &CSettingsDlg::OnCbnSelchangeAiVendor)
+    ON_CBN_SELCHANGE(IDC_COMBO_LANGUAGE, &CSettingsDlg::OnCbnSelchangeLanguage)
     ON_WM_CLOSE()
 END_MESSAGE_MAP()
+
+// Helper: find a child window by its current text and set new text
+static void SetChildTextByCurrentText(CWnd* pParent, LPCTSTR oldText, LPCTSTR newText)
+{
+    if (!pParent || !oldText || !newText) return;
+    for (CWnd* pChild = pParent->GetWindow(GW_CHILD); pChild; pChild = pChild->GetNextWindow())
+    {
+        CString text;
+        pChild->GetWindowText(text);
+        if (text == oldText)
+        {
+            pChild->SetWindowText(newText);
+            return;
+        }
+    }
+}
 
 BOOL CSettingsDlg::OnInitDialog()
 {
     CDialogEx::OnInitDialog();
+
+    // Translate UI
+    auto& loc = CLocalizationManager::GetInstance();
+    SetWindowText(loc.GetString(_T("DlgCaption"), _T("SettingsDlg")));
+
+    // Group boxes (all use IDC_STATIC, so find by current text)
+    SetChildTextByCurrentText(this, _T("文件命名"), loc.GetString(_T("Settings"), _T("GroupFileNaming")));
+    SetChildTextByCurrentText(this, _T("路径设置"), loc.GetString(_T("Settings"), _T("GroupPathSettings")));
+    SetChildTextByCurrentText(this, _T("连点器"), loc.GetString(_T("Settings"), _T("GroupAutoClicker")));
+    SetChildTextByCurrentText(this, _T("网址"), loc.GetString(_T("Settings"), _T("GroupSites")));
+    SetChildTextByCurrentText(this, _T("AI助手"), loc.GetString(_T("Settings"), _T("GroupAI")));
+    SetChildTextByCurrentText(this, _T("语言"), loc.GetString(_T("Settings"), _T("GroupLanguage")));
+
+    // Static labels (find by current text)
+    SetChildTextByCurrentText(this, _T("默认文件名:"), loc.GetString(_T("Settings"), _T("LabelDefaultName")));
+    SetChildTextByCurrentText(this, _T("学习文件夹:"), loc.GetString(_T("Settings"), _T("LabelStudy")));
+    SetChildTextByCurrentText(this, _T("下载文件夹:"), loc.GetString(_T("Settings"), _T("LabelDownload")));
+    SetChildTextByCurrentText(this, _T("截图保存目录:"), loc.GetString(_T("Settings"), _T("LabelScreenshot")));
+    SetChildTextByCurrentText(this, _T("便签保存目录:"), loc.GetString(_T("Settings"), _T("LabelStickyDir")));
+    SetChildTextByCurrentText(this, _T("连点器间隔(ms):"), loc.GetString(_T("Settings"), _T("LabelClickInterval")));
+    SetChildTextByCurrentText(this, _T("开始键:"), loc.GetString(_T("Settings"), _T("LabelStartKey")));
+    SetChildTextByCurrentText(this, _T("停止键:"), loc.GetString(_T("Settings"), _T("LabelStopKey")));
+    SetChildTextByCurrentText(this, _T("切换语言需要重启应用才能生效。"), loc.GetString(_T("Settings"), _T("LanguageRestartHint")));
+
+    // Browse buttons (unique IDs)
+    SetDlgItemText(IDC_BROWSE_BILI, loc.GetString(_T("Settings"), _T("BtnBrowse")));
+    SetDlgItemText(IDC_BROWSE_WECHAT, loc.GetString(_T("Settings"), _T("BtnBrowse")));
+    SetDlgItemText(IDC_BROWSE_QQ, loc.GetString(_T("Settings"), _T("BtnBrowse")));
+    SetDlgItemText(IDC_BROWSE_VSCODE, loc.GetString(_T("Settings"), _T("BtnBrowse")));
+    SetDlgItemText(IDC_BROWSE_VS, loc.GetString(_T("Settings"), _T("BtnBrowse")));
+    SetDlgItemText(IDC_BROWSE_GITBASH, loc.GetString(_T("Settings"), _T("BtnBrowse")));
+    SetDlgItemText(IDC_BROWSE_YUANBAO, loc.GetString(_T("Settings"), _T("BtnBrowse")));
+    SetDlgItemText(IDC_BROWSE_STUDY, loc.GetString(_T("Settings"), _T("BtnBrowse")));
+    SetDlgItemText(IDC_BROWSE_DOWNLOAD, loc.GetString(_T("Settings"), _T("BtnBrowse")));
+    SetDlgItemText(IDC_BROWSE_SCREENSHOT, loc.GetString(_T("Settings"), _T("BtnBrowse")));
+    SetDlgItemText(IDC_BROWSE_STICKY_DIR, loc.GetString(_T("Settings"), _T("BtnBrowse")));
+
+    // AI labels (unique IDs)
+    SetDlgItemText(IDC_STATIC_AI_VENDOR_CFG, loc.GetString(_T("Settings"), _T("LabelVendor")));
+    SetDlgItemText(IDC_STATIC_AI_KEY_CFG, loc.GetString(_T("Settings"), _T("LabelApiKey")));
+    SetDlgItemText(IDC_BUTTON_AI_KEY_SHOW, loc.GetString(_T("Settings"), _T("BtnShow")));
+
+    // Language label (unique ID)
+    SetDlgItemText(IDC_STATIC_LANGUAGE, loc.GetString(_T("Settings"), _T("LabelLanguage")));
+
+    // OK/Cancel buttons
+    SetDlgItemText(IDOK, loc.GetString(_T("Settings"), _T("BtnOK")));
+    SetDlgItemText(IDCANCEL, loc.GetString(_T("Settings"), _T("BtnCancel")));
+
     SetDlgItemText(IDC_EDIT_DEFAULT_NAME, AfxGetApp()->GetProfileString(_T("Template"), _T("DefaultReportName"), _T("")));
     SetDlgItemText(IDC_EDIT_BILI_PATH, AfxGetApp()->GetProfileString(_T("Paths"), _T("BiliPath"), _T("")));
     SetDlgItemText(IDC_EDIT_WECHAT_PATH, AfxGetApp()->GetProfileString(_T("Paths"), _T("WeChatPath"), _T("")));
@@ -90,6 +157,30 @@ BOOL CSettingsDlg::OnInitDialog()
     m_strCurrentVendor = AfxGetApp()->GetProfileString(_T("AI"), _T("Vendor"), _T("DeepSeek"));
     LoadVendorKey(m_strCurrentVendor);
 
+    // Language selection
+    m_strCurrentLang = AfxGetApp()->GetProfileString(_T("Settings"), _T("Language"), _T("zh-CN"));
+    CComboBox* pLangCombo = static_cast<CComboBox*>(GetDlgItem(IDC_COMBO_LANGUAGE));
+    if (pLangCombo)
+    {
+        auto langs = CLocalizationManager::GetInstance().GetAvailableLanguages();
+        for (const auto& [id, name] : langs)
+        {
+            int idx = pLangCombo->AddString(name);
+            pLangCombo->SetItemData(idx, reinterpret_cast<DWORD_PTR>(_tcsdup(id)));
+        }
+        // Select current language
+        int count = pLangCombo->GetCount();
+        for (int i = 0; i < count; i++)
+        {
+            CString langId = reinterpret_cast<LPCTSTR>(pLangCombo->GetItemData(i));
+            if (langId == m_strCurrentLang)
+            {
+                pLangCombo->SetCurSel(i);
+                break;
+            }
+        }
+    }
+
     return TRUE;
 }
 
@@ -138,7 +229,8 @@ void CSettingsDlg::OnOK()
     if (strStop.IsEmpty()) strStop = _T("B");
     if (strStart == strStop)
     {
-        MessageBox(_T("开始键和停止键不能相同，请重新设置。"), _T("连点器设置"), MB_OK | MB_ICONWARNING);
+        auto& loc = CLocalizationManager::GetInstance();
+        MessageBox(loc.GetString(_T("Settings"), _T("MsgKeySame")), loc.GetString(_T("Settings"), _T("GroupAutoClicker")), MB_OK | MB_ICONWARNING);
         return;
     }
     AfxGetApp()->WriteProfileString(_T("AutoClicker"), _T("KeyStart"), strStart);
@@ -152,6 +244,16 @@ void CSettingsDlg::OnOK()
         CString aiVendor;
         pCombo->GetWindowText(aiVendor);
         AfxGetApp()->WriteProfileString(_T("AI"), _T("Vendor"), aiVendor);
+    }
+
+    // Save language
+    CComboBox* pLangCombo = static_cast<CComboBox*>(GetDlgItem(IDC_COMBO_LANGUAGE));
+    if (pLangCombo)
+    {
+        int sel = pLangCombo->GetCurSel();
+        if (sel != CB_ERR)
+            m_strCurrentLang = reinterpret_cast<LPCTSTR>(pLangCombo->GetItemData(sel));
+        AfxGetApp()->WriteProfileString(_T("Settings"), _T("Language"), m_strCurrentLang);
     }
 
     DestroyWindow();
@@ -169,7 +271,26 @@ void CSettingsDlg::OnClose()
 
 void CSettingsDlg::PostNcDestroy()
 {
+    // Free language combo item data strings
+    CComboBox* pLangCombo = static_cast<CComboBox*>(GetDlgItem(IDC_COMBO_LANGUAGE));
+    if (pLangCombo)
+    {
+        for (int i = 0; i < pLangCombo->GetCount(); i++)
+        {
+            LPCTSTR pStr = reinterpret_cast<LPCTSTR>(pLangCombo->GetItemData(i));
+            if (pStr) free(const_cast<LPTSTR>(pStr));
+        }
+    }
     delete this;
+}
+
+void CSettingsDlg::OnCbnSelchangeLanguage()
+{
+    CComboBox* pCombo = static_cast<CComboBox*>(GetDlgItem(IDC_COMBO_LANGUAGE));
+    if (!pCombo) return;
+    int sel = pCombo->GetCurSel();
+    if (sel == CB_ERR) return;
+    m_strCurrentLang = reinterpret_cast<LPCTSTR>(pCombo->GetItemData(sel));
 }
 
 void CSettingsDlg::BrowseFile(UINT id, LPCTSTR title)
@@ -212,7 +333,8 @@ void CSettingsDlg::OnBnClickedAiKeyShow()
     bShowing = !bShowing;
 
     pEdit->SetPasswordChar(bShowing ? 0 : _T('*'));
-    SetDlgItemText(IDC_BUTTON_AI_KEY_SHOW, bShowing ? _T("隐藏") : _T("显示"));
+    auto& loc = CLocalizationManager::GetInstance();
+    SetDlgItemText(IDC_BUTTON_AI_KEY_SHOW, bShowing ? loc.GetString(_T("Settings"), _T("BtnHide")) : loc.GetString(_T("Settings"), _T("BtnShow")));
     pEdit->Invalidate();
 }
 

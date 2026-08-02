@@ -393,13 +393,17 @@
 #define IDM_CONV_DELETE                32844
 #define IDM_CONV_RENAME                32845
 
+// Settings dialog language controls
+#define IDC_STATIC_LANGUAGE            1323
+#define IDC_COMBO_LANGUAGE             1324
+
 // Next default values for new objects
 //
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        155
 #define _APS_NEXT_COMMAND_VALUE         32846
-#define _APS_NEXT_CONTROL_VALUE         1323
+#define _APS_NEXT_CONTROL_VALUE         1325
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

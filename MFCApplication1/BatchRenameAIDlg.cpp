@@ -2,6 +2,7 @@
 #include "BatchRenameAIDlg.h"
 #include "AIApiClient.h"
 #include "json.hpp"
+#include "LocalizationManager.h"
 #include <set>
 #include <map>
 #include <regex>
@@ -34,7 +35,8 @@ BOOL CBatchRenameAIDlg::OnInitDialog()
 {
     CDialogEx::OnInitDialog();
 
-    SetWindowText(_T("AI 批量重命名助手"));
+    auto& loc = CLocalizationManager::GetInstance();
+    SetWindowText(CLocalizationManager::GetInstance().GetString(_T("DlgCaption"), _T("AiRenameDlg")));
 
     // Initialize preview list
     CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_AI_PREVIEW));
@@ -44,8 +46,8 @@ BOOL CBatchRenameAIDlg::OnInitDialog()
         CRect rcList;
         pList->GetClientRect(&rcList);
         int totalWidth = rcList.Width() - ::GetSystemMetrics(SM_CXVSCROLL) - 4;
-        pList->InsertColumn(0, _T("当前文件名"), LVCFMT_LEFT, totalWidth * 45 / 100);
-        pList->InsertColumn(1, _T("AI 建议新文件名"), LVCFMT_LEFT, totalWidth * 55 / 100);
+        pList->InsertColumn(0, loc.GetString(L"BatchRename", L"ColCurrentName"), LVCFMT_LEFT, totalWidth * 45 / 100);
+        pList->InsertColumn(1, loc.GetString(L"BatchRename", L"ColAiSuggestion"), LVCFMT_LEFT, totalWidth * 55 / 100);
 
         // Immediately show current filenames in the first column
         for (size_t i = 0; i < m_files.size(); i++)
@@ -60,7 +62,7 @@ BOOL CBatchRenameAIDlg::OnInitDialog()
 
     // Show file count in status
     CString status;
-    status.Format(_T("已加载 %d 个文件，请在下方描述你的重命名需求。"), (int)m_files.size());
+    status.Format(loc.GetString(L"BatchRename", L"AiDlgStatus"), (int)m_files.size());
     ShowStatus(status);
 
     // Set focus to description edit
@@ -113,9 +115,11 @@ void CBatchRenameAIDlg::OnBnClickedAiSend()
     GetDlgItemText(IDC_AI_DESC, description);
     description.Trim();
 
+    auto& loc = CLocalizationManager::GetInstance();
+
     if (description.IsEmpty())
     {
-        MessageBox(_T("请输入重命名需求的描述。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(loc.GetString(L"BatchRename", L"AiDlgEnterDesc"), loc.GetString(L"Msg", L"Info"), MB_OK | MB_ICONINFORMATION);
         GetDlgItem(IDC_AI_DESC)->SetFocus();
         return;
     }
@@ -127,13 +131,13 @@ void CBatchRenameAIDlg::OnBnClickedAiSend()
 
     if (apiKey.IsEmpty())
     {
-        MessageBox(_T("请先在设置中配置 AI 密钥。"), _T("提示"), MB_OK | MB_ICONWARNING);
+        MessageBox(loc.GetString(L"Msg", L"ConfigApiKeyFirst"), loc.GetString(L"Msg", L"Info"), MB_OK | MB_ICONWARNING);
         return;
     }
 
     // Disable send button, show waiting status
     GetDlgItem(IDC_AI_SEND)->EnableWindow(FALSE);
-    ShowStatus(_T("正在等待 AI 响应..."));
+    ShowStatus(loc.GetString(L"BatchRename", L"AiDlgWaiting"));
 
     // Build system prompt
     CString systemPrompt = _T("You are a batch file renaming assistant. Given a list of CURRENT filenames and a user's natural language description, generate new filenames for each file.\n\n")
@@ -179,10 +183,12 @@ LRESULT CBatchRenameAIDlg::OnAiResponse(WPARAM wParam, LPARAM lParam)
 
     GetDlgItem(IDC_AI_SEND)->EnableWindow(TRUE);
 
+    auto& loc = CLocalizationManager::GetInstance();
+
     CString* pResult = reinterpret_cast<CString*>(lParam);
     if (!pResult)
     {
-        ShowStatus(_T("AI 响应为空。"), true);
+        ShowStatus(loc.GetString(L"BatchRename", L"AiDlgEmptyResponse"), true);
         return 0;
     }
 
@@ -192,9 +198,9 @@ LRESULT CBatchRenameAIDlg::OnAiResponse(WPARAM wParam, LPARAM lParam)
     if (wParam == 0)
     {
         // Error
-        CString errMsg = _T("AI 请求失败: ") + response;
+        CString errMsg = loc.GetString(L"Msg", L"AiAnalysisFailed") + response;
         ShowStatus(errMsg, true);
-        MessageBox(errMsg, _T("错误"), MB_OK | MB_ICONERROR);
+        MessageBox(errMsg, loc.GetString(L"Msg", L"Error"), MB_OK | MB_ICONERROR);
         return 0;
     }
 
@@ -209,7 +215,7 @@ LRESULT CBatchRenameAIDlg::OnAiResponse(WPARAM wParam, LPARAM lParam)
     RefreshPreview();
 
     CString status;
-    status.Format(_T("AI 已生成 %d 个重命名建议，满意则点击「应用」。"), (int)m_mappings.size());
+    status.Format(loc.GetString(L"BatchRename", L"AiDlgGenerated"), (int)m_mappings.size());
     ShowStatus(status);
 
     GetDlgItem(IDC_AI_APPLY)->EnableWindow(!m_mappings.empty());
@@ -222,6 +228,8 @@ bool CBatchRenameAIDlg::ParseAIResponse(const CString& response)
 {
     m_mappings.clear();
     m_reverseMappings.clear();
+
+    auto& loc = CLocalizationManager::GetInstance();
 
     // Try to extract JSON from the response
     // The AI might wrap JSON in markdown code blocks or add extra text
@@ -275,8 +283,8 @@ bool CBatchRenameAIDlg::ParseAIResponse(const CString& response)
 
     if (jsonStr.empty())
     {
-        ShowStatus(_T("AI 返回的内容中没有找到有效的 JSON 数据。"), true);
-        MessageBox(_T("AI 返回了无法解析的内容。请重试或调整描述。"), _T("解析错误"), MB_OK | MB_ICONERROR);
+        ShowStatus(loc.GetString(L"BatchRename", L"AiDlgNoJson"), true);
+        MessageBox(loc.GetString(L"BatchRename", L"AiDlgParseError"), loc.GetString(L"BatchRename", L"AiDlgParseErrorTitle"), MB_OK | MB_ICONERROR);
         return false;
     }
 
@@ -292,7 +300,7 @@ bool CBatchRenameAIDlg::ParseAIResponse(const CString& response)
 
         if (!j.contains("mappings") || !j["mappings"].is_array())
         {
-            ShowStatus(_T("AI 返回的 JSON 格式不正确（缺少 mappings 数组）。"), true);
+            ShowStatus(loc.GetString(L"BatchRename", L"AiDlgInvalidJson"), true);
             return false;
         }
 
@@ -385,9 +393,9 @@ bool CBatchRenameAIDlg::ParseAIResponse(const CString& response)
         if (m_mappings.empty())
         {
             CString msg;
-            msg.Format(_T("AI 没有生成有效的重命名映射。\n跳过了 %d 个无效/重复条目。"), skippedCount);
+            msg.Format(loc.GetString(L"BatchRename", L"AiDlgNoValidMapping"), skippedCount);
             if (illegalCount > 0)
-                msg.AppendFormat(_T("\n清理了 %d 个含非法字符的文件名。"), illegalCount);
+                msg.AppendFormat(loc.GetString(L"BatchRename", L"AiDlgCleanedIllegal"), illegalCount);
             ShowStatus(msg, true);
             return false;
         }
@@ -396,22 +404,22 @@ bool CBatchRenameAIDlg::ParseAIResponse(const CString& response)
         CString warnMsg;
         if (skippedCount > 0 || illegalCount > 0 || dupCount > 0)
         {
-            warnMsg = _T("注意：");
+            warnMsg = loc.GetString(L"BatchRename", L"AiDlgWarning");
             if (skippedCount > 0)
-                warnMsg.AppendFormat(_T("\n- %d 个条目被跳过（文件不存在或名称未变更）"), skippedCount);
+                warnMsg.AppendFormat(loc.GetString(L"BatchRename", L"AiDlgSkipped"), skippedCount);
             if (illegalCount > 0)
-                warnMsg.AppendFormat(_T("\n- %d 个文件名包含非法字符，已自动清理"), illegalCount);
+                warnMsg.AppendFormat(loc.GetString(L"BatchRename", L"AiDlgIllegal"), illegalCount);
             if (dupCount > 0)
-                warnMsg.AppendFormat(_T("\n- %d 个重名冲突，已自动添加后缀"), dupCount);
-            MessageBox(warnMsg, _T("处理说明"), MB_OK | MB_ICONINFORMATION);
+                warnMsg.AppendFormat(loc.GetString(L"BatchRename", L"AiDlgDupFixed"), dupCount);
+            MessageBox(warnMsg, loc.GetString(L"BatchRename", L"AiDlgProcessNote"), MB_OK | MB_ICONINFORMATION);
         }
     }
     catch (const std::exception& e)
     {
         CString errMsg;
-        errMsg.Format(_T("JSON 解析失败: %hs"), e.what());
+        errMsg.Format(loc.GetString(L"BatchRename", L"AiDlgJsonParseFail"), e.what());
         ShowStatus(errMsg, true);
-        MessageBox(errMsg, _T("解析错误"), MB_OK | MB_ICONERROR);
+        MessageBox(errMsg, loc.GetString(L"BatchRename", L"AiDlgParseErrorTitle"), MB_OK | MB_ICONERROR);
         return false;
     }
 
@@ -420,6 +428,8 @@ bool CBatchRenameAIDlg::ParseAIResponse(const CString& response)
 
 void CBatchRenameAIDlg::RefreshPreview()
 {
+    auto& loc = CLocalizationManager::GetInstance();
+
     CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_AI_PREVIEW));
     if (!pList) return;
 
@@ -437,15 +447,17 @@ void CBatchRenameAIDlg::RefreshPreview()
         if (it != nameToNew.end())
             pList->SetItemText(i, 1, it->second);
         else
-            pList->SetItemText(i, 1, _T("（保持不变）"));
+            pList->SetItemText(i, 1, loc.GetString(L"BatchRename", L"AiDlgUnchanged"));
     }
 }
 
 void CBatchRenameAIDlg::OnBnClickedAiApply()
 {
+    auto& loc = CLocalizationManager::GetInstance();
+
     if (!m_bAiDone || m_mappings.empty())
     {
-        MessageBox(_T("请先发送需求给 AI 并等待返回结果。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(loc.GetString(L"BatchRename", L"AiDlgSendFirst"), loc.GetString(L"Msg", L"Info"), MB_OK | MB_ICONINFORMATION);
         return;
     }
 
@@ -474,16 +486,16 @@ void CBatchRenameAIDlg::OnBnClickedAiApply()
             if (bConflict)
             {
                 CString msg;
-                msg.Format(_T("文件名「%s」与现有文件冲突，且该文件未被重命名。\n请调整描述后重试。"), (LPCTSTR)newName);
-                MessageBox(msg, _T("重名冲突"), MB_OK | MB_ICONWARNING);
+                msg.Format(loc.GetString(L"BatchRename", L"AiDlgConflict"), (LPCTSTR)newName);
+                MessageBox(msg, loc.GetString(L"BatchRename", L"AiDlgConflictTitle"), MB_OK | MB_ICONWARNING);
                 return;
             }
         }
         if (newNameSet.find(newName) != newNameSet.end())
         {
             CString msg;
-            msg.Format(_T("AI 生成了重复的文件名「%s」。\n请调整描述后重试。"), (LPCTSTR)newName);
-            MessageBox(msg, _T("重名冲突"), MB_OK | MB_ICONWARNING);
+            msg.Format(loc.GetString(L"BatchRename", L"AiDlgDuplicate"), (LPCTSTR)newName);
+            MessageBox(msg, loc.GetString(L"BatchRename", L"AiDlgConflictTitle"), MB_OK | MB_ICONWARNING);
             return;
         }
         newNameSet.insert(newName);

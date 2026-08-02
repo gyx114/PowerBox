@@ -26,6 +26,7 @@
 #include "GitCmdResultDlg.h"
 #include "ProcessScanDlg.h"
 #include "ConversationHistoryDlg.h"
+#include "LocalizationManager.h"
 #include "json.hpp"
 #include <TlHelp32.h>
 #include <Shellapi.h>
@@ -398,6 +399,10 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 {
 	CDialogEx::OnInitDialog();
 
+	// Load language setting
+	CString langId = AfxGetApp()->GetProfileString(_T("Settings"), _T("Language"), _T("zh-CN"));
+	CLocalizationManager::GetInstance().LoadLanguage(langId);
+
 	// Add "About..." menu item to system menu.
 	ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
 	ASSERT(IDM_ABOUTBOX < 0xF000);
@@ -466,11 +471,13 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 	CComboBox* pCombo = static_cast<CComboBox*>(GetDlgItem(IDC_COMBO1));
 	if (pCombo)
 	{
+		auto& loc = CLocalizationManager::GetInstance();
 		pCombo->ResetContent();
-		pCombo->AddString(_T("1分钟后重启"));
-		pCombo->AddString(_T("默认3分钟关机"));
-		pCombo->AddString(_T("设定时间关机"));
-		int idx = pCombo->FindStringExact(-1, _T("默认3分钟关机"));
+		pCombo->AddString(loc.GetString(_T("Shutdown"), _T("Restart1Min")));
+		pCombo->AddString(loc.GetString(_T("Shutdown"), _T("Shutdown3Min")));
+		pCombo->AddString(loc.GetString(_T("Shutdown"), _T("CustomTime")));
+		CString defaultItem = loc.GetString(_T("Shutdown"), _T("Shutdown3Min"));
+		int idx = pCombo->FindStringExact(-1, defaultItem);
 		if (idx != CB_ERR) pCombo->SetCurSel(idx);
 		else pCombo->SetCurSel(0);
 		OnCbnSelchangeCombo1();
@@ -557,14 +564,14 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 		}
 		else
 		{
-			MessageBox(_T("无法以管理员权限重新启动。请手动以管理员身份运行程序。"), _T("提示"), MB_OK | MB_ICONWARNING);
+			MessageBox(CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("NeedAdminRestart")), CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("Warning")), MB_OK | MB_ICONWARNING);
 		}
 	}
 
 	// Global hotkey
 	CString strTitle;
 	GetWindowText(strTitle);
-	strTitle += _T("(ctrl+alt+空格唤起此窗口)");
+	strTitle += CLocalizationManager::GetInstance().GetString(_T("MainDlg"), _T("WindowTitleSuffix"));
 	SetWindowText(strTitle);
 	RegisterHotKey(m_hWnd, 1001, MOD_CONTROL | MOD_ALT, VK_SPACE);
 
@@ -595,6 +602,7 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 	}
 
 	// Global hotkey
+	TranslateUI();
 	return TRUE;
 }
 
@@ -605,9 +613,10 @@ void CMFCApplication1Dlg::InitQuickTab()
     CTabCtrl* pTab = static_cast<CTabCtrl*>(GetDlgItem(IDC_TAB_QUICK));
     if (!pTab) return;
 
-    pTab->InsertItem(0, _T("常用"));
-    pTab->InsertItem(1, _T("系统"));
-    pTab->InsertItem(2, _T("工具"));
+    auto& loc = CLocalizationManager::GetInstance();
+    pTab->InsertItem(0, loc.GetString(_T("MainDlg"), _T("QuickTab1")));
+    pTab->InsertItem(1, loc.GetString(_T("MainDlg"), _T("QuickTab2")));
+    pTab->InsertItem(2, loc.GetString(_T("MainDlg"), _T("QuickTab3")));
 
     pTab->SetCurSel(0);
 }
@@ -828,6 +837,22 @@ BOOL CMFCApplication1Dlg::PreTranslateMessage(MSG* pMsg)
 
     if (pMsg->message == WM_KEYDOWN)
     {
+        // Delete: End selected process
+        if (pMsg->wParam == VK_DELETE)
+        {
+            CWnd* pFocus = CWnd::FromHandle(::GetFocus());
+            if (pFocus)
+            {
+                int nID = pFocus->GetDlgCtrlID();
+                // Only handle Delete in process list (IDC_LIST1)
+                if (nID == IDC_LIST1)
+                {
+                    OnKillProcess();
+                    return TRUE;
+                }
+            }
+        }
+
         // F5: Refresh current tab list
         if (pMsg->wParam == VK_F5)
         {
@@ -1003,6 +1028,7 @@ afx_msg LRESULT CMFCApplication1Dlg::OnRefreshStartupsDone(WPARAM wParam, LPARAM
 
 void CMFCApplication1Dlg::OnContextMenu(CWnd* pWnd, CPoint point)
 {
+    auto& loc = CLocalizationManager::GetInstance();
     CListCtrl* pList2 = (CListCtrl*)GetDlgItem(IDC_LIST2);
 
     HWND hClicked = pWnd ? pWnd->GetSafeHwnd() : ::WindowFromPoint(point);
@@ -1017,11 +1043,11 @@ void CMFCApplication1Dlg::OnContextMenu(CWnd* pWnd, CPoint point)
         CMenu menu;
         menu.CreatePopupMenu();
         // Add and delete commands
-        menu.AppendMenu(MF_STRING, 32772, _T("添加启动项"));
+        menu.AppendMenu(MF_STRING, 32772, loc.GetString(_T("Menu"), _T("AddStartup")));
         if (nSel != -1)
         {
-            menu.AppendMenu(MF_STRING, 32773, _T("删除启动项"));
-            menu.AppendMenu(MF_STRING, 32806, _T("复制路径"));
+            menu.AppendMenu(MF_STRING, 32773, loc.GetString(_T("Menu"), _T("DeleteStartup")));
+            menu.AppendMenu(MF_STRING, 32806, loc.GetString(_T("Menu"), _T("CopyPath")));
         }
 
         menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON, point.x, point.y, this);
@@ -1038,7 +1064,7 @@ void CMFCApplication1Dlg::OnContextMenu(CWnd* pWnd, CPoint point)
         {
             CMenu menu;
             menu.CreatePopupMenu();
-            menu.AppendMenu(MF_STRING, 40002, _T("复制值"));
+            menu.AppendMenu(MF_STRING, 40002, loc.GetString(_T("Menu"), _T("CopyValue")));
             int cmd = menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_RETURNCMD, point.x, point.y, this);
             if (cmd == 40002)
             {
@@ -1057,8 +1083,8 @@ void CMFCApplication1Dlg::OnContextMenu(CWnd* pWnd, CPoint point)
         {
             CMenu menu;
             menu.CreatePopupMenu();
-            menu.AppendMenu(MF_STRING, 32805, _T("取消置顶"));
-            menu.AppendMenu(MF_STRING, 32807, _T("删除"));
+            menu.AppendMenu(MF_STRING, 32805, loc.GetString(_T("Menu"), _T("Untopmost")));
+            menu.AppendMenu(MF_STRING, 32807, loc.GetString(_T("Menu"), _T("Delete")));
             menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON, point.x, point.y, this);
         }
         return;
@@ -1081,10 +1107,10 @@ void CMFCApplication1Dlg::OnContextMenu(CWnd* pWnd, CPoint point)
                 CMenu menu;
                 menu.CreatePopupMenu();
                 if (bAlreadyTopmost)
-                    menu.AppendMenu(MF_STRING, 32810, _T("取消置顶"));
+                    menu.AppendMenu(MF_STRING, 32810, loc.GetString(_T("Menu"), _T("Untopmost")));
                 else
-                    menu.AppendMenu(MF_STRING, 32809, _T("置顶"));
-                menu.AppendMenu(MF_STRING, 32808, _T("删除"));
+                    menu.AppendMenu(MF_STRING, 32809, loc.GetString(_T("Menu"), _T("Topmost")));
+                menu.AppendMenu(MF_STRING, 32808, loc.GetString(_T("Menu"), _T("Delete")));
                 menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON, point.x, point.y, this);
             }
         }
@@ -1137,7 +1163,8 @@ void CMFCApplication1Dlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScroll
             int pos = pSlider2->GetPos();
             int percent = (pos * 100) / 255;
             CString label;
-            label.Format(_T("透明度: %d%%"), percent);
+            auto& loc = CLocalizationManager::GetInstance();
+            label.Format(loc.GetString(_T("WindowTab"), _T("TransparencyLabel")), percent);
             SetDlgItemText(IDC_STATIC18, label);
 
             if (m_hSelectedWnd && IsValidWindow(m_hSelectedWnd))
@@ -1230,10 +1257,11 @@ afx_msg LRESULT CMFCApplication1Dlg::OnAutoClickStopped(WPARAM wParam, LPARAM lP
     // Tray bubble notification (only send if tray is initialized)
     if (m_bTrayVisible && m_nid.hWnd != NULL)
     {
+        auto& loc = CLocalizationManager::GetInstance();
         m_nid.uFlags = NIF_INFO;
         m_nid.dwInfoFlags = NIIF_INFO;
-        _tcscpy_s(m_nid.szInfoTitle, _T("连点器"));
-        _tcscpy_s(m_nid.szInfo, _T("连点已停止"));
+        _tcscpy_s(m_nid.szInfoTitle, loc.GetString(_T("AutoClicker"), _T("StoppedTitle")));
+        _tcscpy_s(m_nid.szInfo, loc.GetString(_T("AutoClicker"), _T("StoppedMsg")));
         Shell_NotifyIcon(NIM_MODIFY, &m_nid);
     }
 
@@ -1505,8 +1533,454 @@ void CMFCApplication1Dlg::InitAIControls()
     if (pStop) pStop->EnableWindow(FALSE);
 }
 
+// Translate menu items by command ID (recursive, also handles submenu popup headers)
+// Popup menu header translations are done in TranslateUI() where CWnd::GetMenu() is available
+static void TranslateMenuItemsOnly(CMenu* pMenu, const CLocalizationManager& loc)
+{
+    if (!pMenu) return;
+
+    static const std::map<UINT, LPCTSTR> cmdMap = {
+        {ID_FILE_SETTINGS, _T("Settings")},
+        {ID_FILE_EXIT, _T("Exit")},
+        {ID_VIEW_PROCESS, _T("ViewProcess")},
+        {ID_VIEW_STARTUP, _T("ViewStartup")},
+        {ID_VIEW_CLIPBOARD, _T("ViewClipboard")},
+        {ID_VIEW_WINDOW, _T("ViewWindow")},
+        {ID_VIEW_FILE, _T("ViewFile")},
+        {ID_VIEW_GIT, _T("ViewGit")},
+        {ID_TOOLS_WECHAT, _T("OpenWeChat")},
+        {ID_TOOLS_QQ, _T("OpenQQ")},
+        {ID_TOOLS_VSCODE, _T("OpenVSCode")},
+        {ID_TOOLS_VS, _T("OpenVS")},
+        {ID_TOOLS_BILIBILI, _T("OpenBilibili")},
+        {ID_TOOLS_STUDY, _T("OpenStudy")},
+        {ID_TOOLS_DOWNLOAD, _T("OpenDownload")},
+        {ID_TOOLS_POWERSHELL, _T("OpenPowerShell")},
+        {ID_TOOLS_WSL, _T("OpenWSL")},
+        {ID_TOOLS_GITBASH, _T("OpenGitBash")},
+        {ID_WINDOW_LOCATE, _T("WindowLocate")},
+        {ID_WINDOW_UNTOPMOST, _T("WindowUntopmost")},
+        {ID_WINDOW_CLOSE, _T("WindowClose")},
+        {ID_TOOLS_MARKDOWN, _T("ToolsMarkdown")},
+        {ID_TOOLS_ENCODING, _T("ToolsEncoding")},
+        {ID_TOOLS_QRCODE, _T("ToolsQRCode")},
+        {ID_TOOLS_SCREENSHOT_OCR, _T("ToolsScreenshotOCR")},
+        {ID_TOOLS_BATCH_RENAME, _T("ToolsBatchRename")},
+        {ID_TOOLS_CONTEXT_MENU, _T("ToolsContextMenu")},
+        {ID_TOOLS_ENVVAR, _T("ToolsEnvVar")},
+        {ID_TOOLS_FILELOCK, _T("ToolsFileLock")},
+        {ID_TOOLS_STICKY_NOTE, _T("ToolsStickyNote")},
+        {ID_HELP_ABOUT, _T("HelpAbout")},
+        {ID_HELP_SHORTCUTS, _T("HelpShortcuts")},
+        {ID_HELP_REGEX_GUIDE, _T("HelpRegex")},
+        {ID_HELP_GITHUB, _T("HelpGitHub")},
+    };
+
+    // Map submenu content to popup header translation keys
+    // Identifies a POPUP submenu by the first recognizable command ID inside it
+    static const std::map<UINT, LPCTSTR> submenuPopupKeys = {
+        {ID_TOOLS_MARKDOWN, _T("ToolsText")},
+        {ID_TOOLS_QRCODE, _T("ToolsImage")},
+        {ID_TOOLS_BATCH_RENAME, _T("ToolsFile")},
+        {ID_TOOLS_CONTEXT_MENU, _T("ToolsSystem")},
+    };
+
+    int count = pMenu->GetMenuItemCount();
+    for (int i = 0; i < count; i++)
+    {
+        CMenu* pSub = pMenu->GetSubMenu(i);
+        if (pSub)
+        {
+            // Translate submenu popup header (POPUP items have no command ID)
+            UINT id = pMenu->GetMenuItemID(i);
+            if (id == (UINT)-1)
+            {
+                // Identify the submenu by scanning its content for a known command ID
+                for (int j = 0; j < pSub->GetMenuItemCount(); j++)
+                {
+                    UINT subId = pSub->GetMenuItemID(j);
+                    auto it = submenuPopupKeys.find(subId);
+                    if (it != submenuPopupKeys.end())
+                    {
+                        CString text = loc.GetString(_T("Menu"), it->second);
+                        if (!text.IsEmpty())
+                            pMenu->ModifyMenu(i, MF_BYPOSITION, (UINT)-1, text);
+                        break;
+                    }
+                }
+            }
+            TranslateMenuItemsOnly(pSub, loc);
+        }
+        else
+        {
+            UINT id = pMenu->GetMenuItemID(i);
+            if (id != 0 && id != (UINT)-1)
+            {
+                auto it = cmdMap.find(id);
+                if (it != cmdMap.end())
+                {
+                    CString text = loc.GetString(_T("Menu"), it->second);
+                    pMenu->ModifyMenu(id, MF_BYCOMMAND, id, text);
+                }
+            }
+        }
+    }
+}
+
+void CMFCApplication1Dlg::TranslateUI()
+{
+    auto& loc = CLocalizationManager::GetInstance();
+
+    // Window title
+    SetWindowText(loc.GetString(_T("DlgCaption"), _T("MainDlg")));
+
+    // Translate menu
+    CMenu* pMenu = GetMenu();
+    if (pMenu)
+    {
+        // Translate popup menu headers
+        static const LPCTSTR popupKeys[] = {
+            _T("File"), _T("View"), _T("Open"), _T("Window"),
+            _T("Tools"), _T("Help")
+        };
+        int count = pMenu->GetMenuItemCount();
+        for (int i = 0; i < count && i < _countof(popupKeys); i++)
+        {
+            CString text = loc.GetString(_T("Menu"), popupKeys[i]);
+            if (!text.IsEmpty())
+                pMenu->ModifyMenu(i, MF_BYPOSITION, pMenu->GetMenuItemID(i), text);
+        }
+        // Translate menu items by command ID
+        for (int i = 0; i < count; i++)
+        {
+            CMenu* pSub = pMenu->GetSubMenu(i);
+            if (pSub)
+                TranslateMenuItemsOnly(pSub, loc);
+        }
+    }
+
+    // ===== Process tab =====
+    SetDlgItemText(IDC_CHECK_PROCESS_REGEX, loc.GetString(_T("MainCtrl"), _T("BtnRegex")));
+    SetDlgItemText(IDC_BTN_PROCESS_AI_SCAN, loc.GetString(_T("MainCtrl"), _T("BtnAiScan")));
+    SetDlgItemText(IDC_BTN_PROCESS_REGEX_HELP, loc.GetString(_T("MainCtrl"), _T("BtnRegexHelp")));
+
+    // ===== Window tab =====
+    SetDlgItemText(IDC_STATIC12, loc.GetString(_T("MainCtrl"), _T("LabelLocateHint")));
+    SetDlgItemText(IDC_BUTTON19, loc.GetString(_T("MainCtrl"), _T("BtnLocateWindow")));
+    SetDlgItemText(IDC_BUTTON15, loc.GetString(_T("WindowTab"), _T("ForceKillBtn")));
+    SetDlgItemText(IDC_BUTTON16, loc.GetString(_T("WindowTab"), _T("ScreenshotBtn")));
+
+    // ===== File tab =====
+    SetDlgItemText(IDC_STATIC_PATH, loc.GetString(_T("MainCtrl"), _T("DropHint")));
+    SetDlgItemText(IDC_BUTTON3, loc.GetString(_T("MainCtrl"), _T("BtnGenerate")));
+    SetDlgItemText(IDC_BUTTON23, loc.GetString(_T("MainCtrl"), _T("BtnModify")));
+    SetDlgItemText(IDC_BUTTON24, loc.GetString(_T("MainCtrl"), _T("BtnDelete")));
+    SetDlgItemText(IDC_BUTTON25, loc.GetString(_T("MainCtrl"), _T("BtnCopyTo")));
+    SetDlgItemText(IDC_BUTTON26, loc.GetString(_T("MainCtrl"), _T("BtnMoveTo")));
+    // Group boxes (set via SetWindowText on the control)
+    GetDlgItem(IDC_STATIC7)->SetWindowText(loc.GetString(_T("MainCtrl"), _T("GroupGenerate")));
+    GetDlgItem(IDC_STATIC13)->SetWindowText(loc.GetString(_T("MainCtrl"), _T("GroupRename")));
+    GetDlgItem(IDC_STATIC14)->SetWindowText(loc.GetString(_T("MainCtrl"), _T("GroupCopyMove")));
+
+    // ===== Checkboxes (bottom area) =====
+    SetDlgItemText(IDC_CHECK1, loc.GetString(_T("MainCtrl"), _T("CheckAutoStart")));
+    SetDlgItemText(IDC_CHECK3, loc.GetString(_T("MainCtrl"), _T("CheckTopmost")));
+    SetDlgItemText(IDC_CHECK4, loc.GetString(_T("MainCtrl"), _T("CheckAutoClicker")));
+    SetDlgItemText(IDC_CHECK2, loc.GetString(_T("MainCtrl"), _T("CheckMinimizeToTray")));
+    SetDlgItemText(IDC_CHECK5, loc.GetString(_T("MainCtrl"), _T("CheckPreventLock")));
+
+    // ===== Git tab =====
+    SetDlgItemText(IDC_STATIC_GIT_PATH, loc.GetString(_T("MainCtrl"), _T("GitDropHint")));
+    SetDlgItemText(IDC_BUTTON30, loc.GetString(_T("GitTab"), _T("OpenGitHub")));
+    SetDlgItemText(IDC_BUTTON32, loc.GetString(_T("GitTab"), _T("ClearPath")));
+    SetDlgItemText(IDC_BUTTON31, loc.GetString(_T("GitTab"), _T("GitBash")));
+    SetDlgItemText(IDC_BTN_GIT_CMD_WINDOW, loc.GetString(_T("GitTab"), _T("CmdWindow")));
+    SetDlgItemText(IDC_BTN_GIT_LOCATE, loc.GetString(_T("GitTab"), _T("Locate")));
+
+    // ===== Quick tab 1 - Favorites =====
+    SetDlgItemText(IDC_BUTTON4, loc.GetString(_T("MainCtrl"), _T("BtnWeChat")));
+    SetDlgItemText(IDC_BUTTON5, loc.GetString(_T("MainCtrl"), _T("BtnQQ")));
+    SetDlgItemText(IDC_BUTTON8, loc.GetString(_T("MainCtrl"), _T("BtnBilibili")));
+    SetDlgItemText(IDC_BUTTON22, loc.GetString(_T("MainCtrl"), _T("BtnYuanbao")));
+    SetDlgItemText(IDC_BUTTON7, loc.GetString(_T("MainCtrl"), _T("BtnVS")));
+    SetDlgItemText(IDC_BUTTON6, loc.GetString(_T("MainCtrl"), _T("BtnVSCode")));
+    SetDlgItemText(IDC_BUTTON9, loc.GetString(_T("MainCtrl"), _T("BtnStudy")));
+    SetDlgItemText(IDC_BUTTON11, loc.GetString(_T("MainCtrl"), _T("BtnMOOC")));
+    SetDlgItemText(IDC_BUTTON21, loc.GetString(_T("MainCtrl"), _T("BtnDownloads")));
+    SetDlgItemText(IDC_BUTTON10, loc.GetString(_T("MainCtrl"), _T("BtnSDUCS")));
+    SetDlgItemText(IDC_BUTTON29, loc.GetString(_T("MainCtrl"), _T("BtnLeetCode")));
+    SetDlgItemText(IDC_BUTTON33, loc.GetString(_T("MainCtrl"), _T("BtnNextTrack")));
+
+    // ===== Quick tab 2 - System =====
+    SetDlgItemText(IDC_STATIC_QUICK_SHUTDOWN, loc.GetString(_T("MainCtrl"), _T("LabelShutdown")));
+    SetDlgItemText(IDC_BUTTON1, loc.GetString(_T("MainCtrl"), _T("BtnExecute")));
+    SetDlgItemText(IDC_BUTTON2, loc.GetString(_T("MainCtrl"), _T("BtnCancelShutdown")));
+    SetDlgItemText(IDC_STATIC_QUICK_HOUR, loc.GetString(_T("MainCtrl"), _T("LabelHourUnit")));
+    SetDlgItemText(IDC_STATIC_QUICK_MIN, loc.GetString(_T("MainCtrl"), _T("LabelMinuteUnit")));
+    SetDlgItemText(IDC_STATIC_QUICK_SEC, loc.GetString(_T("MainCtrl"), _T("LabelSecondUnit")));
+    SetDlgItemText(IDC_STATIC_QUICK_VOLUME, loc.GetString(_T("MainCtrl"), _T("LabelVolume")));
+    SetDlgItemText(IDC_BUTTON12, loc.GetString(_T("MainCtrl"), _T("BtnApply")));
+    SetDlgItemText(IDC_BUTTON13, loc.GetString(_T("MainCtrl"), _T("BtnMute")));
+    SetDlgItemText(IDC_STATIC_QUICK_SYSMGMT, loc.GetString(_T("MainCtrl"), _T("LabelSystem")));
+    SetDlgItemText(IDC_BUTTON20, loc.GetString(_T("MainCtrl"), _T("BtnTaskManager")));
+
+    // ===== Quick tab 3 - Tools =====
+    SetDlgItemText(IDC_STATIC_QUICK_CMDLINE, loc.GetString(_T("MainCtrl"), _T("LabelCmdLine")));
+    SetDlgItemText(IDC_STATIC_QUICK_RUNCMD, loc.GetString(_T("MainCtrl"), _T("LabelRunCmd")));
+    SetDlgItemText(IDC_BUTTON17, loc.GetString(_T("MainCtrl"), _T("BtnRun")));
+    SetDlgItemText(IDC_BUTTON18, loc.GetString(_T("MainCtrl"), _T("BtnClear")));
+
+    // ===== AI assistant section =====
+    SetDlgItemText(IDC_STATIC_AI_LABEL, loc.GetString(_T("Settings"), _T("TabAI")));
+    SetDlgItemText(IDC_BUTTON_AI_SEND, loc.GetString(_T("MainCtrl"), _T("BtnSend")));
+    SetDlgItemText(IDC_BUTTON_AI_STOP, loc.GetString(_T("MainCtrl"), _T("BtnStop")));
+    SetDlgItemText(IDC_BUTTON_AI_CLEAR, loc.GetString(_T("MainCtrl"), _T("BtnNewChat")));
+    SetDlgItemText(IDC_BUTTON_AI_HISTORY, loc.GetString(_T("MainCtrl"), _T("BtnHistory")));
+}
+
 CString CMFCApplication1Dlg::BuildSystemPrompt()
 {
+    CString lang = CLocalizationManager::GetInstance().GetCurrentLanguage();
+    if (lang == _T("en-US"))
+    {
+        return _T("You are an AI assistant integrated into a Windows MFC toolbox application. ")
+        _T("Your role is to help users understand and use this toolbox, troubleshoot issues, and answer related questions.\n\n")
+
+        _T("=== Application Overview ===\n\n")
+        _T("This is a multi-functional Windows toolbox with 6 left-side tabs, ")
+        _T("3 right-side quick-action sub-tabs (Favorites/System/Tools), and 9 tools in the menu bar.\n")
+        _T("The application runs with administrator privileges and supports minimizing to system tray.\n\n")
+
+        _T("=== Left-Side Tabs (6 tabs, switch via Alt+1~6 or View menu) ===\n\n")
+
+        _T("1. Process Management (Tab 1)\n")
+        _T("   - Shows all running processes: name, PID, full path, memory usage (KB), CPU usage (%)\n")
+        _T("   - Click column headers to sort ascending/descending (arrow indicator); CPU% supports sorting\n")
+        _T("   - Filter box: enter keywords to filter by name and path (CPU% is not searchable); check \"Regex\" to enable regex filtering\n")
+        _T("   - Right-click process: \"End Process\" (WM_CLOSE first, then TerminateProcess), \"End All Same Name\", \"Locate\" (open exe directory in Explorer), \"AI Analyze\" (analyze process security via AI)\n")
+        _T("   - \"AI Scan\" button: scans all processes via AI, opens a new window listing suspicious/unnecessary processes with risk levels and AI analysis results\n")
+        _T("   - AI Scan window supports: end process, locate, batch end all, right-click menu (end/locate/copy path)\n")
+        _T("   - AI analysis checks: process name, path, digital signature status, determines if malicious/unnecessary\n")
+        _T("   - F5 to refresh process list\n")
+        _T("   - \"Help\" button opens regex reference guide\n\n")
+
+        _T("2. Startup Management (Tab 2)\n")
+        _T("   - Shows current user startup entries (from HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run)\n")
+        _T("   - Displays startup name and command line\n")
+        _T("   - Right-click menu: \"Add Startup Entry\" (select .exe via file dialog), \"Remove Startup Entry\", \"Copy Path\"\n")
+        _T("   - Double-click to copy startup command line\n")
+        _T("   - F5 to refresh startup list\n\n")
+
+        _T("3. Clipboard (Tab 3)\n")
+        _T("   - Real-time clipboard monitoring: automatically records last 10 copied text items\n")
+        _T("   - Double-click any entry to re-copy to clipboard\n")
+        _T("   - Consecutive duplicate entries are automatically deduplicated\n\n")
+
+        _T("4. Window Tools (Tab 4)\n")
+        _T("   - \"Locate Window\" button (or Ctrl+Alt+D): click target window to capture its details\n")
+        _T("   - Window details list shows: handle, title, process name, PID, executable path, position/size\n")
+        _T("   - Topmost list: manage topmost windows; right-click to un-topmost or delete\n")
+        _T("   - History list: previously located windows; right-click to topmost/un-topmost or delete\n")
+        _T("   - Click items in topmost or history list to load their info in the details list\n")
+        _T("   - Transparency slider: adjust selected window opacity (10%-100%)\n")
+        _T("   - \"Force Kill\": terminate the process of the selected window\n")
+        _T("   - \"Capture to Clipboard\": capture selected window as PNG, save to configured directory and clipboard\n")
+        _T("   - \"Window Topmost\" checkbox: keep the toolbox itself always on top\n")
+        _T("   - Popup menu when locating: locate, cancel all topmost, close window\n\n")
+
+        _T("5. File Management (Tab 5)\n")
+        _T("   - Drop files to show their path; auto-fills filename and extension for renaming\n")
+        _T("   - Drop folders to open batch rename dialog\n")
+        _T("   - \"Generate\" button: creates a copy in the same directory (copy name from edit box, default configurable in File > Settings)\n")
+        _T("   - \"Modify\" button: validates filename (no illegal characters), checks target doesn't exist, then renames\n")
+        _T("   - \"Delete\": moves file to recycle bin (not permanent deletion)\n")
+        _T("   - \"Copy to\"/\"Move to\": select target folder, then copy or move the dropped file\n\n")
+
+        _T("6. Git Toolbox (Tab 6)\n")
+        _T("   - Preloaded with 20 common Git commands (init, add, commit, push, pull, clone, status, branch, checkout, merge, log, restore, etc.)\n")
+        _T("   - Drop files/folders to set Git working directory\n")
+        _T("   - Shows current working directory and repo status (branch name or 'Not a Git repo')\n")
+        _T("   - \"Locate\" button: browse for a folder to use as Git working directory\n")
+        _T("   - \"Command Window\" button: opens Git command result dialog (AI command generation + command list + execution output)\n")
+        _T("   - \"Open GitHub\": opens https://github.com/ in default browser\n")
+        _T("   - \"Clear Path\": clears Git working directory\n")
+        _T("   - \"Git Bash\" button: launches Git Bash in the current working directory\n")
+        _T("   - Double-click a command in the list to copy to clipboard\n")
+        _T("   - Right-click command: execute/copy/edit/delete\n")
+        _T("   - Execute: runs commands via bash.exe (derived from GitBashPath config) in a modeless result window\n")
+        _T("   - Git Command Result dialog: modeless window with AI command generation, temporary command list, and execution output\n")
+        _T("   - Command list in result dialog is temporary — commands are not saved to config\n")
+        _T("   - Commands can be configured in config.ini under [GitCommands] section (Cmd1~Cmd99, format: 'description|command')\n")
+        _T("   - When Git working directory is set, AI command generation automatically injects real-time git status (branch, status, log, remote, config)\n\n")
+
+        _T("=== Right-Side Quick Actions (3 sub-tabs: Favorites / System / Tools) ===\n\n")
+
+        _T("\"Favorites\" tab:\n")
+        _T("   - Quick launch buttons: WeChat, QQ, Bilibili, Yuanbao, VS, VSCode\n")
+        _T("   - Open folders: Study, Downloads\n")
+        _T("   - Open URLs: MOOC, SDUCS, LeetCode, GitHub\n")
+        _T("   - \"Next Track\" button: sends ']' key to Bilibili player window, or global media next track\n\n")
+
+        _T("\"System\" tab:\n")
+        _T("   - Shutdown/Restart: dropdown with \"Restart in 1 Minute\", \"Shutdown in 3 Minutes\", \"Shutdown at Set Time\" (set hours/min/sec)\n")
+        _T("   - \"Execute\" button triggers shutdown/restart; \"Cancel Shutdown\" button aborts the operation\n")
+        _T("   - Volume: slider (0-100), input box (Enter to apply), \"Apply\" button, \"Mute\" (0%)\n")
+        _T("   - \"Task Manager\" button opens Windows Task Manager\n\n")
+
+        _T("\"Tools\" tab:\n")
+        _T("   - \"PowerShell\": select normal or admin mode\n")
+        _T("   - \"WSL\": launches WSL terminal\n")
+        _T("   - Run command input: enter exe path, URL, or cmd command, press Enter to execute\n")
+        _T("   - \"Clear\" button clears the command input\n\n")
+
+        _T("=== Menu Bar: Tools(&T) (9 tools, divided into 4 sub-menus + 1 direct item) ===\n\n")
+        _T("Menu hierarchy: Tools > Text Tools / Image Tools / File Tools / System Tools / Sticky Note\n\n")
+
+        _T("Text Tools(&T) submenu:\n")
+        _T("  1. Markdown Preview\n")
+        _T("     - Left editing panel + right rendered preview with draggable splitter\n")
+        _T("     - \"Open\" button or drop .md files\n")
+        _T("     - Real-time preview, updates as you type\n")
+        _T("     - Supports: headings, bold, italic, inline code, code blocks, links, blockquotes, strikethrough, lists, tables, horizontal rules\n")
+        _T("     - GitHub-style CSS rendering; max file size 10MB\n\n")
+        _T("  2. Encoding Converter\n")
+        _T("     - \"Open\" or drop text files (txt, md, csv, log, etc.)\n")
+        _T("     - Auto-detect source encoding (BOM check → UTF-8 validation → GBK fallback)\n")
+        _T("     - Left panel shows source encoding interpretation; right panel shows target encoding interpretation\n")
+        _T("     - Supported encodings: UTF-8, UTF-8 BOM, UTF-16LE, UTF-16LE BOM, UTF-16BE, GBK, Big5, Shift-JIS, Latin-1\n")
+        _T("     - \"Save As\" exports with target encoding; \"Overwrite\" replaces original file (moves original to recycle bin first)\n")
+        _T("     - Max file size 10MB\n\n")
+
+        _T("Image Tools(&I) submenu:\n")
+        _T("  3. QR Code Generator\n")
+        _T("     - Enter text or URL, click \"Generate QR Code\" to create a QR code image\n")
+        _T("     - \"Copy to Clipboard\" copies the QR code image; \"Save\" exports as PNG or BMP\n")
+        _T("     - QR code has 4px white margin\n\n")
+        _T("  4. Screenshot OCR\n")
+        _T("     - Click \"Start Capture\" to hide the window, then drag to select a screen region for capture\n")
+        _T("     - Automatically runs OCR on the captured region (small images are 2x upscaled for accuracy)\n")
+        _T("     - Language dropdown: Chinese, English, Japanese, Korean\n")
+        _T("     - \"Translate >>\" button translates OCR results via MyMemory API (free, 10-second timeout)\n")
+        _T("     - \"Copy Result\" copies translated text (or original OCR text if no translation)\n")
+        _T("     - Press ESC to cancel capture\n\n")
+
+        _T("File Tools(&F) submenu:\n")
+        _T("  5. Folder Processing\n")
+        _T("     - Tab 1 \"Folder Operations\": list subfolders, rename/move/delete selected folders\n")
+        _T("     - Tab 2 \"Batch File Processing\":\n")
+        _T("       * Rename rules: add prefix/suffix, find & replace (supports regex)\n")
+        _T("       * Auto numbering: start number, before or after extension\n")
+        _T("       * Match delete: regex-based file deletion to recycle bin, supports invert selection\n")
+        _T("       * Ignore rules: by extension or filename pattern (regex), manually ignore/unignore\n")
+        _T("       * Track rules: only process tracked files (overrides ignore settings)\n")
+        _T("     - File list supports drag-to-reorder with blue insertion line\n")
+        _T("     - Right-click menu: ignore, track, mark for deletion, modify extension, move up/down, locate in Explorer\n")
+        _T("     - \"Preview\" shows rename results; \"Execute\" applies changes; \"Undo\" reverts last rename\n")
+        _T("     - \"Reset All\" clears all rules and marks; F5 refreshes file list\n")
+        _T("     - \"AI Assistant\" opens the AI batch rename helper, allowing natural language rename requests, AI generates filename mappings, can apply to batch file processing, supports stacking with other batch operations\n\n")
+
+        _T("System Tools(&S) submenu:\n")
+        _T("  6. Context Menu Manager\n")
+        _T("     - Scan and manage Windows context menu items\n")
+        _T("     - Scene dropdown: 28+ scenes (All, Files, Folders, Directory Background, Desktop, Drives, etc.)\n")
+        _T("     - 14 common extension presets (.jpg, .png, .txt, .pdf, etc.) + custom extension query\n")
+        _T("     - List shows: location, display name, type (Static/ShellEx), visibility, key name, command\n")
+        _T("     - Right-click: enable/disable items, custom name parsing, locate in registry\n")
+        _T("     - \"Folder Context Menu: Open with this Program\" checkbox: adds/removes this tool from folder context menu\n")
+        _T("     - \"Win11 Classic Menu (Shift+Right-click)\" checkbox: toggles Win11 old/new right-click menu style (requires Explorer restart)\n")
+        _T("     - \"Rebuild Dictionary\": queries ShellEx display names via COM and caches them\n")
+        _T("     - \"Dictionary Path\": configure custom dictionary folder; \"Open Dictionary\" opens it in Explorer\n")
+        _T("     - F5 to refresh; disabled items use LegacyDisable + ProgrammaticAccessOnly mechanism\n")
+        _T("     - Supports AI parsing for items not translated by the dictionary\n\n")
+        _T("  7. Environment Variable Manager\n")
+        _T("     - Top list: system variables; bottom list: user variables\n")
+        _T("     - Search box: real-time filtering of both lists\n")
+        _T("     - \"Add\": select system or user scope, enter variable name and value\n")
+        _T("     - \"Edit\" or double-click: PATH variable opens dedicated editor; other variables open simple input dialog\n")
+        _T("     - \"Delete\": removes selected variable (requires confirmation)\n")
+        _T("     - \"Export\": saves all variables to .txt or .env file\n")
+        _T("     - Right-click: edit, delete, copy name, copy value\n")
+        _T("     - PATH editor: displays entries as separate lines; supports add/delete/move up/move down\n")
+        _T("     - Auto-backup: automatically backs up current value to temp folder with timestamp before modification\n")
+        _T("     - F5 to refresh\n\n")
+        _T("  8. File Lock Viewer\n")
+        _T("     - Drop files to view which processes are locking them (uses Restart Manager API)\n")
+        _T("     - List shows: file path, process name, PID, process type, process path\n")
+        _T("     - \"End\" terminates the selected process; \"End All\" terminates all listed processes\n")
+        _T("     - \"Locate\" opens the process folder in Explorer\n")
+        _T("     - \"Refresh\" re-queries; \"Clear\" clears the list\n")
+        _T("     - Right-click for context menu\n")
+        _T("     - Confirmation dialog shown before terminating processes\n\n")
+
+        _T("Direct menu items (not in submenus):\n")
+        _T("  9. Sticky Note\n")
+        _T("     - Auto-starts on program launch, positioned at right 3/5 of screen\n")
+        _T("     - Initial state: title bar only; double-click title bar to expand\n")
+        _T("     - Expanded state: X button collapses to title bar; minimize button collapses to title bar\n")
+        _T("     - Collapsed state: X button exits; double-click title bar to expand\n")
+        _T("     - Right-click title bar: \"Exit Sticky Note\"\n")
+        _T("     - Content auto-saves to sticky_note.txt in the configured folder (UTF-8)\n")
+        _T("     - \"Browse\" button changes the save folder\n\n")
+
+        _T("=== Other Features ===\n\n")
+        _T("Located at the bottom-left:\n\n")
+        _T("   - Auto Clicker: check \"Auto Clicker\" to enable; press start key to start clicking, stop key to stop\n")
+        _T("     Configurable in Settings: interval (ms) and start/stop keys; shows speed adjustment window when enabled\n")
+        _T("   - Prevent Auto Lock: check \"Prevent Auto Lock\" to keep screen on (SetThreadExecutionState)\n")
+        _T("   - Auto Start: check \"Auto Start\" to add to registry Run key\n")
+        _T("   - \"Window Topmost\" checkbox: keep the toolbox always on top\n\n")
+
+        _T("Located at the top-right, near the close button:\n\n")
+        _T("   - \"Minimize to Tray\" checkbox: clicking X minimizes to system tray instead of closing\n\n")
+
+        _T("Located in the system tray:\n\n")
+        _T("   - System tray: double-click icon to restore window; right-click menu \"Show Window\" or \"Exit\"\n\n")
+
+        _T("=== Shortcuts ===\n\n")
+        _T("   - Ctrl+Alt+Space: show/hide main window (global hotkey)\n")
+        _T("   - Alt+1~6: switch to left-side tabs 1-6\n")
+        _T("   - Ctrl+Alt+D: start window locate mode\n")
+        _T("   - F5: refresh current tab's list (processes, startups, etc.)\n")
+        _T("   - Enter: apply in volume input box or execute in command input box\n\n")
+
+        _T("=== Configuration ===\n\n")
+        _T("   - File > Settings: configure all application paths (Bilibili, WeChat, QQ, VSCode, VS, Git Bash, Yuanbao), ")
+        _T("folder paths (Study, Downloads, Screenshot, Sticky Note), URLs (MOOC, SDUCS), ")
+        _T("auto-clicker interval and start/stop keys, AI vendor and API key\n")
+        _T("   - Config file: config.ini in the executable directory\n")
+        _T("   - AI vendor and API key can be configured in Settings > \"AI Assistant\" section\n\n")
+
+        _T("When answering questions:\n")
+        _T("   - Answer in the same language the user uses\n")
+        _T("   - If the user mixes languages, use the primary language of the question\n")
+        _T("   - Keep answers concise and direct, provide step-by-step guidance when needed\n")
+        _T("   - If unsure about a feature, suggest the user check the actual interface\n")
+        _T("   - If the user encounters an error, suggest checking the config.ini file and file permissions\n")
+        _T("   - Most operations in this application require administrator privileges\n")
+        _T("   - If the user requests executing system commands, managing files, managing processes, etc., you can return executable commands\n\n")
+
+        _T("=== Executable Command Protocol ===\n\n")
+        _T("When you need to return an executable command, use the following format:\n\n")
+        _T("```action\n")
+        _T("{\n")
+        _T("  \"command\": \"command to execute\",\n")
+        _T("  \"purpose\": \"purpose description\",\n")
+        _T("  \"risk\": \"low/medium/high\"\n")
+        _T("}\n")
+        _T("```\n\n")
+        _T("Risk level description:\n")
+        _T("- low: harmless operations (e.g., opening folders, displaying info)\n")
+        _T("- medium: operations with potential impact (e.g., modifying files, restarting processes)\n")
+        _T("- high: high-risk operations (e.g., deleting files, modifying registry, formatting disk)\n\n")
+        _T("Note: Commands containing keywords like del, format, reg delete, net user are automatically escalated to high risk.\n")
+        _T("High-risk commands require the user to type \"确认执行\" (Confirm Execute) to proceed.\n\n")
+        _T("Command execution feedback:\n")
+        _T("- After execution, stdout/stderr output is captured and displayed in the WebBrowser\n")
+        _T("- Output includes: command stdout, stderr, exit code\n")
+        _T("- For commands like echo, dir, ipconfig that produce output, users can see the results directly in the conversation\n")
+        _T("- Execution timeout is 30 seconds; the process will be terminated after timeout\n");
+    }
+
     return _T("你是一个集成在 Windows MFC 工具箱应用程序中的 AI 助手。")
         _T("你的职责是帮助用户理解和使用这个工具箱，排查问题，并回答相关问题。\n\n")
 
@@ -1896,7 +2370,7 @@ LRESULT CMFCApplication1Dlg::OnAiStreamDone(WPARAM wParam, LPARAM lParam)
 
 CString CMFCApplication1Dlg::BuildAiHtmlPage(const CString& bodyContent)
 {
-    return _T("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><style>")
+    return _T("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\"><style>")
         _T("body{font-family:Consolas,'Microsoft YaHei',sans-serif;font-size:18px;")
         _T("background:#1e1e1e;color:#d4d4d4;padding:8px;margin:0;line-height:1.5;}")
         _T("code{background:#2d2d2d;padding:1px 4px;border-radius:3px;font-family:Consolas,monospace;}")
@@ -2258,6 +2732,7 @@ void CMFCApplication1Dlg::OnBnClickedAiHistory()
 
 void CMFCApplication1Dlg::SaveCurrentConversation()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     if (m_aiHistory.empty()) return;
 
     CTime now = CTime::GetCurrentTime();
@@ -2299,7 +2774,7 @@ void CMFCApplication1Dlg::SaveCurrentConversation()
             {
                 m_strConvTitle = msg.second.Left(50);
                 m_strConvTitle.Trim();
-                if (m_strConvTitle.IsEmpty()) m_strConvTitle = _T("未命名对话");
+                if (m_strConvTitle.IsEmpty()) m_strConvTitle = loc.GetString(_T("ConvHistory"), _T("UnnamedTitle"));
                 break;
             }
         }
@@ -2501,8 +2976,9 @@ protected:
     BOOL OnInitDialog() override
     {
         CDialogEx::OnInitDialog();
-        SetWindowText(_T("高危操作警告"));
-        SetDlgItemText(IDC_INPUT_PROMPT, _T("此操作风险较高，请输入 \"确认执行\" 以继续："));
+        auto& loc = CLocalizationManager::GetInstance();
+        SetWindowText(loc.GetString(_T("Msg"), _T("HighRiskWarningTitle")));
+        SetDlgItemText(IDC_INPUT_PROMPT, loc.GetString(_T("Msg"), _T("HighRiskPrompt")));
         SetDlgItemText(IDC_INPUT_EDIT, _T(""));
         return TRUE;
     }
@@ -2519,6 +2995,7 @@ protected:
 // ============================================================================
 LRESULT CMFCApplication1Dlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam)
 {
+    auto& loc = CLocalizationManager::GetInstance();
     // lParam is a TCHAR* allocated by _tcsdup in HandleAppExecUrl
     TCHAR* pJsonStr = reinterpret_cast<TCHAR*>(lParam);
     if (!pJsonStr) return 0;
@@ -2538,7 +3015,7 @@ LRESULT CMFCApplication1Dlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam
     }
     catch (const nlohmann::json::parse_error&)
     {
-        MessageBox(_T("无法解析命令，JSON 格式无效。"), _T("错误"), MB_OK | MB_ICONERROR);
+        MessageBox(loc.GetString(_T("Msg"), _T("InvalidJsonCmd")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         return 0;
     }
 
@@ -2568,7 +3045,7 @@ LRESULT CMFCApplication1Dlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam
 
     // Build confirmation message
     CString msg;
-    msg.Format(_T("AI 请求执行以下命令：\n\n命令：%s\n\n用途：%s\n\n风险等级：%s"),
+    msg.Format(loc.GetString(_T("Msg"), _T("AiCmdConfirmFmt")),
         command.GetString(), purpose.GetString(), risk.GetString());
 
     // Confirm based on risk level
@@ -2581,22 +3058,22 @@ LRESULT CMFCApplication1Dlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam
         if (dlg.DoModal() == IDOK)
         {
             dlg.m_input.Trim();
-            bExecute = (dlg.m_input == _T("确认执行"));
+            bExecute = (dlg.m_input == loc.GetString(_T("Msg"), _T("HighRiskConfirmText")));
             if (!bExecute)
-                MessageBox(_T("输入不匹配，操作已取消。"), _T("取消"), MB_OK | MB_ICONINFORMATION);
+                MessageBox(loc.GetString(_T("Msg"), _T("InputMismatchCancel")), loc.GetString(_T("Msg"), _T("Cancelled")), MB_OK | MB_ICONINFORMATION);
         }
     }
     else // low or medium
     {
         UINT nType = (risk == _T("medium")) ? MB_ICONWARNING : MB_ICONINFORMATION;
-        bExecute = (MessageBox(msg, _T("执行确认"), MB_YESNO | nType | MB_DEFBUTTON2) == IDYES);
+        bExecute = (MessageBox(msg, loc.GetString(_T("Msg"), _T("ExecConfirm")), MB_YESNO | nType | MB_DEFBUTTON2) == IDYES);
     }
 
     if (!bExecute)
     {
         // Record cancellation in conversation
         CString resultMsg;
-        resultMsg.Format(_T("【命令执行结果】\n命令：%s\n状态：已取消（用户未确认）\n"),
+        resultMsg.Format(loc.GetString(_T("Msg"), _T("CmdCancelledFmt")),
             command.GetString());
         // Insert after the last assistant message so results stay with their action cards
         {
@@ -2721,7 +3198,7 @@ LRESULT CMFCApplication1Dlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam
         {
             DWORD err = GetLastError();
             CString errStr;
-            errStr.Format(_T("执行失败，错误代码：%d"), err);
+            errStr.Format(loc.GetString(_T("Msg"), _T("ExecFailedErrCode")), err);
             outputStr = errStr;
             exitCode = err;
         }
@@ -2729,7 +3206,7 @@ LRESULT CMFCApplication1Dlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam
     }
     else
     {
-        outputStr = _T("错误：无法创建输出管道");
+        outputStr = loc.GetString(_T("Msg"), _T("CannotCreatePipe"));
         exitCode = GetLastError();
     }
 
@@ -2739,10 +3216,10 @@ LRESULT CMFCApplication1Dlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam
     // Append output to result message
     if (!outputStr.IsEmpty())
     {
-        resultMsg += _T("输出：\n") + outputStr + _T("\n\n");
+        resultMsg += loc.GetString(_T("Msg"), _T("OutputLabel")) + outputStr + _T("\n\n");
     }
     CString exitStr;
-    exitStr.Format(_T("退出代码：%d\n"), exitCode);
+    exitStr.Format(loc.GetString(_T("Msg"), _T("ExitCodeFmt")), exitCode);
     resultMsg += exitStr;
 
     // Record result in conversation history — insert after the last assistant message

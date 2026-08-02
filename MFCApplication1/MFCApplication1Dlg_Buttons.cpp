@@ -7,6 +7,7 @@
 #include "ProcessManager.h"
 #include "GitCmdResultDlg.h"
 #include "AIApiClient.h"
+#include "LocalizationManager.h"
 #include <TlHelp32.h>
 #include <Shellapi.h>
 #include <Psapi.h>
@@ -57,7 +58,7 @@ void CMFCApplication1Dlg::OnBiliNext()
             CString sTitle = title;
             sTitle.MakeLower();
             bool matched = false;
-            if (sTitle.Find(_T("哔哩")) != -1 || sTitle.Find(_T("bilibili")) != -1 || sTitle.Find(_T("b站")) != -1)
+            if (sTitle.Find(_T("哔哩")) != -1 || sTitle.Find(_T("bilibili")) != -1 || sTitle.Find(_T("b站")) != -1 || sTitle.Find(_T("Bili")) != -1 || sTitle.Find(_T("B站")) != -1)
                 matched = true;
 
             // check process image path for name containing bilibili
@@ -199,7 +200,8 @@ void CMFCApplication1Dlg::OnBnClickedButton1()
 
 void CMFCApplication1Dlg::OnBnClickedButton8()
 {
-    CString strPath = GetOrAskPath(this, _T("BiliPath"), _T("选择哔哩哔哩可执行文件"), false);
+    auto& loc = CLocalizationManager::GetInstance();
+    CString strPath = GetOrAskPath(this, _T("BiliPath"), loc.GetString(_T("Settings"), _T("DlgTitleBili")), false);
 
     if (!strPath.IsEmpty() && GetFileAttributes(strPath) != INVALID_FILE_ATTRIBUTES)
     {
@@ -207,7 +209,7 @@ void CMFCApplication1Dlg::OnBnClickedButton8()
     }
     else
     {
-        MessageBox(_T("指定的哔哩哔哩可执行文件未找到或未设置。请先设置路径。"), _T("提示"), MB_OK | MB_ICONWARNING);
+        MessageBox(loc.GetString(_T("Msg"), _T("BiliNotFound")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
     }
 }
 
@@ -235,7 +237,7 @@ void CMFCApplication1Dlg::OnCbnSelchangeCombo1()
     CEdit* pE2 = (CEdit*)GetDlgItem(IDC_EDIT2);
     CEdit* pE3 = (CEdit*)GetDlgItem(IDC_EDIT3);
 
-    BOOL enable = (selText.Find(_T("设定")) != -1);
+    BOOL enable = (selText.Find(_T("设定")) != -1 || selText.Find(_T("Custom")) != -1 || selText.Find(_T("Set")) != -1);
 
     if (pE1)
     {
@@ -257,6 +259,7 @@ void CMFCApplication1Dlg::OnCbnSelchangeCombo1()
 
 void CMFCApplication1Dlg::OnBnClickedButton4()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     // 1. Check if WeChat is running by enumerating processes
     bool bIsWeChatRunning = false;
     HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -311,14 +314,15 @@ void CMFCApplication1Dlg::OnBnClickedButton4()
     }
     else
     {
-        CString path = GetOrAskPath(this, _T("WeChatPath"), _T("选择微信可执行文件"), false);
+        CString path = GetOrAskPath(this, _T("WeChatPath"), loc.GetString(_T("Settings"), _T("DlgTitleWeChat")), false);
         if (!path.IsEmpty()) ::ShellExecute(NULL, _T("open"), path, NULL, NULL, SW_SHOWNORMAL);
-        else MessageBox(_T("指定的微信可执行文件未找到，请检查路径是否正确。"), _T("提示"), MB_OK | MB_ICONWARNING);
+        else MessageBox(loc.GetString(_T("Msg"), _T("WeChatNotFound")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
     }
 }
 
 void CMFCApplication1Dlg::OnBnClickedButton5()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     // 1. Check if QQ is running by enumerating processes
     bool bIsQQRunning = false;
     HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -380,35 +384,38 @@ void CMFCApplication1Dlg::OnBnClickedButton5()
     }
     else
     {
-        CString path = GetOrAskPath(this, _T("QQPath"), _T("选择QQ可执行文件"), false);
+        CString path = GetOrAskPath(this, _T("QQPath"), loc.GetString(_T("Settings"), _T("DlgTitleQQ")), false);
         if (!path.IsEmpty()) ::ShellExecute(NULL, _T("open"), path, NULL, NULL, SW_SHOWNORMAL);
-        else MessageBox(_T("指定的QQ可执行文件未找到，请检查路径是否正确。"), _T("提示"), MB_OK | MB_ICONWARNING);
+        else MessageBox(loc.GetString(_T("Msg"), _T("QQNotFound")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
     }
 }
 
 void CMFCApplication1Dlg::OnBnClickedButton6()
 {
-    CString strPath = GetOrAskPath(this, _T("VSCodePath"), _T("选择VS Code可执行文件"), false);
+    auto& loc = CLocalizationManager::GetInstance();
+    CString strPath = GetOrAskPath(this, _T("VSCodePath"), loc.GetString(_T("Settings"), _T("DlgTitleVSCode")), false);
     if (!strPath.IsEmpty() && GetFileAttributes(strPath) != INVALID_FILE_ATTRIBUTES)
         ::ShellExecute(NULL, _T("open"), strPath, NULL, NULL, SW_SHOWNORMAL);
     else
-        MessageBox(_T("指定的VS Code可执行文件未找到，请检查路径是否正确。"), _T("提示"), MB_OK | MB_ICONWARNING);
+        MessageBox(loc.GetString(_T("Msg"), _T("VSCodeNotFound")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
 }
 
 void CMFCApplication1Dlg::OnBnClickedButton7()
 {
-    CString strPath = GetOrAskPath(this, _T("VSPath"), _T("选择 Visual Studio 可执行文件"), false);
+    auto& loc = CLocalizationManager::GetInstance();
+    CString strPath = GetOrAskPath(this, _T("VSPath"), loc.GetString(_T("Settings"), _T("DlgTitleVS")), false);
     if (!strPath.IsEmpty() && GetFileAttributes(strPath) != INVALID_FILE_ATTRIBUTES)
         ::ShellExecute(NULL, _T("open"), strPath, NULL, NULL, SW_SHOWNORMAL);
     else
-        MessageBox(_T("指定的Visual Studio可执行文件未找到，请检查路径是否正确。"), _T("提示"), MB_OK | MB_ICONWARNING);
+        MessageBox(loc.GetString(_T("Msg"), _T("VSNotFound")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
 }
 
 void CMFCApplication1Dlg::OnBnClickedButton9()
 {
-    CString path = GetOrAskPath(this, _T("StudyFolder"), _T("选择学习文件夹"), true);
+    auto& loc = CLocalizationManager::GetInstance();
+    CString path = GetOrAskPath(this, _T("StudyFolder"), loc.GetString(_T("Settings"), _T("DlgTitleStudyFolder")), true);
     if (!path.IsEmpty()) ::ShellExecute(NULL, _T("open"), path, NULL, NULL, SW_SHOWNORMAL);
-    else MessageBox(_T("指定的学习文件夹未找到，请检查路径是否正确。"), _T("提示"), MB_OK | MB_ICONWARNING);
+    else MessageBox(loc.GetString(_T("Msg"), _T("StudyFolderNotFound")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
 }
 
 void CMFCApplication1Dlg::OnBnClickedButton11()
@@ -476,6 +483,7 @@ void CMFCApplication1Dlg::OnBnClickedButton14()
 
 void CMFCApplication1Dlg::OnBnClickedButton17()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     CEdit* pEdit = (CEdit*)GetDlgItem(IDC_EDIT6);
     if (!pEdit) return;
 
@@ -483,7 +491,7 @@ void CMFCApplication1Dlg::OnBnClickedButton17()
     pEdit->GetWindowText(cmd);
     if (cmd.IsEmpty())
     {
-        MessageBox(_T("请输入要运行的指令。"), _T("提示"), MB_OK | MB_ICONWARNING);
+        MessageBox(loc.GetString(_T("Msg"), _T("EnterCommand")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
         return;
     }
 
@@ -543,8 +551,8 @@ void CMFCApplication1Dlg::OnBnClickedButton17()
     {
         DWORD err = GetLastError();
         CString msg;
-        msg.Format(_T("执行命令失败：%u"), err);
-        MessageBox(msg, _T("错误"), MB_OK | MB_ICONERROR);
+        msg.Format(loc.GetString(_T("Msg"), _T("ExecCmdFailed")), err);
+        MessageBox(msg, loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
     }
 }
 
@@ -555,14 +563,16 @@ void CMFCApplication1Dlg::OnBnClickedButton18()
 
 void CMFCApplication1Dlg::OnBnClickedButton21()
 {
-    CString path = GetOrAskPath(this, _T("DownloadFolder"), _T("选择下载文件夹"), true);
+    auto& loc = CLocalizationManager::GetInstance();
+    CString path = GetOrAskPath(this, _T("DownloadFolder"), loc.GetString(_T("Settings"), _T("DlgTitleDownloadFolder")), true);
     if (!path.IsEmpty()) ::ShellExecute(NULL, _T("open"), path, NULL, NULL, SW_SHOWNORMAL);
-    else MessageBox(_T("指定的下载文件夹未找到，请检查路径是否正确。"), _T("提示"), MB_OK | MB_ICONWARNING);
+    else MessageBox(loc.GetString(_T("Msg"), _T("DownloadFolderNotFound")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
 }
 
 void CMFCApplication1Dlg::OnBnClickedButton22()
 {
-    CString strPath = GetOrAskPath(this, _T("YuanbaoPath"), _T("选择元宝可执行文件"), false);
+    auto& loc = CLocalizationManager::GetInstance();
+    CString strPath = GetOrAskPath(this, _T("YuanbaoPath"), loc.GetString(_T("Settings"), _T("DlgTitleYuanbao")), false);
 
     if (!strPath.IsEmpty() && GetFileAttributes(strPath) != INVALID_FILE_ATTRIBUTES)
     {
@@ -570,13 +580,14 @@ void CMFCApplication1Dlg::OnBnClickedButton22()
     }
     else
     {
-        MessageBox(_T("指定的元宝可执行文件未找到或未设置。请先设置路径。"), _T("提示"), MB_OK | MB_ICONWARNING);
+        MessageBox(loc.GetString(_T("Msg"), _T("YuanbaoNotFound")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
     }
 }
 
 // Handler for IDC_CHECK5: prevent automatic lock/screen-off while checked
 void CMFCApplication1Dlg::OnBnClickedCheck5()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     CButton* pCheck = (CButton*)GetDlgItem(IDC_CHECK5);
     if (!pCheck) return;
 
@@ -585,7 +596,7 @@ void CMFCApplication1Dlg::OnBnClickedCheck5()
         EXECUTION_STATE es = SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED);
         if (es == 0)
         {
-            MessageBox(_T("无法设置防止锁屏的系统状态。"), _T("错误"), MB_OK | MB_ICONERROR);
+            MessageBox(loc.GetString(_T("Msg"), _T("PreventLockFailed")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
             pCheck->SetCheck(BST_UNCHECKED);
             m_bPreventLockScreen = false;
         }
@@ -607,12 +618,13 @@ void CMFCApplication1Dlg::OnBnClickedCheck6()
 
 void CMFCApplication1Dlg::OnBnClickedButton27()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     CString exe = _T("powershell.exe");
     CString params = _T("-NoExit");
 
     int nResult = MessageBox(
-        _T("是否以管理员身份运行 PowerShell？\n\n是 - 管理员权限\n否 - 普通权限"),
-        _T("启动 PowerShell"),
+        loc.GetString(_T("Msg"), _T("PowerShellConfirm")),
+        loc.GetString(_T("Msg"), _T("PowerShellTitle")),
         MB_YESNOCANCEL | MB_ICONQUESTION | MB_DEFBUTTON2);
 
     if (nResult == IDCANCEL)
@@ -624,8 +636,8 @@ void CMFCApplication1Dlg::OnBnClickedButton27()
         if (!LaunchProcessAsShellUser(exe, params, &err))
         {
             CString msg;
-            msg.Format(_T("以非管理员权限启动 PowerShell 失败：%s"), err.IsEmpty() ? FormatLastError(GetLastError()) : CString(err));
-            MessageBox(msg, _T("错误"), MB_OK | MB_ICONERROR);
+            msg.Format(loc.GetString(_T("Msg"), _T("PowerShellNonAdminFailed")), err.IsEmpty() ? FormatLastError(GetLastError()) : CString(err));
+            MessageBox(msg, loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         }
     }
     else
@@ -641,14 +653,15 @@ void CMFCApplication1Dlg::OnBnClickedButton27()
         {
             DWORD err = GetLastError();
             CString msg;
-            msg.Format(_T("以管理员权限启动 PowerShell 失败：%s"), FormatLastError(err));
-            MessageBox(msg, _T("错误"), MB_OK | MB_ICONERROR);
+            msg.Format(loc.GetString(_T("Msg"), _T("PowerShellAdminFailed")), FormatLastError(err));
+            MessageBox(msg, loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         }
     }
 }
 
 void CMFCApplication1Dlg::OnBnClickedButton28()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     // Launch WSL (wsl.exe). Try ShellExecute first; fallback to system directory path.
     HINSTANCE h = ::ShellExecute(m_hWnd, _T("open"), _T("wsl.exe"), NULL, NULL, SW_SHOWNORMAL);
     if ((INT_PTR)h <= 32)
@@ -661,46 +674,49 @@ void CMFCApplication1Dlg::OnBnClickedButton28()
             HINSTANCE h2 = ::ShellExecute(m_hWnd, _T("open"), full, NULL, NULL, SW_SHOWNORMAL);
             if ((INT_PTR)h2 <= 32)
             {
-                MessageBox(_T("无法启动 WSL，请手动运行 wsl.exe"), _T("错误"), MB_OK | MB_ICONERROR);
+                MessageBox(loc.GetString(_T("Msg"), _T("WslLaunchFailed")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
             }
         }
         else
         {
-            MessageBox(_T("无法启动 WSL，请手动运行 wsl.exe"), _T("错误"), MB_OK | MB_ICONERROR);
+            MessageBox(loc.GetString(_T("Msg"), _T("WslLaunchFailed")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         }
     }
 }
 
 void CMFCApplication1Dlg::OnBnClickedButton29()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     // Open LeetCode CN problemset in default browser
     CString url = _T("https://leetcode.cn/problemset/");
     HINSTANCE h = ::ShellExecute(m_hWnd, _T("open"), url, NULL, NULL, SW_SHOWNORMAL);
     if ((INT_PTR)h <= 32)
     {
-        MessageBox(_T("无法打开链接，请手动访问 https://leetcode.cn/problemset/"), _T("错误"), MB_OK | MB_ICONERROR);
+        MessageBox(loc.GetString(_T("Msg"), _T("OpenLinkFailed")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
     }
 }
 
 void CMFCApplication1Dlg::OnBnClickedButton30()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     // Open GitHub
     CString url = _T("https://github.com/");
     HINSTANCE h = ::ShellExecute(m_hWnd, _T("open"), url, NULL, NULL, SW_SHOWNORMAL);
     if ((INT_PTR)h <= 32)
     {
-        MessageBox(_T("无法打开链接，请手动访问 https://github.com/"), _T("错误"), MB_OK | MB_ICONERROR);
+        MessageBox(loc.GetString(_T("Msg"), _T("OpenLinkFailed")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
     }
 }
 
 void CMFCApplication1Dlg::OnBnClickedButton31()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     // Launch Git Bash using configured path. If a valid path is displayed in
     // IDC_STATIC_PATH, use it as the process working directory.
     CString exe = AfxGetApp()->GetProfileString(_T("Paths"), _T("GitBashPath"), _T(""));
     if (exe.IsEmpty() || GetFileAttributes(exe) == INVALID_FILE_ATTRIBUTES)
     {
-        MessageBox(_T("找不到 git-bash.exe，请在配置中设置 Git Bash 路径。"), _T("错误"), MB_OK | MB_ICONERROR);
+        MessageBox(loc.GetString(_T("Msg"), _T("GitBashNotFound")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         return;
     }
 
@@ -755,6 +771,7 @@ void CMFCApplication1Dlg::OnBnClickedButton31()
 // Clear the displayed dropped file path when IDC_BUTTON32 is clicked
 void CMFCApplication1Dlg::OnBnClickedButton32()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     // Determine current tab: clear the appropriate path
     CTabCtrl* pTab = (CTabCtrl*)GetDlgItem(IDC_TAB1);
     int nCurTab = pTab ? pTab->GetCurSel() : -1;
@@ -764,7 +781,7 @@ void CMFCApplication1Dlg::OnBnClickedButton32()
         // Git tab: clear Git work directory
         m_strGitWorkDir.Empty();
         CWnd* pGitPath = GetDlgItem(IDC_STATIC_GIT_PATH);
-        if (pGitPath) pGitPath->SetWindowText(_T("拖入文件夹或文件所在目录"));
+        if (pGitPath) pGitPath->SetWindowText(loc.GetString(_T("Msg"), _T("DropGitFolderHint")));
         UpdateGitRepoInfo();
     }
     else
@@ -774,7 +791,7 @@ void CMFCApplication1Dlg::OnBnClickedButton32()
         CWnd* pStatic = GetDlgItem(IDC_STATIC_PATH);
         if (pStatic && IsValidWindow(pStatic->GetSafeHwnd()))
         {
-            pStatic->SetWindowText(_T("拖拽文件到此"));
+            pStatic->SetWindowText(loc.GetString(_T("Msg"), _T("DropFileHint")));
         }
     }
 }
@@ -819,12 +836,13 @@ void CMFCApplication1Dlg::OnStnClickedGitPath()
 // Open the Git command window (modeless dialog)
 void CMFCApplication1Dlg::OnBnClickedGitCmdWindow()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     CString workDir = GetGitWorkDir();
     auto* pDlg = new CGitCmdResultDlg(workDir, nullptr);
     if (!pDlg->Create(IDD_GIT_CMD_RESULT_DLG, nullptr))
     {
         delete pDlg;
-        MessageBox(_T("无法创建 Git 命令窗口。"), _T("错误"), MB_OK | MB_ICONERROR);
+        MessageBox(loc.GetString(_T("Msg"), _T("GitCmdWindowFailed")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         return;
     }
     pDlg->ShowWindow(SW_SHOW);
@@ -935,6 +953,7 @@ void CMFCApplication1Dlg::DetectGitRepoInfo(const CString& strWorkDir, bool& bIs
 // Update the repo info label on the Git tab
 void CMFCApplication1Dlg::UpdateGitRepoInfo()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     if (m_strGitWorkDir.IsEmpty())
     {
         SetDlgItemText(IDC_STATIC_GIT_REPO_INFO, _T(""));
@@ -949,24 +968,25 @@ void CMFCApplication1Dlg::UpdateGitRepoInfo()
     if (bIsRepo)
     {
         if (strBranch.IsEmpty())
-            info = _T("Git仓库 ( detached HEAD)");
+            info = loc.GetString(_T("Msg"), _T("GitRepoDetached"));
         else
-            info.Format(_T("Git仓库 分支: %s"), strBranch.GetString());
+            info.Format(loc.GetString(_T("Msg"), _T("GitRepoBranch")), strBranch.GetString());
     }
     else
     {
-        info = _T("非Git仓库");
+        info = loc.GetString(_T("Msg"), _T("GitNotRepo"));
     }
     SetDlgItemText(IDC_STATIC_GIT_REPO_INFO, info);
 }
 
 void CMFCApplication1Dlg::ExecuteGitCommand(const CString& strDesc, const CString& strCmd)
 {
+    auto& loc = CLocalizationManager::GetInstance();
     // Check working directory
     CString workDir = GetGitWorkDir();
     if (workDir.IsEmpty())
     {
-        MessageBox(_T("请先设置工作目录。"), _T("错误"), MB_OK | MB_ICONERROR);
+        MessageBox(loc.GetString(_T("Msg"), _T("GitNoWorkDir")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         return;
     }
 
@@ -977,11 +997,14 @@ void CMFCApplication1Dlg::ExecuteGitCommand(const CString& strDesc, const CStrin
 
     // Confirm before execution
     CString msg;
-    msg.Format(_T("即将执行以下命令:\n\n%s\n\n工作目录: %s\n%s\n确认执行？"),
+    CString branchInfo = bIsRepo
+        ? CString(loc.GetString(_T("Msg"), _T("GitCurrentBranch"))) + strBranch
+        : CString(loc.GetString(_T("Msg"), _T("GitNotRepo")));
+    msg.Format(loc.GetString(_T("Msg"), _T("GitConfirmExec")),
         strCmd.GetString(),
         workDir.GetString(),
-        bIsRepo ? (CString(_T("当前分支: ")) + strBranch).GetString() : _T("(非Git仓库)"));
-    if (MessageBox(msg, _T("确认执行"), MB_YESNO | MB_ICONQUESTION) != IDYES)
+        branchInfo.GetString());
+    if (MessageBox(msg, loc.GetString(_T("Msg"), _T("GitConfirmTitle")), MB_YESNO | MB_ICONQUESTION) != IDYES)
         return;
 
     // Create modeless result dialog
@@ -990,7 +1013,7 @@ void CMFCApplication1Dlg::ExecuteGitCommand(const CString& strDesc, const CStrin
     if (!pDlg->Create(IDD_GIT_CMD_RESULT_DLG, nullptr))
     {
         delete pDlg;
-        MessageBox(_T("无法创建结果窗口。"), _T("错误"), MB_OK | MB_ICONERROR);
+        MessageBox(loc.GetString(_T("Msg"), _T("GitResultWindowFailed")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         return;
     }
     pDlg->ShowWindow(SW_SHOW);
@@ -1045,6 +1068,7 @@ void CMFCApplication1Dlg::AddGitCommandToList(const CString& strDesc, const CStr
 void CMFCApplication1Dlg::OnNMRclickList4(NMHDR* pNMHDR, LRESULT* pResult)
 {
     *pResult = 0;
+    auto& loc = CLocalizationManager::GetInstance();
     LPNMITEMACTIVATE pItem = (LPNMITEMACTIVATE)pNMHDR;
     CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST4);
     if (!pList) return;
@@ -1064,11 +1088,11 @@ void CMFCApplication1Dlg::OnNMRclickList4(NMHDR* pNMHDR, LRESULT* pResult)
 
     if (nItem >= 0)
     {
-        menu.AppendMenu(MF_STRING, 1, _T("执行命令"));
-        menu.AppendMenu(MF_STRING, 2, _T("复制命令"));
+        menu.AppendMenu(MF_STRING, 1, loc.GetString(_T("Msg"), _T("GitMenuExec")));
+        menu.AppendMenu(MF_STRING, 2, loc.GetString(_T("Msg"), _T("GitMenuCopy")));
         menu.AppendMenu(MF_SEPARATOR);
-        menu.AppendMenu(MF_STRING, 3, _T("编辑命令"));
-        menu.AppendMenu(MF_STRING, 4, _T("删除命令"));
+        menu.AppendMenu(MF_STRING, 3, loc.GetString(_T("Msg"), _T("GitMenuEdit")));
+        menu.AppendMenu(MF_STRING, 4, loc.GetString(_T("Msg"), _T("GitMenuDelete")));
     }
 
     CPoint pt;
@@ -1095,7 +1119,7 @@ void CMFCApplication1Dlg::OnNMRclickList4(NMHDR* pNMHDR, LRESULT* pResult)
         {
             // Use a simple input dialog for editing
             // Format: "说明|命令"
-            CGitCmdInputDialog editDlg(_T("编辑命令 (格式: 说明|命令)"), _T("编辑命令"),
+            CGitCmdInputDialog editDlg(loc.GetString(_T("Msg"), _T("GitEditPrompt")), loc.GetString(_T("Msg"), _T("GitMenuEdit")),
                 desc + _T("|") + cmd);
             if (editDlg.DoModal() == IDOK)
             {

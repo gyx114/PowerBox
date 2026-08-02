@@ -4,6 +4,7 @@
 #include "pch.h"
 #include "MFCApplication1.h"
 #include "FileLockDlg.h"
+#include "LocalizationManager.h"
 #include "afxdialogex.h"
 #include <RestartManager.h>
 #include <TlHelp32.h>
@@ -28,7 +29,7 @@ CFileLockDlg::CFileLockDlg(CWnd* pParent)
 	, m_listHeight(0)
 	, m_btnWidth(38), m_btnHeight(18), m_btnGap(8)
 {
-	m_hintText = _T("拖入文件到此查看占用进程");
+	m_hintText = CLocalizationManager::GetInstance().GetString(_T("FileLock"), _T("Hint"));
 }
 
 CFileLockDlg::~CFileLockDlg()
@@ -57,6 +58,8 @@ END_MESSAGE_MAP()
 BOOL CFileLockDlg::OnInitDialog()
 {
 	CDialogEx::OnInitDialog();
+
+	SetWindowText(CLocalizationManager::GetInstance().GetString(_T("DlgCaption"), _T("FileLockDlg")));
 
 	// Accept drag-and-drop files
 	DragAcceptFiles(TRUE);
@@ -127,11 +130,12 @@ void CFileLockDlg::PostNcDestroy()
 
 void CFileLockDlg::InitListColumns()
 {
-	m_list.InsertColumn(COL_FILE,    _T("文件"),     LVCFMT_LEFT, 120);
-	m_list.InsertColumn(COL_PROCESS, _T("进程名"),   LVCFMT_LEFT, 100);
-	m_list.InsertColumn(COL_PID,     _T("PID"),      LVCFMT_LEFT, 60);
-	m_list.InsertColumn(COL_TYPE,    _T("类型"),     LVCFMT_LEFT, 70);
-	m_list.InsertColumn(COL_PATH,    _T("进程路径"), LVCFMT_LEFT, 500);
+	auto& loc = CLocalizationManager::GetInstance();
+	m_list.InsertColumn(COL_FILE,    loc.GetString(_T("FileLock"), _T("ColFilePath")),     LVCFMT_LEFT, 120);
+	m_list.InsertColumn(COL_PROCESS, loc.GetString(_T("FileLock"), _T("ColProcessName")),  LVCFMT_LEFT, 100);
+	m_list.InsertColumn(COL_PID,     loc.GetString(_T("FileLock"), _T("ColPID")),          LVCFMT_LEFT, 60);
+	m_list.InsertColumn(COL_TYPE,    loc.GetString(_T("FileLock"), _T("ColType")),         LVCFMT_LEFT, 70);
+	m_list.InsertColumn(COL_PATH,    loc.GetString(_T("FileLock"), _T("ColProcessPath")),  LVCFMT_LEFT, 500);
 }
 
 void CFileLockDlg::OnSize(UINT nType, int cx, int cy)
@@ -201,12 +205,13 @@ void CFileLockDlg::AddFile(const CString& filePath)
 	entry.processName = _T("...");
 	entry.pid = 0;
 	entry.processPath.Empty();
-	entry.appType = _T("扫描中...");
+	entry.appType = CLocalizationManager::GetInstance().GetString(_T("FileLock"), _T("AppTypeScanning"));
 	m_entries.push_back(entry);
 }
 
 void CFileLockDlg::QueryFileLocks()
 {
+	auto& loc = CLocalizationManager::GetInstance();
 	if (m_entries.empty()) return;
 
 	// Collect unique file paths
@@ -250,13 +255,13 @@ void CFileLockDlg::QueryFileLocks()
 
 					switch (piBuf2[pi].ApplicationType)
 					{
-					case RmMainWindow:  entry.appType = _T("主窗口"); break;
-					case RmOtherWindow: entry.appType = _T("其他窗口"); break;
-					case RmService:     entry.appType = _T("服务"); break;
-					case RmExplorer:    entry.appType = _T("资源管理器"); break;
-					case RmConsole:     entry.appType = _T("控制台"); break;
-					case RmCritical:    entry.appType = _T("关键进程"); break;
-					default:            entry.appType = _T("未知"); break;
+					case RmMainWindow:  entry.appType = loc.GetString(_T("FileLock"), _T("AppTypeMainWindow")); break;
+					case RmOtherWindow: entry.appType = loc.GetString(_T("FileLock"), _T("AppTypeOtherWindow")); break;
+					case RmService:     entry.appType = loc.GetString(_T("FileLock"), _T("AppTypeService")); break;
+					case RmExplorer:    entry.appType = loc.GetString(_T("FileLock"), _T("AppTypeExplorer")); break;
+					case RmConsole:     entry.appType = loc.GetString(_T("FileLock"), _T("AppTypeConsole")); break;
+					case RmCritical:    entry.appType = loc.GetString(_T("FileLock"), _T("AppTypeCritical")); break;
+					default:            entry.appType = loc.GetString(_T("FileLock"), _T("AppTypeUnknown")); break;
 					}
 
 					if (piBuf2[pi].strAppName[0])
@@ -275,7 +280,7 @@ void CFileLockDlg::QueryFileLocks()
 				entry.pid = piBuf[pi].Process.dwProcessId;
 				entry.processName = GetProcessName(entry.pid);
 				entry.processPath = GetProcessPath(entry.pid);
-				entry.appType = piBuf[pi].strAppName[0] ? piBuf[pi].strAppName : _T("已占用");
+				entry.appType = piBuf[pi].strAppName[0] ? piBuf[pi].strAppName : loc.GetString(_T("FileLock"), _T("AppTypeLocked"));
 				m_entries.push_back(entry);
 			}
 		}
@@ -286,7 +291,7 @@ void CFileLockDlg::QueryFileLocks()
 			entry.filePath = files[fi].GetString();
 			entry.processName = _T("-");
 			entry.pid = 0;
-			entry.appType = (ret == ERROR_SUCCESS) ? _T("未占用") : _T("未找到");
+			entry.appType = (ret == ERROR_SUCCESS) ? loc.GetString(_T("FileLock"), _T("AppTypeNotLocked")) : loc.GetString(_T("FileLock"), _T("AppTypeNotFound"));
 			m_entries.push_back(entry);
 		}
 
@@ -298,6 +303,7 @@ void CFileLockDlg::QueryFileLocks()
 
 void CFileLockDlg::RefreshList()
 {
+	auto& loc = CLocalizationManager::GetInstance();
 	m_list.DeleteAllItems();
 
 	for (size_t i = 0; i < m_entries.size(); i++)
@@ -329,7 +335,7 @@ void CFileLockDlg::RefreshList()
 
 	// Update hint
 	CString hint;
-	hint.Format(_T("已加载 %zu 个文件，发现 %zu 个占用"), CountFilesInList(), CountLocks());
+	hint.Format(loc.GetString(_T("FileLock"), _T("HintLoaded")), CountFilesInList(), CountLocks());
 	SetDlgItemText(IDC_STATIC_FILELOCK_HINT, hint);
 }
 
@@ -386,7 +392,7 @@ CString CFileLockDlg::GetProcessName(DWORD pid)
 		}
 	}
 
-	return name.IsEmpty() ? CString(_T("(未知)")) : name;
+	return name.IsEmpty() ? CLocalizationManager::GetInstance().GetString(_T("FileLock"), _T("AppTypeUnknown")) : name;
 }
 
 CString CFileLockDlg::GetProcessPath(DWORD pid)
@@ -421,11 +427,12 @@ void CFileLockDlg::EndProcess(DWORD pid)
 
 void CFileLockDlg::OnBnClickedEnd()
 {
+	auto& loc = CLocalizationManager::GetInstance();
 	// Get selected items
 	POSITION pos = m_list.GetFirstSelectedItemPosition();
 	if (!pos)
 	{
-		MessageBox(_T("请至少选择一个进程。"), _T("文件占用"), MB_ICONINFORMATION);
+		MessageBox(loc.GetString(_T("Msg"), _T("PleaseSelectProcess")), loc.GetString(_T("FileLock"), _T("BtnEnd")), MB_ICONINFORMATION);
 		return;
 	}
 
@@ -449,7 +456,7 @@ void CFileLockDlg::OnBnClickedEnd()
 
 	// Build warning message
 	CString msg;
-	msg.Format(_T("确定要结束以下 %zu 个进程吗？\n\n"), pids.size());
+	msg.Format(loc.GetString(_T("Msg"), _T("ConfirmEndProcesses")), pids.size());
 	for (size_t i = 0; i < pids.size() && i < 10; i++)
 	{
 		CString line;
@@ -457,10 +464,10 @@ void CFileLockDlg::OnBnClickedEnd()
 		msg += line;
 	}
 	if (pids.size() > 10)
-		msg.AppendFormat(_T("  ... 还有 %zu 个\n"), pids.size() - 10);
-	msg += _T("\n未保存的数据可能丢失！");
+		msg.AppendFormat(loc.GetString(_T("Msg"), _T("EndMoreHint")), pids.size() - 10);
+	msg += loc.GetString(_T("Msg"), _T("UnsavedDataWarning"));
 
-	if (MessageBox(msg, _T("确认"), MB_ICONWARNING | MB_YESNO) != IDYES)
+	if (MessageBox(msg, loc.GetString(_T("Msg"), _T("Confirm")), MB_ICONWARNING | MB_YESNO) != IDYES)
 		return;
 
 	for (DWORD pid : pids)
@@ -472,6 +479,7 @@ void CFileLockDlg::OnBnClickedEnd()
 
 void CFileLockDlg::OnBnClickedEndAll()
 {
+	auto& loc = CLocalizationManager::GetInstance();
 	// Collect all PIDs with locks
 	std::vector<DWORD> pids;
 	for (const auto& e : m_entries)
@@ -482,7 +490,7 @@ void CFileLockDlg::OnBnClickedEndAll()
 
 	if (pids.empty())
 	{
-		MessageBox(_T("未找到占用进程。"), _T("文件占用"), MB_ICONINFORMATION);
+		MessageBox(loc.GetString(_T("Msg"), _T("NoLockFound")), loc.GetString(_T("Msg"), _T("Info")), MB_ICONINFORMATION);
 		return;
 	}
 
@@ -491,9 +499,9 @@ void CFileLockDlg::OnBnClickedEndAll()
 	pids.erase(std::unique(pids.begin(), pids.end()), pids.end());
 
 	CString msg;
-	msg.Format(_T("确定要结束全部 %zu 个占用进程吗？\n\n未保存的数据可能丢失！"), pids.size());
+	msg.Format(loc.GetString(_T("Msg"), _T("ConfirmEndAllLocks")), pids.size());
 
-	if (MessageBox(msg, _T("确认全部结束"), MB_ICONWARNING | MB_YESNO) != IDYES)
+	if (MessageBox(msg, loc.GetString(_T("Msg"), _T("ConfirmEndAllTitle")), MB_ICONWARNING | MB_YESNO) != IDYES)
 		return;
 
 	for (DWORD pid : pids)
@@ -505,10 +513,11 @@ void CFileLockDlg::OnBnClickedEndAll()
 
 void CFileLockDlg::OnBnClickedLocate()
 {
+	auto& loc = CLocalizationManager::GetInstance();
 	POSITION pos = m_list.GetFirstSelectedItemPosition();
 	if (!pos)
 	{
-		MessageBox(_T("请选择一个进程。"), _T("文件占用"), MB_ICONINFORMATION);
+		MessageBox(loc.GetString(_T("Msg"), _T("PleaseSelectProcess")), loc.GetString(_T("Msg"), _T("Info")), MB_ICONINFORMATION);
 		return;
 	}
 
@@ -548,11 +557,12 @@ void CFileLockDlg::OnBnClickedClear()
 {
 	m_entries.clear();
 	m_list.DeleteAllItems();
-	SetDlgItemText(IDC_STATIC_FILELOCK_HINT, m_hintText);
+	SetDlgItemText(IDC_STATIC_FILELOCK_HINT, CLocalizationManager::GetInstance().GetString(_T("FileLock"), _T("Hint")));
 }
 
 void CFileLockDlg::OnNMRClickList(NMHDR* pNMHDR, LRESULT* pResult)
 {
+	auto& loc = CLocalizationManager::GetInstance();
 	NM_LISTVIEW* pNMListView = (NM_LISTVIEW*)pNMHDR;
 
 	// If clicked item is not selected, select it first
@@ -586,14 +596,14 @@ void CFileLockDlg::OnNMRClickList(NMHDR* pNMHDR, LRESULT* pResult)
 	}
 
 	menu.AppendMenu(hasSelection ? MF_STRING : MF_STRING | MF_GRAYED,
-		IDC_BTN_FILELOCK_LOCATE, _T("定位"));
+		IDC_BTN_FILELOCK_LOCATE, loc.GetString(_T("FileLock"), _T("BtnLocate")));
 	menu.AppendMenu(hasSelection && hasLocks ? MF_STRING : MF_STRING | MF_GRAYED,
-		IDC_BTN_FILELOCK_END, _T("结束"));
+		IDC_BTN_FILELOCK_END, loc.GetString(_T("FileLock"), _T("BtnEnd")));
 	menu.AppendMenu(MF_SEPARATOR);
 	menu.AppendMenu(m_entries.empty() ? MF_STRING | MF_GRAYED : MF_STRING,
-		IDC_BTN_FILELOCK_REFRESH, _T("刷新"));
+		IDC_BTN_FILELOCK_REFRESH, loc.GetString(_T("FileLock"), _T("BtnRefresh")));
 	menu.AppendMenu(m_entries.empty() ? MF_STRING | MF_GRAYED : MF_STRING,
-		IDC_BTN_FILELOCK_CLEAR, _T("清空"));
+		IDC_BTN_FILELOCK_CLEAR, loc.GetString(_T("FileLock"), _T("BtnClear")));
 
 	// Show at cursor position
 	CPoint pt;

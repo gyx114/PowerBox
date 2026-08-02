@@ -5,6 +5,7 @@
 #include "framework.h"
 #include "MFCApplication1.h"
 #include "EnvVarDlg.h"
+#include "LocalizationManager.h"
 #include "afxdialogex.h"
 #include <algorithm>
 #include <fstream>
@@ -44,7 +45,8 @@ protected:
 		m_strValue.Trim();
 		if (m_strName.IsEmpty())
 		{
-			MessageBox(_T("变量名不能为空。"), _T("提示"), MB_ICONWARNING);
+			MessageBox(CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("ErrNameEmpty")),
+				CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("Warning")), MB_ICONWARNING);
 			return;
 		}
 		CDialogEx::OnOK();
@@ -68,14 +70,14 @@ protected:
 		CDialogEx::OnInitDialog();
 
 		CString title;
-		title.Format(_T("编辑 %s 变量"), m_strVarName);
+		title.Format(CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("PathEditTitle")), m_strVarName);
 		SetWindowText(title);
 
 		CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_PATH_ENTRIES);
 		if (pList)
 		{
 			pList->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
-			pList->InsertColumn(0, _T("路径条目"), LVCFMT_LEFT, 800);
+			pList->InsertColumn(0, CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("PathListCol")), LVCFMT_LEFT, 800);
 		}
 
 		// Parse semicolon-separated value into entries
@@ -131,7 +133,7 @@ protected:
 	{
 		CString entry;
 		CFolderPickerDialog dlg(nullptr, 0, this);
-		dlg.m_ofn.lpstrTitle = _T("选择要添加的路径");
+		dlg.m_ofn.lpstrTitle = CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("PathSelectFolder"));
 		if (dlg.DoModal() == IDOK)
 			entry = dlg.GetPathName();
 
@@ -151,12 +153,13 @@ protected:
 		int idx = GetSelectedIndex();
 		if (idx < 0 || idx >= (int)m_entries.size())
 		{
-			MessageBox(_T("请先选择要编辑的条目。"), _T("提示"), MB_ICONINFORMATION);
+			MessageBox(CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("ErrSelectEdit")),
+				CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("Info")), MB_ICONINFORMATION);
 			return;
 		}
 
 		CFolderPickerDialog dlg(nullptr, 0, this);
-		dlg.m_ofn.lpstrTitle = _T("选择新的路径");
+		dlg.m_ofn.lpstrTitle = CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("PathSelectNewFolder"));
 		if (dlg.DoModal() == IDOK)
 		{
 			m_entries[idx] = dlg.GetPathName();
@@ -169,7 +172,8 @@ protected:
 		int idx = GetSelectedIndex();
 		if (idx < 0 || idx >= (int)m_entries.size())
 		{
-			MessageBox(_T("请先选择要删除的条目。"), _T("提示"), MB_ICONINFORMATION);
+			MessageBox(CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("ErrSelectDelete")),
+				CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("Info")), MB_ICONINFORMATION);
 			return;
 		}
 
@@ -247,12 +251,12 @@ protected:
 
 		CMenu menu;
 		menu.CreatePopupMenu();
-		menu.AppendMenu(MF_STRING, 1, _T("编辑"));
-		menu.AppendMenu(MF_STRING, 2, _T("复制"));
-		menu.AppendMenu(MF_STRING, 3, _T("删除"));
+		menu.AppendMenu(MF_STRING, 1, CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("RClickEdit")));
+		menu.AppendMenu(MF_STRING, 2, CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("RClickCopy")));
+		menu.AppendMenu(MF_STRING, 3, CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("RClickDelete")));
 		menu.AppendMenu(MF_SEPARATOR);
-		menu.AppendMenu(MF_STRING, 4, _T("上移"));
-		menu.AppendMenu(MF_STRING, 5, _T("下移"));
+		menu.AppendMenu(MF_STRING, 4, CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("RClickMoveUp")));
+		menu.AppendMenu(MF_STRING, 5, CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("RClickMoveDown")));
 
 		CPoint pt;
 		GetCursorPos(&pt);
@@ -495,6 +499,8 @@ BOOL CEnvVarDlg::OnInitDialog()
 {
 	CDialogEx::OnInitDialog();
 
+	SetWindowText(CLocalizationManager::GetInstance().GetString(_T("DlgCaption"), _T("EnvVarDlg")));
+
 	auto ReadRect = [&](int id) -> CRect {
 		CRect rc(0, 0, 0, 0);
 		CWnd* pWnd = GetDlgItem(id);
@@ -514,16 +520,16 @@ BOOL CEnvVarDlg::OnInitDialog()
 	if (pListSys)
 	{
 		pListSys->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
-		pListSys->InsertColumn(0, _T("变量名"), LVCFMT_LEFT, 180);
-		pListSys->InsertColumn(1, _T("值"), LVCFMT_LEFT, 332);
+		pListSys->InsertColumn(0, CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("ColName")), LVCFMT_LEFT, 180);
+		pListSys->InsertColumn(1, CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("ColValue")), LVCFMT_LEFT, 332);
 	}
 
 	CListCtrl* pListUser = (CListCtrl*)GetDlgItem(IDC_LIST_ENV_USER);
 	if (pListUser)
 	{
 		pListUser->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
-		pListUser->InsertColumn(0, _T("变量名"), LVCFMT_LEFT, 180);
-		pListUser->InsertColumn(1, _T("值"), LVCFMT_LEFT, 332);
+		pListUser->InsertColumn(0, CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("ColName")), LVCFMT_LEFT, 180);
+		pListUser->InsertColumn(1, CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("ColValue")), LVCFMT_LEFT, 332);
 	}
 
 	RefreshAll();
@@ -632,14 +638,14 @@ void CEnvVarDlg::DoSearchFilter()
 	if (m_strSearchFilter.IsEmpty())
 	{
 		CString status;
-		status.Format(_T("系统变量: %d 个  |  用户变量: %d 个"),
+		status.Format(CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("StatusTotal")),
 			(int)m_systemVars.size(), (int)m_userVars.size());
 		UpdateStatus(status);
 	}
 	else
 	{
 		CString status;
-		status.Format(_T("搜索 \"%s\": 系统 %d/%d, 用户 %d/%d"),
+		status.Format(CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("StatusSearch")),
 			m_strSearchFilter, nSysVisible, (int)m_systemVars.size(),
 			nUserVisible, (int)m_userVars.size());
 		UpdateStatus(status);
@@ -728,7 +734,7 @@ void CEnvVarDlg::OnCustomDrawListEnv(NMHDR* pNMHDR, LRESULT* pResult)
 void CEnvVarDlg::OnBnClickedEnvAdd()     { OnAdd(); }
 void CEnvVarDlg::OnBnClickedEnvEdit()    { OnEdit(); }
 void CEnvVarDlg::OnBnClickedEnvDelete()  { OnDelete(); }
-void CEnvVarDlg::OnBnClickedEnvRefresh() { RefreshAll(); UpdateStatus(_T("已刷新")); }
+void CEnvVarDlg::OnBnClickedEnvRefresh() { RefreshAll(); UpdateStatus(CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("StatusRefreshed"))); }
 void CEnvVarDlg::OnBnClickedEnvExport()  { OnExport(); }
 void CEnvVarDlg::OnNMDblclkListEnv(NMHDR*, LRESULT* pResult) { *pResult = 0; OnEdit(); }
 
@@ -755,11 +761,11 @@ void CEnvVarDlg::OnNMRclickListEnv(NMHDR* pNMHDR, LRESULT* pResult)
 	// Build popup menu
 	CMenu menu;
 	menu.CreatePopupMenu();
-	menu.AppendMenu(MF_STRING, 1, _T("编辑"));
-	menu.AppendMenu(MF_STRING, 2, _T("删除"));
+	menu.AppendMenu(MF_STRING, 1, CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("RClickEdit")));
+	menu.AppendMenu(MF_STRING, 2, CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("RClickDelete")));
 	menu.AppendMenu(MF_SEPARATOR);
-	menu.AppendMenu(MF_STRING, 3, _T("复制变量名"));
-	menu.AppendMenu(MF_STRING, 4, _T("复制变量值"));
+	menu.AppendMenu(MF_STRING, 3, CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("RClickCopyName")));
+	menu.AppendMenu(MF_STRING, 4, CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("RClickCopyValue")));
 
 	CPoint pt;
 	GetCursorPos(&pt);
@@ -835,12 +841,13 @@ static bool FindSelectedInData(CWnd* pParent, int listId,
 
 void CEnvVarDlg::OnAdd()
 {
-	CString msg = _T("要添加系统变量还是用户变量？\n\n选\"是\"=系统变量，选\"否\"=用户变量");
-	int nRet = MessageBox(msg, _T("添加环境变量"), MB_YESNOCANCEL | MB_ICONQUESTION);
+	auto& loc = CLocalizationManager::GetInstance();
+	CString msg = loc.GetString(_T("EnvVar"), _T("ConfirmAddType"));
+	int nRet = MessageBox(msg, loc.GetString(_T("EnvVar"), _T("DlgAddTitle")), MB_YESNOCANCEL | MB_ICONQUESTION);
 	if (nRet == IDCANCEL) return;
 	bool bSystem = (nRet == IDYES);
 
-	CEnvInputDlg dlg(false, _T("添加环境变量"), this);
+	CEnvInputDlg dlg(false, loc.GetString(_T("EnvVar"), _T("DlgAddTitle")), this);
 	if (dlg.DoModal() != IDOK) return;
 
 	// Backup before modification
@@ -849,16 +856,17 @@ void CEnvVarDlg::OnAdd()
 	if (!WriteEnvVar(dlg.m_strName, dlg.m_strValue, bSystem))
 	{
 		CString errMsg;
-		errMsg.Format(_T("无法写入变量 %s。\n\n可能需要管理员权限来修改系统变量。"),
+		errMsg.Format(loc.GetString(_T("EnvVar"), _T("ErrWriteFail")),
 			dlg.m_strName);
-		MessageBox(errMsg, _T("写入失败"), MB_ICONERROR);
+		MessageBox(errMsg, loc.GetString(_T("EnvVar"), _T("DlgWriteFail")), MB_ICONERROR);
 	}
 	else
 	{
 		RefreshAll();
 		CString status;
-		status.Format(_T("已添加%s变量: %s  |  备份: %s"),
-			bSystem ? _T("系统") : _T("用户"), dlg.m_strName, backupPath);
+		status.Format(loc.GetString(_T("EnvVar"), _T("StatusAdded")),
+			bSystem ? loc.GetString(_T("EnvVar"), _T("SystemLabel")) : loc.GetString(_T("EnvVar"), _T("UserLabel")),
+			dlg.m_strName, backupPath);
 		UpdateStatus(status);
 	}
 }
@@ -895,7 +903,8 @@ void CEnvVarDlg::OnEdit()
 
 	if (!pList || !pVars)
 	{
-		MessageBox(_T("请先选择要编辑的变量。"), _T("提示"), MB_ICONINFORMATION);
+		MessageBox(CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("ErrSelectVar")),
+			CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("Info")), MB_ICONINFORMATION);
 		return;
 	}
 
@@ -921,23 +930,24 @@ void CEnvVarDlg::OnEdit()
 		if (!WriteEnvVar(entry.name, dlg.m_strValue, bSystem))
 		{
 			CString errMsg;
-			errMsg.Format(_T("无法写入变量 %s。\n\n可能需要管理员权限来修改系统变量。"),
+			errMsg.Format(CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("ErrWriteFail")),
 				entry.name);
-			MessageBox(errMsg, _T("写入失败"), MB_ICONERROR);
+			MessageBox(errMsg, CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("DlgWriteFail")), MB_ICONERROR);
 		}
 		else
 		{
 			RefreshAll();
 			CString status;
-			status.Format(_T("已更新%s变量: %s  |  备份: %s"),
-				bSystem ? _T("系统") : _T("用户"), entry.name, backupPath);
+			status.Format(CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("StatusUpdated")),
+				bSystem ? CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("SystemLabel")) : CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("UserLabel")),
+				entry.name, backupPath);
 			UpdateStatus(status);
 		}
 		return;
 	}
 
 	// Generic input dialog for regular variables
-	CEnvInputDlg dlg(true, _T("编辑环境变量"), this);
+	CEnvInputDlg dlg(true, CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("DlgEditTitle")), this);
 	dlg.m_strName = entry.name;
 	dlg.m_strValue = entry.value;
 	if (dlg.DoModal() != IDOK) return;
@@ -948,16 +958,17 @@ void CEnvVarDlg::OnEdit()
 	if (!WriteEnvVar(dlg.m_strName, dlg.m_strValue, bSystem))
 	{
 		CString errMsg;
-		errMsg.Format(_T("无法写入变量 %s。\n\n可能需要管理员权限来修改系统变量。"),
+		errMsg.Format(CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("ErrWriteFail")),
 			dlg.m_strName);
-		MessageBox(errMsg, _T("写入失败"), MB_ICONERROR);
+		MessageBox(errMsg, CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("DlgWriteFail")), MB_ICONERROR);
 	}
 	else
 	{
 		RefreshAll();
 		CString status;
-		status.Format(_T("已更新%s变量: %s  |  备份: %s"),
-			bSystem ? _T("系统") : _T("用户"), dlg.m_strName, backupPath);
+		status.Format(CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("StatusUpdated")),
+			bSystem ? CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("SystemLabel")) : CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("UserLabel")),
+			dlg.m_strName, backupPath);
 		UpdateStatus(status);
 	}
 }
@@ -991,7 +1002,8 @@ void CEnvVarDlg::OnDelete()
 
 	if (!pVars)
 	{
-		MessageBox(_T("请先选择要删除的变量。"), _T("提示"), MB_ICONINFORMATION);
+		MessageBox(CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("ErrSelectVarDel")),
+			CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("Info")), MB_ICONINFORMATION);
 		return;
 	}
 
@@ -1001,9 +1013,10 @@ void CEnvVarDlg::OnDelete()
 	const auto& entry = (*pVars)[idx];
 
 	CString msg;
-	msg.Format(_T("确定要删除%s变量 \"%s\" 吗？"),
-		bSystem ? _T("系统") : _T("用户"), entry.name);
-	if (MessageBox(msg, _T("确认删除"), MB_ICONWARNING | MB_YESNO) != IDYES)
+	msg.Format(CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("ConfirmDeleteVar")),
+		bSystem ? CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("SystemLabel")) : CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("UserLabel")),
+		entry.name);
+	if (MessageBox(msg, CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("DlgConfirmDelete")), MB_ICONWARNING | MB_YESNO) != IDYES)
 		return;
 
 	// Backup before modification
@@ -1012,16 +1025,17 @@ void CEnvVarDlg::OnDelete()
 	if (!DeleteEnvVar(entry.name, bSystem))
 	{
 		CString errMsg;
-		errMsg.Format(_T("无法删除变量 %s。\n\n可能需要管理员权限来删除系统变量。"),
+		errMsg.Format(CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("ErrDeleteFail")),
 			entry.name);
-		MessageBox(errMsg, _T("删除失败"), MB_ICONERROR);
+		MessageBox(errMsg, CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("DlgDeleteFail")), MB_ICONERROR);
 	}
 	else
 	{
 		RefreshAll();
 		CString status;
-		status.Format(_T("已删除%s变量: %s  |  备份: %s"),
-			bSystem ? _T("系统") : _T("用户"), entry.name, backupPath);
+		status.Format(CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("StatusDeleted")),
+			bSystem ? CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("SystemLabel")) : CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("UserLabel")),
+			entry.name, backupPath);
 		UpdateStatus(status);
 	}
 }
@@ -1060,7 +1074,9 @@ void CEnvVarDlg::OnCopyName()
 		}
 		CloseClipboard();
 	}
-	UpdateStatus(_T("已复制变量名: ") + entry.name);
+	CString st;
+	st.Format(CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("StatusCopiedName")), entry.name);
+	UpdateStatus(st);
 }
 
 void CEnvVarDlg::OnCopyValue()
@@ -1097,14 +1113,16 @@ void CEnvVarDlg::OnCopyValue()
 		}
 		CloseClipboard();
 	}
-	UpdateStatus(_T("已复制变量值: ") + entry.value);
+	CString st;
+	st.Format(CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("StatusCopiedValue")), entry.value);
+	UpdateStatus(st);
 }
 
 void CEnvVarDlg::OnExport()
 {
 	CFileDialog dlg(FALSE, _T(".txt"), _T("env_vars.txt"),
 		OFN_OVERWRITEPROMPT,
-		_T("文本文件 (*.txt)|*.txt|环境变量文件 (*.env)|*.env|所有文件 (*.*)|*.*||"),
+		CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("ExportFilter")),
 		this);
 
 	if (dlg.DoModal() != IDOK) return;
@@ -1114,7 +1132,8 @@ void CEnvVarDlg::OnExport()
 	std::ofstream ofs(filePath.GetString(), std::ios::out | std::ios::trunc);
 	if (!ofs.is_open())
 	{
-		MessageBox(_T("无法创建文件。"), _T("导出失败"), MB_ICONERROR);
+		MessageBox(CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("ErrCreateFile")),
+			CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("DlgExportFail")), MB_ICONERROR);
 		return;
 	}
 
@@ -1137,6 +1156,6 @@ void CEnvVarDlg::OnExport()
 	ofs.close();
 
 	CString status;
-	status.Format(_T("已导出到: %s"), filePath);
+	status.Format(CLocalizationManager::GetInstance().GetString(_T("EnvVar"), _T("StatusExported")), filePath);
 	UpdateStatus(status);
 }

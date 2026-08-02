@@ -2,6 +2,7 @@
 #include "framework.h"
 #include "MFCApplication1.h"
 #include "ConversationHistoryDlg.h"
+#include "LocalizationManager.h"
 #include "afxdialogex.h"
 #include <shellapi.h>
 
@@ -77,7 +78,7 @@ void CConversationHistoryDlg::RefreshList()
     m_conversations.clear();
 
     CString folder = GetConversationsFolder();
-    m_staticPath.SetWindowText(_T("保存位置: ") + folder);
+    m_staticPath.SetWindowText(CLocalizationManager::GetInstance().GetString(_T("ConvHistory"), _T("SaveLocation")) + folder);
     CString pattern = folder + _T("*.conv");
 
     CFileFind finder;
@@ -153,8 +154,8 @@ void CConversationHistoryDlg::LoadConversation(const ConversationInfo& conv)
 void CConversationHistoryDlg::DeleteConversation(const ConversationInfo& conv)
 {
     CString msg;
-    msg.Format(_T("确定要删除对话 \"%s\" 吗？"), conv.title.GetString());
-    if (MessageBox(msg, _T("确认删除"), MB_YESNO | MB_ICONQUESTION) != IDYES)
+    msg.Format(CLocalizationManager::GetInstance().GetString(_T("ConvHistory"), _T("ConfirmDeleteConv")), conv.title.GetString());
+    if (MessageBox(msg, CLocalizationManager::GetInstance().GetString(_T("ConvHistory"), _T("ConfirmDeleteTitle")), MB_YESNO | MB_ICONQUESTION) != IDYES)
         return;
 
     // Move to recycle bin — pFrom requires double-null-terminated string
@@ -173,7 +174,8 @@ void CConversationHistoryDlg::DeleteConversation(const ConversationInfo& conv)
 void CConversationHistoryDlg::RenameConversation(ConversationInfo& conv)
 {
     CString newTitle = conv.title;
-    if (!InputBox(newTitle, _T("重命名对话"), _T("请输入新的对话标题:")))
+    if (!InputBox(newTitle, CLocalizationManager::GetInstance().GetString(_T("ConvHistory"), _T("RenameTitle")), 
+                  CLocalizationManager::GetInstance().GetString(_T("ConvHistory"), _T("EnterNewTitle"))))
         return;
 
     if (newTitle.IsEmpty() || newTitle == conv.title)
@@ -232,6 +234,8 @@ BOOL CConversationHistoryDlg::OnInitDialog()
 {
     CDialogEx::OnInitDialog();
 
+    SetWindowText(CLocalizationManager::GetInstance().GetString(_T("DlgCaption"), _T("ConvHistoryDlg")));
+
     // Set list control extended styles
     m_list.SetExtendedStyle(m_list.GetExtendedStyle() | LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
 
@@ -239,9 +243,9 @@ BOOL CConversationHistoryDlg::OnInitDialog()
     CRect rcList;
     m_list.GetClientRect(&rcList);
     int colWidth = rcList.Width() / 3;
-    m_list.InsertColumn(0, _T("标题"), LVCFMT_LEFT, colWidth);
-    m_list.InsertColumn(1, _T("消息数"), LVCFMT_LEFT, colWidth);
-    m_list.InsertColumn(2, _T("更新时间"), LVCFMT_LEFT, colWidth);
+    m_list.InsertColumn(0, CLocalizationManager::GetInstance().GetString(_T("ConvHistory"), _T("ColTitle")), LVCFMT_LEFT, colWidth);
+    m_list.InsertColumn(1, CLocalizationManager::GetInstance().GetString(_T("ConvHistory"), _T("ColMessageCount")), LVCFMT_LEFT, colWidth);
+    m_list.InsertColumn(2, CLocalizationManager::GetInstance().GetString(_T("ConvHistory"), _T("ColUpdated")), LVCFMT_LEFT, colWidth);
 
     RefreshList();
 
@@ -274,7 +278,8 @@ void CConversationHistoryDlg::OnBnClickedConvLoad()
     int sel = m_list.GetNextItem(-1, LVNI_SELECTED);
     if (sel < 0)
     {
-        MessageBox(_T("请先选择一个对话"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(CLocalizationManager::GetInstance().GetString(_T("ConvHistory"), _T("SelectConvFirst")), 
+                  CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONINFORMATION);
         return;
     }
     DWORD_PTR idx = m_list.GetItemData(sel);
@@ -287,7 +292,8 @@ void CConversationHistoryDlg::OnBnClickedConvRename()
     int sel = m_list.GetNextItem(-1, LVNI_SELECTED);
     if (sel < 0)
     {
-        MessageBox(_T("请先选择一个对话"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(CLocalizationManager::GetInstance().GetString(_T("ConvHistory"), _T("SelectConvFirst")), 
+                  CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONINFORMATION);
         return;
     }
     DWORD_PTR idx = m_list.GetItemData(sel);
@@ -309,17 +315,19 @@ void CConversationHistoryDlg::OnBnClickedConvDelete()
 
     if (selectedIndices.empty())
     {
-        MessageBox(_T("请先选择要删除的对话"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(CLocalizationManager::GetInstance().GetString(_T("ConvHistory"), _T("SelectConvFirst")), 
+                  CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONINFORMATION);
         return;
     }
 
     CString msg;
+    auto& loc = CLocalizationManager::GetInstance();
     if (selectedIndices.size() == 1)
-        msg.Format(_T("确定要删除对话 \"%s\" 吗？"), m_conversations[selectedIndices[0]].title.GetString());
+        msg.Format(loc.GetString(_T("ConvHistory"), _T("ConfirmDeleteConv")), m_conversations[selectedIndices[0]].title.GetString());
     else
-        msg.Format(_T("确定要删除选中的 %d 个对话吗？"), (int)selectedIndices.size());
+        msg.Format(loc.GetString(_T("ConvHistory"), _T("DeleteMultiple")), (int)selectedIndices.size());
 
-    if (MessageBox(msg, _T("确认删除"), MB_YESNO | MB_ICONQUESTION) != IDYES)
+    if (MessageBox(msg, loc.GetString(_T("ConvHistory"), _T("ConfirmDeleteTitle")), MB_YESNO | MB_ICONQUESTION) != IDYES)
         return;
 
     // Delete files in reverse order (indices stay valid as we don't modify the vector)
@@ -398,9 +406,9 @@ void CConversationHistoryDlg::OnRclickConvHistory(NMHDR* /*pNMHDR*/, LRESULT* pR
 
     CMenu menu;
     menu.CreatePopupMenu();
-    menu.AppendMenu(MF_STRING, IDM_CONV_LOAD, _T("加载"));
-    menu.AppendMenu(MF_STRING, IDM_CONV_RENAME, _T("重命名"));
-    menu.AppendMenu(MF_STRING, IDM_CONV_DELETE, _T("删除"));
+    menu.AppendMenu(MF_STRING, IDM_CONV_LOAD, CLocalizationManager::GetInstance().GetString(_T("ConvHistory"), _T("RClickLoad")));
+    menu.AppendMenu(MF_STRING, IDM_CONV_RENAME, CLocalizationManager::GetInstance().GetString(_T("ConvHistory"), _T("RClickRename")));
+    menu.AppendMenu(MF_STRING, IDM_CONV_DELETE, CLocalizationManager::GetInstance().GetString(_T("ConvHistory"), _T("RClickDelete")));
 
     int cmd = menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_RETURNCMD, pt.x, pt.y, this);
     switch (cmd)
@@ -409,23 +417,26 @@ void CConversationHistoryDlg::OnRclickConvHistory(NMHDR* /*pNMHDR*/, LRESULT* pR
         if (selectedIndices.size() == 1)
             LoadConversation(m_conversations[selectedIndices[0]]);
         else
-            MessageBox(_T("加载对话仅支持单选"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+            MessageBox(CLocalizationManager::GetInstance().GetString(_T("ConvHistory"), _T("LoadSingleOnly")), 
+                      CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONINFORMATION);
         break;
     case IDM_CONV_RENAME:
         if (selectedIndices.size() == 1)
             RenameConversation(m_conversations[selectedIndices[0]]);
         else
-            MessageBox(_T("重命名仅支持单选"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+            MessageBox(CLocalizationManager::GetInstance().GetString(_T("ConvHistory"), _T("RenameSingleOnly")), 
+                      CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONINFORMATION);
         break;
     case IDM_CONV_DELETE:
     {
         CString msg;
+        auto& loc = CLocalizationManager::GetInstance();
         if (selectedIndices.size() == 1)
-            msg.Format(_T("确定要删除对话 \"%s\" 吗？"), m_conversations[selectedIndices[0]].title.GetString());
+            msg.Format(loc.GetString(_T("ConvHistory"), _T("ConfirmDeleteConv")), m_conversations[selectedIndices[0]].title.GetString());
         else
-            msg.Format(_T("确定要删除选中的 %d 个对话吗？"), (int)selectedIndices.size());
+            msg.Format(loc.GetString(_T("ConvHistory"), _T("DeleteMultiple")), (int)selectedIndices.size());
 
-        if (MessageBox(msg, _T("确认删除"), MB_YESNO | MB_ICONQUESTION) == IDYES)
+        if (MessageBox(msg, loc.GetString(_T("ConvHistory"), _T("ConfirmDeleteTitle")), MB_YESNO | MB_ICONQUESTION) == IDYES)
         {
             for (int i = (int)selectedIndices.size() - 1; i >= 0; i--)
             {

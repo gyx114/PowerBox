@@ -4,6 +4,7 @@
 #include "BatchRenameDlg.h"
 #include "resource.h"
 #include "Utils.h"
+#include "LocalizationManager.h"
 
 // File management: handle files dropped onto the dialog
 void CMFCApplication1Dlg::OnDropFiles(HDROP hDropInfo)
@@ -125,11 +126,12 @@ BOOL CMFCApplication1Dlg::OnCopyData(CWnd* pWnd, COPYDATASTRUCT* pCopyDataStruct
 
 void CMFCApplication1Dlg::OnBnClickedButton3()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     // Read current file path and requested new name
     CString src = m_strDroppedFilePath;
     if (src.IsEmpty())
     {
-        MessageBox(_T("请先拖入文件！"), _T("提示"), MB_OK | MB_ICONWARNING);
+        MessageBox(loc.GetString(_T("Msg"), _T("FileNotFound")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
         return;
     }
 
@@ -141,7 +143,7 @@ void CMFCApplication1Dlg::OnBnClickedButton3()
         newName = AfxGetApp()->GetProfileString(_T("Template"), _T("DefaultReportName"), _T(""));
         if (newName.IsEmpty())
         {
-            MessageBox(_T("请先在 文件→设置→文件命名 中配置默认文件名。"), _T("提示"), MB_OK | MB_ICONWARNING);
+            MessageBox(loc.GetString(_T("Msg"), _T("ConfigDefaultName")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
             SetDlgItemText(IDC_EDIT4, newName);
             return;
         }
@@ -161,26 +163,26 @@ void CMFCApplication1Dlg::OnBnClickedButton3()
     while (GetFileAttributes(candidate) != INVALID_FILE_ATTRIBUTES && attempt < 1000)
     {
         attempt++;
-        baseName = newName + _T("_副本");
+        baseName = newName + loc.GetString(_T("Msg"), _T("CopySuffix"));
         candidate = dir + baseName + ext;
         newName = baseName; // next iteration will append again if needed
     }
 
     if (attempt >= 1000)
     {
-        MessageBox(_T("无法生成唯一文件名，请检查目标目录权限或手动选择不同名称。"), _T("错误"), MB_OK | MB_ICONERROR);
+        MessageBox(loc.GetString(_T("Msg"), _T("CannotGenUniqueName")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         return;
     }
 
     if (CopyFile(src, candidate, FALSE))
     {
-        CString msg; msg.Format(_T("生成副本成功！\n保存路径：%s"), candidate);
-        MessageBox(msg, _T("成功"), MB_OK | MB_ICONINFORMATION);
+        CString msg; msg.Format(loc.GetString(_T("Msg"), _T("CopySuccess")), candidate);
+        MessageBox(msg, loc.GetString(_T("Msg"), _T("Success")), MB_OK | MB_ICONINFORMATION);
     }
     else
     {
-        CString err; err.Format(_T("生成副本失败，错误代码：%u"), GetLastError());
-        MessageBox(err, _T("错误"), MB_OK | MB_ICONERROR);
+        CString err; err.Format(loc.GetString(_T("Msg"), _T("CopyFail")), GetLastError());
+        MessageBox(err, loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
     }
 }
 
@@ -188,9 +190,10 @@ void CMFCApplication1Dlg::OnBnClickedButton3()
 // Rename handler for IDC_BUTTON23
 void CMFCApplication1Dlg::OnBnClickedButton23()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     if (m_strDroppedFilePath.IsEmpty())
     {
-        MessageBox(_T("请先拖入文件！"), _T("提示"), MB_OK | MB_ICONWARNING);
+        MessageBox(loc.GetString(_T("Msg"), _T("FileNotFound")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
         return;
     }
 
@@ -200,7 +203,7 @@ void CMFCApplication1Dlg::OnBnClickedButton23()
     newBase.Trim(); newExt.Trim();
     if (newBase.IsEmpty())
     {
-        MessageBox(_T("文件名不能为空。"), _T("错误"), MB_OK | MB_ICONERROR);
+        MessageBox(loc.GetString(_T("Msg"), _T("FileNameEmpty")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         return;
     }
 
@@ -210,7 +213,7 @@ void CMFCApplication1Dlg::OnBnClickedButton23()
     {
         if (newBase.Find(invalid[i]) != -1 || newExt.Find(invalid[i]) != -1)
         {
-            MessageBox(_T("文件名或扩展名包含不合法字符。\\ / : * ? \" < > | 不允许。"), _T("错误"), MB_OK | MB_ICONERROR);
+            MessageBox(loc.GetString(_T("Msg"), _T("InvalidFileNameChars")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
             return;
         }
     }
@@ -228,14 +231,14 @@ void CMFCApplication1Dlg::OnBnClickedButton23()
 
     if (GetFileAttributes(dst) != INVALID_FILE_ATTRIBUTES)
     {
-        MessageBox(_T("目标文件已存在，请选择其他名称。"), _T("错误"), MB_OK | MB_ICONERROR);
+        MessageBox(loc.GetString(_T("Msg"), _T("TargetFileExists")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         return;
     }
 
     if (MoveFile(m_strDroppedFilePath, dst))
     {
-        CString msg; msg.Format(_T("重命名成功：%s"), dst);
-        MessageBox(msg, _T("成功"), MB_OK | MB_ICONINFORMATION);
+        CString msg; msg.Format(loc.GetString(_T("Msg"), _T("RenameSuccess")), dst);
+        MessageBox(msg, loc.GetString(_T("Msg"), _T("Success")), MB_OK | MB_ICONINFORMATION);
         m_strDroppedFilePath = dst;
         SetDlgItemText(IDC_STATIC_PATH, m_strDroppedFilePath);
         // do not modify IDC_EDIT4 here; user-managed copy name should remain as-is
@@ -243,8 +246,8 @@ void CMFCApplication1Dlg::OnBnClickedButton23()
     else
     {
         DWORD err = GetLastError();
-        CString emsg; emsg.Format(_T("重命名失败：%s (错误代码 %u)"), FormatLastError(err), err);
-        MessageBox(emsg, _T("错误"), MB_OK | MB_ICONERROR);
+        CString emsg; emsg.Format(loc.GetString(_T("Msg"), _T("RenameFail")), FormatLastError(err), err);
+        MessageBox(emsg, loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         if (err == ERROR_ACCESS_DENIED)
         {
             if (PromptRestartElevated())
@@ -266,9 +269,10 @@ void CMFCApplication1Dlg::OnStnClickedStaticPath()
 // Copy selected dropped file to target directory specified in IDC_MFCEDITBROWSE2
 void CMFCApplication1Dlg::OnBnClickedButton25()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     if (m_strDroppedFilePath.IsEmpty())
     {
-        MessageBox(_T("请先拖入文件！"), _T("提示"), MB_OK | MB_ICONWARNING);
+        MessageBox(loc.GetString(_T("Msg"), _T("FileNotFound")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
         return;
     }
 
@@ -277,14 +281,14 @@ void CMFCApplication1Dlg::OnBnClickedButton25()
     destDir.Trim();
     if (destDir.IsEmpty() || GetFileAttributes(destDir) == INVALID_FILE_ATTRIBUTES)
     {
-        MessageBox(_T("目标路径无效，请在下方输入或选择有效目录。"), _T("错误"), MB_OK | MB_ICONERROR);
+        MessageBox(loc.GetString(_T("Msg"), _T("InvalidDestPath")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         return;
     }
 
     DWORD attr = GetFileAttributes(destDir);
     if (!(attr & FILE_ATTRIBUTE_DIRECTORY))
     {
-        MessageBox(_T("目标路径不是目录，请选择文件夹路径。"), _T("错误"), MB_OK | MB_ICONERROR);
+        MessageBox(loc.GetString(_T("Msg"), _T("DestNotDir")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         return;
     }
 
@@ -307,28 +311,29 @@ void CMFCApplication1Dlg::OnBnClickedButton25()
 
     if (attempt >= 1000)
     {
-        MessageBox(_T("目标文件无法生成唯一名称，请检查目录或手动指定不同的名称。"), _T("错误"), MB_OK | MB_ICONERROR);
+        MessageBox(loc.GetString(_T("Msg"), _T("CannotGenUniqueName")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         return;
     }
 
     if (CopyFile(m_strDroppedFilePath, dst, FALSE))
     {
-        CString msg; msg.Format(_T("复制成功：%s"), dst);
-        MessageBox(msg, _T("完成"), MB_OK | MB_ICONINFORMATION);
+        CString msg; msg.Format(loc.GetString(_T("Msg"), _T("CopyFileSuccess")), dst);
+        MessageBox(msg, loc.GetString(_T("Msg"), _T("Completed")), MB_OK | MB_ICONINFORMATION);
     }
     else
     {
-        CString err; err.Format(_T("复制失败，错误代码：%u"), GetLastError());
-        MessageBox(err, _T("错误"), MB_OK | MB_ICONERROR);
+        CString err; err.Format(loc.GetString(_T("Msg"), _T("CopyFail")), GetLastError());
+        MessageBox(err, loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
     }
 }
 
 // Move selected dropped file to target directory specified in IDC_MFCEDITBROWSE2
 void CMFCApplication1Dlg::OnBnClickedButton26()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     if (m_strDroppedFilePath.IsEmpty())
     {
-        MessageBox(_T("请先拖入文件！"), _T("提示"), MB_OK | MB_ICONWARNING);
+        MessageBox(loc.GetString(_T("Msg"), _T("FileNotFound")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
         return;
     }
 
@@ -337,14 +342,14 @@ void CMFCApplication1Dlg::OnBnClickedButton26()
     destDir.Trim();
     if (destDir.IsEmpty() || GetFileAttributes(destDir) == INVALID_FILE_ATTRIBUTES)
     {
-        MessageBox(_T("目标路径无效，请在下方输入或选择有效目录。"), _T("错误"), MB_OK | MB_ICONERROR);
+        MessageBox(loc.GetString(_T("Msg"), _T("InvalidDestPath")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         return;
     }
 
     DWORD attr = GetFileAttributes(destDir);
     if (!(attr & FILE_ATTRIBUTE_DIRECTORY))
     {
-        MessageBox(_T("目标路径不是目录，请选择文件夹路径。"), _T("错误"), MB_OK | MB_ICONERROR);
+        MessageBox(loc.GetString(_T("Msg"), _T("DestNotDir")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         return;
     }
 
@@ -354,22 +359,22 @@ void CMFCApplication1Dlg::OnBnClickedButton26()
 
     if (GetFileAttributes(dst) != INVALID_FILE_ATTRIBUTES)
     {
-        MessageBox(_T("目标目录中已存在同名文件，请先移除或更改目标路径。"), _T("错误"), MB_OK | MB_ICONERROR);
+        MessageBox(loc.GetString(_T("Msg"), _T("FileAlreadyExists")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         return;
     }
 
     if (MoveFile(m_strDroppedFilePath, dst))
     {
-        CString msg; msg.Format(_T("移动成功：%s"), dst);
-        MessageBox(msg, _T("完成"), MB_OK | MB_ICONINFORMATION);
+        CString msg; msg.Format(loc.GetString(_T("Msg"), _T("MoveSuccess")), dst);
+        MessageBox(msg, loc.GetString(_T("Msg"), _T("Completed")), MB_OK | MB_ICONINFORMATION);
         m_strDroppedFilePath = dst;
         SetDlgItemText(IDC_STATIC_PATH, m_strDroppedFilePath);
     }
     else
     {
         DWORD err = GetLastError();
-        CString em; em.Format(_T("移动失败，错误代码：%u"), err);
-        MessageBox(em, _T("错误"), MB_OK | MB_ICONERROR);
+        CString em; em.Format(loc.GetString(_T("Msg"), _T("MoveFail")), err);
+        MessageBox(em, loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         if (err == ERROR_ACCESS_DENIED)
         {
             if (PromptRestartElevated())
@@ -384,6 +389,7 @@ void CMFCApplication1Dlg::OnBnClickedButton26()
 // Checkbox: set or cancel auto-start (write or delete current user Run registry entry)
 void CMFCApplication1Dlg::OnBnClickedCheck1()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     CButton* pCheck = (CButton*)GetDlgItem(IDC_CHECK1);
     if (!pCheck) return;
 
@@ -391,7 +397,7 @@ void CMFCApplication1Dlg::OnBnClickedCheck1()
     TCHAR exePath[MAX_PATH] = {0};
     if (GetModuleFileName(NULL, exePath, MAX_PATH) == 0)
     {
-        MessageBox(_T("无法获取程序路径。"), _T("错误"), MB_OK | MB_ICONERROR);
+        MessageBox(loc.GetString(_T("Msg"), _T("CannotGetExePath")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         return;
     }
 
@@ -405,13 +411,13 @@ void CMFCApplication1Dlg::OnBnClickedCheck1()
     {
         DWORD err = GetLastError();
         CString msg;
-        msg.Format(_T("无法打开注册表键，请检查权限。错误：%s"), FormatLastError(err));
+        msg.Format(loc.GetString(_T("Msg"), _T("CannotOpenRegKey")), FormatLastError(err));
         if (err == ERROR_ACCESS_DENIED)
         {
             if (PromptRestartElevated())
                 return;
         }
-        MessageBox(msg, _T("错误"), MB_OK | MB_ICONERROR);
+        MessageBox(msg, loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         return;
     }
 
@@ -428,7 +434,7 @@ void CMFCApplication1Dlg::OnBnClickedCheck1()
         ret = RegDeleteValue(hKey, keyName);
         if (ret == ERROR_SUCCESS || ret == ERROR_FILE_NOT_FOUND)
         {
-            MessageBox(_T("已取消开机自启动"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+            MessageBox(loc.GetString(_T("Msg"), _T("AutoStartDisabled")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONINFORMATION);
             pCheck->SetCheck(BST_UNCHECKED);
             AfxGetApp()->WriteProfileInt(_T("Settings"), _T("AutoStart"), 0);
         }
@@ -436,12 +442,12 @@ void CMFCApplication1Dlg::OnBnClickedCheck1()
         {
             DWORD err = GetLastError();
             CString msg;
-            msg.Format(_T("删除启动项失败，请检查权限。错误：%s"), FormatLastError(err));
+            msg.Format(loc.GetString(_T("Msg"), _T("DeleteStartupFail")), FormatLastError(err));
             if (err == ERROR_ACCESS_DENIED)
             {
                 if (PromptRestartElevated()) { RegCloseKey(hKey); return; }
             }
-            MessageBox(msg, _T("错误"), MB_OK | MB_ICONERROR);
+            MessageBox(msg, loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
             pCheck->SetCheck(BST_CHECKED);
         }
     }
@@ -454,19 +460,19 @@ void CMFCApplication1Dlg::OnBnClickedCheck1()
         LONG setRet = RegSetValueEx(hKey, keyName, 0, REG_SZ, (const BYTE*)(LPCTSTR)runValue, (runValue.GetLength() + 1) * sizeof(TCHAR));
         if (setRet == ERROR_SUCCESS)
         {
-            MessageBox(_T("已设置为开机自启动。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+            MessageBox(loc.GetString(_T("Msg"), _T("AutoStartEnabled")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONINFORMATION);
             pCheck->SetCheck(BST_CHECKED);
             AfxGetApp()->WriteProfileInt(_T("Settings"), _T("AutoStart"), 1);
         }
         else
         {
             CString msg;
-            msg.Format(_T("添加启动项失败，请检查权限。错误：%s"), FormatLastError(GetLastError()));
+            msg.Format(loc.GetString(_T("Msg"), _T("AddStartupFail")), FormatLastError(GetLastError()));
             if (GetLastError() == ERROR_ACCESS_DENIED)
             {
                 if (PromptRestartElevated()) { RegCloseKey(hKey); return; }
             }
-            MessageBox(msg, _T("错误"), MB_OK | MB_ICONERROR);
+            MessageBox(msg, loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
             // Restore to unchecked
             pCheck->SetCheck(BST_UNCHECKED);
         }

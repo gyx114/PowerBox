@@ -3,6 +3,7 @@
 #include "framework.h"
 #include "Utils.h"
 #include "resource.h"
+#include "LocalizationManager.h"
 #include <userenv.h>
 #pragma comment(lib, "Userenv.lib")
 
@@ -68,7 +69,8 @@ void CopyToClipboard(HWND hwnd, const CString& text)
 // Prompt user to restart with admin privileges, returns true if restart initiated
 [[nodiscard]] bool PromptRestartElevated()
 {
-    int r = MessageBox(nullptr, _T("操作需要管理员权限。是否以管理员权限重新启动程序？"), _T("需要权限"), MB_YESNO | MB_ICONQUESTION);
+    auto& loc = CLocalizationManager::GetInstance();
+    int r = MessageBox(nullptr, loc.GetString(_T("Msg"), _T("PromptRestartAdminMsg")), loc.GetString(_T("Msg"), _T("NeedPermission")), MB_YESNO | MB_ICONQUESTION);
     if (r == IDYES)
     {
         TCHAR szPath[MAX_PATH]{};
@@ -186,12 +188,13 @@ void AllowUIPIMessage(HWND hwnd, UINT msg, BOOL allow)
 // Launch process as current desktop user (non-admin)
 bool LaunchProcessAsShellUser(LPCTSTR exe, LPCTSTR params, CString* pError)
 {
+    auto& loc = CLocalizationManager::GetInstance();
     if (pError) *pError = _T("");
 
     HWND hShell = GetShellWindow();
     if (!hShell)
     {
-        if (pError) *pError = _T("无法获取 Shell 窗口。");
+        if (pError) *pError = loc.GetString(_T("Msg"), _T("ShellWindowFailed"));
         return false;
     }
 
@@ -199,7 +202,7 @@ bool LaunchProcessAsShellUser(LPCTSTR exe, LPCTSTR params, CString* pError)
     GetWindowThreadProcessId(hShell, &dwPid);
     if (dwPid == 0)
     {
-        if (pError) *pError = _T("无法获取 Shell 进程 ID。");
+        if (pError) *pError = loc.GetString(_T("Msg"), _T("ShellPidFailed"));
         return false;
     }
 

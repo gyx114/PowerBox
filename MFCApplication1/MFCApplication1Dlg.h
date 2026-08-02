@@ -93,6 +93,7 @@ protected:
 	void InitFileTab();
 	void InitGitTab();
 	void InitQuickTab();
+	void TranslateUI();
 	void UpdateTabVisibility(int nTab);
 	void UpdateQuickTab(int nTab);
 

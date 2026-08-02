@@ -10,6 +10,7 @@ public:
     virtual void OnCancel() override;
     virtual void PostNcDestroy() override;
     afx_msg void OnClose();
+    afx_msg void OnCbnSelchangeLanguage();
     void OnBrowseBili();
     void OnBrowseWeChat();
     void OnBrowseQQ();
@@ -31,5 +32,6 @@ private:
     void LoadVendorKey(const CString& vendor);
     void SaveVendorKey(const CString& vendor);
     CString m_strCurrentVendor;
+    CString m_strCurrentLang;
     DECLARE_MESSAGE_MAP()
 };

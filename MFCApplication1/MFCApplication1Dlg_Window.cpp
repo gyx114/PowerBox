@@ -3,6 +3,7 @@
 #include "MFCApplication1Dlg.h"
 #include "resource.h"
 #include "Utils.h"
+#include "LocalizationManager.h"
 
 // Overlay window procedure used for capture
 static LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -59,7 +60,8 @@ void CMFCApplication1Dlg::OnBnClickedButton19()
                                     m_hWnd, NULL, AfxGetInstanceHandle(), NULL);
     if (!hOverlay)
     {
-        MessageBox(_T("无法进入定位模式。"), _T("错误"), MB_OK | MB_ICONERROR);
+        auto& loc = CLocalizationManager::GetInstance();
+        MessageBox(loc.GetString(_T("Msg"), _T("EnterLocateModeFail")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         return;
     }
     ::SetWindowLongPtr(hOverlay, GWLP_USERDATA, (LONG_PTR)this);
@@ -78,7 +80,8 @@ void CMFCApplication1Dlg::OnTargetSelected(HWND hTarget, POINT pt)
     m_hSelectedWnd = hTarget;
     if (!IsWindow(hTarget))
     {
-        MessageBox(_T("未选中有效窗口。"), _T("提示"), MB_OK | MB_ICONWARNING);
+        auto& loc = CLocalizationManager::GetInstance();
+        MessageBox(loc.GetString(_T("Msg"), _T("NoWindowSelected")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
         return;
     }
 
@@ -100,19 +103,20 @@ void CMFCApplication1Dlg::OnTargetSelected(HWND hTarget, POINT pt)
     }
 
     // Show operation menu
+    auto& loc = CLocalizationManager::GetInstance();
     CMenu menu;
     menu.CreatePopupMenu();
     // Provide only topmost and close options
-    menu.AppendMenu(MF_STRING, 1, _T("置顶 (Topmost)"));
-    menu.AppendMenu(MF_STRING, 3, _T("关闭窗口 (Close)"));
-    menu.AppendMenu(MF_STRING, 0, _T("取消"));
+    menu.AppendMenu(MF_STRING, 1, loc.GetString(_T("Menu"), _T("TopmostEn")));
+    menu.AppendMenu(MF_STRING, 3, loc.GetString(_T("Menu"), _T("CloseWindowEn")));
+    menu.AppendMenu(MF_STRING, 0, loc.GetString(_T("Menu"), _T("Cancel")));
 
     ::SetForegroundWindow(m_hWnd);
     int cmd = menu.TrackPopupMenu(TPM_RETURNCMD | TPM_LEFTALIGN | TPM_TOPALIGN, pt.x, pt.y, this);
     if (cmd == 1)
     {
         if (!::SetWindowPos(hTarget, HWND_TOPMOST, 0,0,0,0, SWP_NOMOVE|SWP_NOSIZE))
-            MessageBox(_T("置顶失败，可能权限不足或窗口不允许。"), _T("提示"), MB_OK | MB_ICONERROR);
+            MessageBox(loc.GetString(_T("Msg"), _T("TopmostFail")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONERROR);
         else
         {
             // Avoid duplicate additions
@@ -140,9 +144,10 @@ void CMFCApplication1Dlg::OnTargetSelected(HWND hTarget, POINT pt)
 
 void CMFCApplication1Dlg::OnForceKillProcess()
 {
+	auto& loc = CLocalizationManager::GetInstance();
 	if (!m_hSelectedWnd || !IsValidWindow(m_hSelectedWnd))
 	{
-		MessageBox(_T("请先定位一个窗口。"), _T("提示"), MB_OK | MB_ICONWARNING);
+		MessageBox(loc.GetString(_T("Msg"), _T("InvalidWindow")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
 		return;
 	}
 
@@ -150,27 +155,27 @@ void CMFCApplication1Dlg::OnForceKillProcess()
 	GetWindowThreadProcessId(m_hSelectedWnd, &pid);
 	if (pid == 0)
 	{
-		MessageBox(_T("无法获取进程ID。"), _T("错误"), MB_OK | MB_ICONERROR);
+		MessageBox(loc.GetString(_T("Msg"), _T("CannotGetPID")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
 		return;
 	}
 
 	CString msg;
-	msg.Format(_T("确定要强制结束进程 PID=%u 吗？\n未保存的数据可能会丢失。"), pid);
-	if (MessageBox(msg, _T("确认强制结束"), MB_YESNO | MB_ICONWARNING) != IDYES)
+	msg.Format(loc.GetString(_T("Msg"), _T("ConfirmForceKill")), pid);
+	if (MessageBox(msg, loc.GetString(_T("Msg"), _T("ConfirmForceKillTitle")), MB_YESNO | MB_ICONWARNING) != IDYES)
 		return;
 
 	HANDLE hProc = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
 	if (!hProc)
 	{
 		DWORD err = GetLastError();
-		msg.Format(_T("无法打开进程 (错误: %u)，可能需要管理员权限。"), err);
-		MessageBox(msg, _T("错误"), MB_OK | MB_ICONERROR);
+		msg.Format(loc.GetString(_T("Msg"), _T("CannotOpenProcErr")), err);
+		MessageBox(msg, loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
 		return;
 	}
 
 	if (TerminateProcess(hProc, 1))
 	{
-		MessageBox(_T("进程已强制结束。"), _T("完成"), MB_OK | MB_ICONINFORMATION);
+		MessageBox(loc.GetString(_T("Msg"), _T("ProcessForceKilled")), loc.GetString(_T("Msg"), _T("Completed")), MB_OK | MB_ICONINFORMATION);
 		// Remove terminated windows from topmost list
 		m_topmostWnds.erase(
 			std::remove_if(m_topmostWnds.begin(), m_topmostWnds.end(),
@@ -182,16 +187,17 @@ void CMFCApplication1Dlg::OnForceKillProcess()
 	}
 	else
 	{
-		MessageBox(_T("强制结束进程失败。"), _T("错误"), MB_OK | MB_ICONERROR);
+		MessageBox(loc.GetString(_T("Msg"), _T("ProcessForceKillFail")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
 	}
 	CloseHandle(hProc);
 }
 
 void CMFCApplication1Dlg::OnWindowScreenshot()
 {
+	auto& loc = CLocalizationManager::GetInstance();
 	if (!m_hSelectedWnd || !IsValidWindow(m_hSelectedWnd))
 	{
-		MessageBox(_T("请先定位一个窗口。"), _T("提示"), MB_OK | MB_ICONWARNING);
+		MessageBox(loc.GetString(_T("Msg"), _T("InvalidWindow")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
 		return;
 	}
 
@@ -202,7 +208,7 @@ void CMFCApplication1Dlg::OnWindowScreenshot()
 	int height = rc.bottom - rc.top;
 	if (width <= 0 || height <= 0)
 	{
-		MessageBox(_T("窗口尺寸无效。"), _T("错误"), MB_OK | MB_ICONERROR);
+		MessageBox(loc.GetString(_T("Msg"), _T("InvalidWindowSize")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
 		return;
 	}
 
@@ -237,7 +243,7 @@ void CMFCApplication1Dlg::OnWindowScreenshot()
 	}
 	else
 	{
-		MessageBox(_T("无法打开剪贴板。"), _T("错误"), MB_OK | MB_ICONERROR);
+		MessageBox(loc.GetString(_T("Msg"), _T("ClipboardFail")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
 		::DeleteObject(hBitmap);
 	}
 
@@ -270,8 +276,8 @@ void CMFCApplication1Dlg::OnWindowScreenshot()
 		img.Detach();  // Prevent hBitmap from being freed by CImage destructor
 
 		CString sMsg;
-		sMsg.Format(_T("截图已保存到:\n%s"), sFullPath);
-		MessageBox(sMsg, _T("完成"), MB_OK | MB_ICONINFORMATION);
+		sMsg.Format(loc.GetString(_T("Msg"), _T("ScreenshotSavedTo")), sFullPath);
+		MessageBox(sMsg, loc.GetString(_T("Msg"), _T("Completed")), MB_OK | MB_ICONINFORMATION);
 	}
 
 	::SelectObject(hdcMem, hOldBmp);
@@ -307,6 +313,7 @@ void CMFCApplication1Dlg::OnWindowUntopmost()
 
 void CMFCApplication1Dlg::OnWindowClose()
 {
+	auto& loc = CLocalizationManager::GetInstance();
 	if (m_hSelectedWnd && IsValidWindow(m_hSelectedWnd))
 	{
 		CString title;
@@ -314,8 +321,8 @@ void CMFCApplication1Dlg::OnWindowClose()
 		title.ReleaseBuffer();
 
 		CString msg;
-		msg.Format(_T("确定要关闭窗口 \"%s\" 吗？"), title);
-		if (MessageBox(msg, _T("确认关闭"), MB_YESNO | MB_ICONQUESTION) == IDYES)
+		msg.Format(loc.GetString(_T("Msg"), _T("ConfirmCloseWindow")), title);
+		if (MessageBox(msg, loc.GetString(_T("Msg"), _T("ConfirmCloseTitle")), MB_YESNO | MB_ICONQUESTION) == IDYES)
 		{
 			::SendMessage(m_hSelectedWnd, WM_CLOSE, 0, 0);
 			// Remove from topmost list
@@ -330,7 +337,7 @@ void CMFCApplication1Dlg::OnWindowClose()
 	}
 	else
 	{
-		MessageBox(_T("请先定位一个窗口。"), _T("提示"), MB_OK | MB_ICONWARNING);
+		MessageBox(loc.GetString(_T("Msg"), _T("InvalidWindow")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
 	}
 }
 
@@ -385,14 +392,10 @@ void CMFCApplication1Dlg::OnNMDblclkList2(NMHDR* pNMHDR, LRESULT* pResult)
 
 void CMFCApplication1Dlg::OnHelpShortcuts()
 {
+	auto& loc = CLocalizationManager::GetInstance();
 	MessageBox(
-		_T("快捷键列表:\n\n")
-		_T("Ctrl+Alt+Space   - 显示/隐藏工具箱\n")
-		_T("Alt+1~6          - 切换标签页\n")
-		_T("F5               - 刷新当前列表\n")
-		_T("Ctrl+Alt+D       - 定位窗口\n\n")
-		_T("更多功能请查看视图/工具/窗口菜单。"),
-		_T("快捷键列表"), MB_OK | MB_ICONINFORMATION);
+		loc.GetString(_T("Shortcut"), _T("ShortcutList")),
+		loc.GetString(_T("Shortcut"), _T("ShortcutListTitle")), MB_OK | MB_ICONINFORMATION);
 }
 
 void CMFCApplication1Dlg::OnHelpGithub()
@@ -402,6 +405,7 @@ void CMFCApplication1Dlg::OnHelpGithub()
 
 void CMFCApplication1Dlg::LoadWindowDetailToList5(HWND hWnd)
 {
+	auto& loc = CLocalizationManager::GetInstance();
 	CListCtrl* pList5 = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST5));
 	if (!pList5) return;
 
@@ -432,12 +436,12 @@ void CMFCApplication1Dlg::LoadWindowDetailToList5(HWND hWnd)
 	CString val;
 
 	val.Format(_T("0x%08X"), reinterpret_cast<UINT_PTR>(hWnd));
-	pList5->InsertItem(row, _T("句柄")); pList5->SetItemText(row++, 1, val);
-	pList5->InsertItem(row, _T("进程名")); pList5->SetItemText(row++, 1, procName);
+	pList5->InsertItem(row, loc.GetString(_T("WindowTab"), _T("Handle"))); pList5->SetItemText(row++, 1, val);
+	pList5->InsertItem(row, loc.GetString(_T("WindowTab"), _T("ProcName"))); pList5->SetItemText(row++, 1, procName);
 	val.Format(_T("%u"), pid);
-	pList5->InsertItem(row, _T("PID")); pList5->SetItemText(row++, 1, val);
-	pList5->InsertItem(row, _T("路径")); pList5->SetItemText(row++, 1, procPath);
-	pList5->InsertItem(row, _T("窗口标题")); pList5->SetItemText(row++, 1, title);
+	pList5->InsertItem(row, loc.GetString(_T("WindowTab"), _T("PID"))); pList5->SetItemText(row++, 1, val);
+	pList5->InsertItem(row, loc.GetString(_T("WindowTab"), _T("Path"))); pList5->SetItemText(row++, 1, procPath);
+	pList5->InsertItem(row, loc.GetString(_T("WindowTab"), _T("Title"))); pList5->SetItemText(row++, 1, title);
 }
 
 void CMFCApplication1Dlg::OnClickList6(NMHDR* /*pNMHDR*/, LRESULT* pResult)
@@ -541,7 +545,8 @@ void CMFCApplication1Dlg::OnTopmostFromHistory()
 
 	if (!::SetWindowPos(hWnd, HWND_TOPMOST, 0,0,0,0, SWP_NOMOVE|SWP_NOSIZE))
 	{
-		MessageBox(_T("置顶失败，可能权限不足或窗口不允许。"), _T("提示"), MB_OK | MB_ICONERROR);
+		auto& loc = CLocalizationManager::GetInstance();
+		MessageBox(loc.GetString(_T("Msg"), _T("TopmostFail")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONERROR);
 		return;
 	}
 

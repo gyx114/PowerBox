@@ -5,6 +5,7 @@
 #include "framework.h"
 #include "MFCApplication1.h"
 #include "GitCmdResultDlg.h"
+#include "LocalizationManager.h"
 #include "afxdialogex.h"
 #include <thread>
 
@@ -77,9 +78,11 @@ BOOL CGitCmdResultDlg::OnInitDialog()
 {
     CDialogEx::OnInitDialog();
 
+    auto& loc = CLocalizationManager::GetInstance();
+
     // Display working directory
-    SetDlgItemText(IDC_STATIC_GIT_WORKDIR, m_strWorkDir.IsEmpty() ? CString(_T("(默认)")) : m_strWorkDir);
-    SetDlgItemText(IDC_STATIC_GIT_STATUS, _T("状态: 准备就绪"));
+    SetDlgItemText(IDC_STATIC_GIT_WORKDIR, m_strWorkDir.IsEmpty() ? loc.GetString(_T("GitTab"), _T("DefaultDir")) : m_strWorkDir);
+    SetDlgItemText(IDC_STATIC_GIT_STATUS, loc.GetString(_T("GitCmdDlg"), _T("StatusReady")));
 
     // Read layout anchors from RC-defined positions FIRST
     auto ReadRect = [&](int id) -> CRect {
@@ -127,8 +130,8 @@ BOOL CGitCmdResultDlg::OnInitDialog()
         pList->GetWindowRect(&rcList);
         int listWidth = rcList.Width() - 4; // subtract WS_BORDER (2px each side)
         if (listWidth < 50) listWidth = 350; // safety fallback
-        pList->InsertColumn(0, _T("说明"), LVCFMT_LEFT, listWidth * 40 / 100);
-        pList->InsertColumn(1, _T("命令"), LVCFMT_LEFT, listWidth * 60 / 100);
+        pList->InsertColumn(0, loc.GetString(_T("GitCmdDlg"), _T("ColDesc")), LVCFMT_LEFT, listWidth * 40 / 100);
+        pList->InsertColumn(1, loc.GetString(_T("GitCmdDlg"), _T("ColCmd")), LVCFMT_LEFT, listWidth * 60 / 100);
     }
 
     // Add any pending commands (added before dialog was created)
@@ -355,6 +358,7 @@ CString CGitCmdResultDlg::FindBashExe()
 
 void CGitCmdResultDlg::StartExecution(const CString& strCommand)
 {
+    auto& loc = CLocalizationManager::GetInstance();
     if (m_bRunning)
     {
         // Queue the command to execute after the current one finishes
@@ -366,7 +370,7 @@ void CGitCmdResultDlg::StartExecution(const CString& strCommand)
     m_bCancelPending = false;
 
     CString status;
-    status.Format(_T("状态: 执行中 - %s"), strCommand.Left(80));
+    status.Format(loc.GetString(_T("GitExec"), _T("Running")) + _T(" - %s"), strCommand.Left(80));
     SetDlgItemText(IDC_STATIC_GIT_STATUS, status);
 
     // Append a header separator for this command (unless output is empty)
@@ -383,6 +387,7 @@ void CGitCmdResultDlg::StartExecution(const CString& strCommand)
 
 void CGitCmdResultDlg::ExecuteNextInQueue()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     m_bRunning = false;
 
     if (m_execThread.joinable())
@@ -397,19 +402,20 @@ void CGitCmdResultDlg::ExecuteNextInQueue()
     else
     {
         CString status;
-        status = _T("状态: 所有命令执行完毕");
+        status = loc.GetString(_T("GitExec"), _T("Done"));
         SetDlgItemText(IDC_STATIC_GIT_STATUS, status);
     }
 }
 
 void CGitCmdResultDlg::ExecuteThread(CString strCommand)
 {
+    auto& loc = CLocalizationManager::GetInstance();
     HWND hWnd = m_hWnd;
 
     CString bashExe = FindBashExe();
     if (bashExe.IsEmpty())
     {
-        CString* pMsg = new CString(_T("错误: 未找到 bash.exe。\n请在配置中设置 Git Bash 路径。"));
+        CString* pMsg = new CString(loc.GetString(_T("Msg"), _T("BashNotFound")));
         ::PostMessage(hWnd, WM_GIT_CMD_OUTPUT, 0, (LPARAM)pMsg);
         ::PostMessage(hWnd, WM_GIT_CMD_DONE, 0, 0);
         return;
@@ -437,7 +443,7 @@ void CGitCmdResultDlg::ExecuteThread(CString strCommand)
     HANDLE hReadPipe = nullptr, hWritePipe = nullptr;
     if (!CreatePipe(&hReadPipe, &hWritePipe, &sa, 0))
     {
-        CString* pMsg = new CString(_T("错误: 无法创建管道。"));
+        CString* pMsg = new CString(loc.GetString(_T("Msg"), _T("PipeCreateError")));
         ::PostMessage(hWnd, WM_GIT_CMD_OUTPUT, 0, (LPARAM)pMsg);
         ::PostMessage(hWnd, WM_GIT_CMD_DONE, 0, 0);
         return;
@@ -468,7 +474,7 @@ void CGitCmdResultDlg::ExecuteThread(CString strCommand)
         CloseHandle(hReadPipe);
         CloseHandle(hWritePipe);
         CString* pMsg = new CString;
-        pMsg->Format(_T("错误: 无法启动进程 (错误代码: %lu)\n命令行: %s"), err, cmdLine);
+        pMsg->Format(loc.GetString(_T("Msg"), _T("ProcessStartError")), err, cmdLine);
         ::PostMessage(hWnd, WM_GIT_CMD_OUTPUT, 0, (LPARAM)pMsg);
         ::PostMessage(hWnd, WM_GIT_CMD_DONE, 0, 0);
         return;
@@ -545,26 +551,27 @@ LRESULT CGitCmdResultDlg::OnGitCmdOutput(WPARAM wParam, LPARAM lParam)
 
 LRESULT CGitCmdResultDlg::OnGitCmdDone(WPARAM wParam, LPARAM lParam)
 {
+    auto& loc = CLocalizationManager::GetInstance();
     DWORD exitCode = (DWORD)lParam;
 
     CString status;
     if (wParam == 0)
     {
-        status = _T("状态: 执行失败");
+        status = loc.GetString(_T("GitExec"), _T("Failed"));
     }
     else if (exitCode == 0)
     {
-        status = _T("状态: 执行成功 (退出码: 0)");
+        status.Format(loc.GetString(_T("GitExec"), _T("Done")) + _T(" (") + loc.GetString(_T("Msg"), _T("ExitCode")) + _T(": 0)"));
     }
     else
     {
-        status.Format(_T("状态: 执行完成 (退出码: %lu)"), exitCode);
+        status.Format(loc.GetString(_T("GitExec"), _T("Done")) + _T(" (") + loc.GetString(_T("Msg"), _T("ExitCode")) + _T(": %lu)"), exitCode);
     }
     SetDlgItemText(IDC_STATIC_GIT_STATUS, status);
 
     if (m_strOutput.IsEmpty())
     {
-        AppendOutput(_T("(无输出)"));
+        AppendOutput(loc.GetString(_T("Msg"), _T("NoOutput")));
     }
 
     // Check and execute next queued command
@@ -575,6 +582,7 @@ LRESULT CGitCmdResultDlg::OnGitCmdDone(WPARAM wParam, LPARAM lParam)
 
 LRESULT CGitCmdResultDlg::OnAiGitResponse(WPARAM wParam, LPARAM lParam)
 {
+    auto& loc = CLocalizationManager::GetInstance();
     CString* pResult = (CString*)lParam;
     if (!pResult) return 0;
 
@@ -587,8 +595,8 @@ LRESULT CGitCmdResultDlg::OnAiGitResponse(WPARAM wParam, LPARAM lParam)
 
     if (!bSuccess || response.IsEmpty())
     {
-        SetDlgItemText(IDC_STATIC_GIT_STATUS, _T("状态: AI生成失败"));
-        AppendOutput(_T("AI生成命令失败，请检查API Key和网络连接。\r\n"));
+        SetDlgItemText(IDC_STATIC_GIT_STATUS, loc.GetString(_T("GitExec"), _T("Failed")));
+        AppendOutput(loc.GetString(_T("Msg"), _T("AiGenFail")) + _T("\r\n"));
         return 0;
     }
 
@@ -693,19 +701,20 @@ LRESULT CGitCmdResultDlg::OnAiGitResponse(WPARAM wParam, LPARAM lParam)
     }
 
     CString status;
-    status.Format(_T("状态: AI生成了 %d 条命令，右键执行"), added);
+    status.Format(loc.GetString(_T("GitCmdDlg"), _T("StatusAiGenResult")), added);
     SetDlgItemText(IDC_STATIC_GIT_STATUS, status);
     return 0;
 }
 
 void CGitCmdResultDlg::OnBnClickedAiAsk()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     CString userInput;
     GetDlgItemText(IDC_EDIT_GIT_AI_ASK, userInput);
     userInput.Trim();
     if (userInput.IsEmpty())
     {
-        MessageBox(_T("请输入问题描述。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(loc.GetString(_T("Msg"), _T("PleaseEnterQuestion")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONINFORMATION);
         return;
     }
 
@@ -716,7 +725,7 @@ void CGitCmdResultDlg::OnBnClickedAiAsk()
 
     if (apiKey.IsEmpty())
     {
-        MessageBox(_T("请先在配置中设置 API Key。"), _T("提示"), MB_OK | MB_ICONWARNING);
+        MessageBox(loc.GetString(_T("Msg"), _T("PleaseConfigApiKey")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
         return;
     }
 
@@ -789,7 +798,7 @@ void CGitCmdResultDlg::OnBnClickedAiAsk()
 
     CWnd* pBtn = GetDlgItem(IDC_BTN_GIT_AI_ASK);
     if (pBtn) pBtn->EnableWindow(FALSE);
-    SetDlgItemText(IDC_STATIC_GIT_STATUS, _T("状态: AI生成中..."));
+    SetDlgItemText(IDC_STATIC_GIT_STATUS, loc.GetString(_T("GitCmdDlg"), _T("StatusAiGenerating")));
 }
 
 void CGitCmdResultDlg::OnBnClickedAddCmd()
@@ -807,8 +816,9 @@ void CGitCmdResultDlg::OnBnClickedAddCmd()
         virtual BOOL OnInitDialog() override
         {
             CDialogEx::OnInitDialog();
-            SetWindowText(_T("添加命令"));
-            SetDlgItemText(IDC_INPUT_PROMPT, _T("格式: 说明|命令"));
+            auto& loc = CLocalizationManager::GetInstance();
+            SetWindowText(loc.GetString(_T("GitCmdDlg"), _T("BtnAddCmd")));
+            SetDlgItemText(IDC_INPUT_PROMPT, loc.GetString(_T("Msg"), _T("InputFormatHint")));
             GetDlgItem(IDC_INPUT_EDIT)->SetFocus();
             return FALSE;
         }
@@ -868,6 +878,7 @@ void CGitCmdResultDlg::OnNMDblclkCmdList(NMHDR* pNMHDR, LRESULT* pResult)
 
 void CGitCmdResultDlg::OnNMRclickCmdList(NMHDR* pNMHDR, LRESULT* pResult)
 {
+    auto& loc = CLocalizationManager::GetInstance();
     *pResult = 0;
     LPNMITEMACTIVATE pItem = (LPNMITEMACTIVATE)pNMHDR;
     CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_GIT_CMDS);
@@ -905,15 +916,15 @@ void CGitCmdResultDlg::OnNMRclickCmdList(NMHDR* pNMHDR, LRESULT* pResult)
 
     if (nItem >= 0)
     {
-        menu.AppendMenu(MF_STRING, 1, selCount > 1 ? _T("执行选中命令") : _T("执行命令"));
+        menu.AppendMenu(MF_STRING, 1, selCount > 1 ? loc.GetString(_T("GitCmdDlg"), _T("RClickExecuteSelected")) : loc.GetString(_T("GitCmdDlg"), _T("RClickExecute")));
         // Copy only makes sense for single item
         if (selCount <= 1)
-            menu.AppendMenu(MF_STRING, 2, _T("复制命令"));
+            menu.AppendMenu(MF_STRING, 2, loc.GetString(_T("GitCmdDlg"), _T("RClickCopy")));
         menu.AppendMenu(MF_SEPARATOR);
         // Edit only makes sense for single item
         if (selCount <= 1)
-            menu.AppendMenu(MF_STRING, 3, _T("编辑命令"));
-        menu.AppendMenu(MF_STRING, 4, selCount > 1 ? _T("删除选中命令") : _T("删除命令"));
+            menu.AppendMenu(MF_STRING, 3, loc.GetString(_T("GitCmdDlg"), _T("RClickEdit")));
+        menu.AppendMenu(MF_STRING, 4, selCount > 1 ? loc.GetString(_T("GitCmdDlg"), _T("RClickDeleteSelected")) : loc.GetString(_T("GitCmdDlg"), _T("RClickDelete")));
     }
 
     CPoint pt;
@@ -938,17 +949,17 @@ void CGitCmdResultDlg::OnNMRclickCmdList(NMHDR* pNMHDR, LRESULT* pResult)
     {
         if (m_strWorkDir.IsEmpty())
         {
-            MessageBox(_T("请先设置 Git 工作目录。"), _T("提示"), MB_OK | MB_ICONWARNING);
+            MessageBox(loc.GetString(_T("Msg"), _T("NoWorkDirSet")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
             break;
         }
 
         if (multiSel)
         {
             CString msg;
-            msg.Format(_T("即将依次执行 %u 条命令，工作目录: %s\n\n确认执行？"),
+            msg.Format(loc.GetString(_T("GitExec"), _T("ConfirmMsgBatch")),
                 (UINT)selItems.size(),
                 m_strWorkDir.GetString());
-            if (MessageBox(msg, _T("确认执行"), MB_YESNO | MB_ICONQUESTION) != IDYES)
+            if (MessageBox(msg, loc.GetString(_T("GitExec"), _T("ConfirmTitle")), MB_YESNO | MB_ICONQUESTION) != IDYES)
                 break;
             for (int idx : selItems)
             {
@@ -963,10 +974,10 @@ void CGitCmdResultDlg::OnNMRclickCmdList(NMHDR* pNMHDR, LRESULT* pResult)
             if (!c.IsEmpty())
             {
                 CString msg;
-                msg.Format(_T("即将执行:\n\n%s\n\n工作目录: %s\n\n确认执行？"),
+                msg.Format(loc.GetString(_T("GitExec"), _T("ConfirmMsg")),
                     c.GetString(),
                     m_strWorkDir.GetString());
-                if (MessageBox(msg, _T("确认执行"), MB_YESNO | MB_ICONQUESTION) == IDYES)
+                if (MessageBox(msg, loc.GetString(_T("GitExec"), _T("ConfirmTitle")), MB_YESNO | MB_ICONQUESTION) == IDYES)
                     StartExecution(c);
             }
         }
@@ -1003,8 +1014,9 @@ void CGitCmdResultDlg::OnNMRclickCmdList(NMHDR* pNMHDR, LRESULT* pResult)
             virtual BOOL OnInitDialog() override
             {
                 CDialogEx::OnInitDialog();
-                SetWindowText(_T("编辑命令"));
-                SetDlgItemText(IDC_INPUT_PROMPT, _T("格式: 说明|命令"));
+                auto& loc = CLocalizationManager::GetInstance();
+                SetWindowText(loc.GetString(_T("GitCmdDlg"), _T("RClickEdit")));
+                SetDlgItemText(IDC_INPUT_PROMPT, loc.GetString(_T("Msg"), _T("InputFormatHint")));
                 SetDlgItemText(IDC_INPUT_EDIT, m_init);
                 GetDlgItem(IDC_INPUT_EDIT)->SetFocus();
                 return FALSE;

@@ -5,6 +5,7 @@
 #include "Utils.h"
 #include "OcrEngine.h"
 #include "MFCApplication1.h"
+#include "LocalizationManager.h"
 
 #include <gdiplus.h>
 #include <thread>
@@ -390,6 +391,8 @@ BOOL CScreenshotOCRDlg::OnInitDialog()
 {
     CDialogEx::OnInitDialog();
 
+    SetWindowText(CLocalizationManager::GetInstance().GetString(_T("DlgCaption"), _T("OCRDlg")));
+
     // Initialize language selection combo box
     CComboBox* pCombo = static_cast<CComboBox*>(GetDlgItem(IDC_COMBO_OCR_LANG));
     if (pCombo)
@@ -437,7 +440,7 @@ void CScreenshotOCRDlg::OnCancel()
 {
     if (m_bBusy)
     {
-        MessageBox(_T("正在进行 OCR 或翻译，请稍候..."), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(CLocalizationManager::GetInstance().GetString(_T("OCR"), _T("OcrBusy")), CLocalizationManager::GetInstance().GetString(_T("OCR"), _T("Tip")), MB_OK | MB_ICONINFORMATION);
         return;
     }
     if (m_hScreenshot) DeleteObject(m_hScreenshot);
@@ -531,7 +534,7 @@ void CScreenshotOCRDlg::OnBnClickedBtnOcr()
 {
     if (m_bBusy)
     {
-        MessageBox(_T("正在处理中，请稍候..."), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(CLocalizationManager::GetInstance().GetString(_T("OCR"), _T("OcrBusy")), CLocalizationManager::GetInstance().GetString(_T("OCR"), _T("Tip")), MB_OK | MB_ICONINFORMATION);
         return;
     }
 
@@ -555,7 +558,7 @@ void CScreenshotOCRDlg::OnBnClickedBtnOcr()
     m_bBusy = true;
     GetDlgItem(IDC_BTN_OCR_CAPTURE)->EnableWindow(FALSE);
     GetDlgItem(IDC_BTN_OCR_TRANSLATE)->EnableWindow(FALSE);
-    SetDlgItemText(IDC_EDIT_OCR_RESULT, _T("正在识别中，请稍候..."));
+    SetDlgItemText(IDC_EDIT_OCR_RESULT, CLocalizationManager::GetInstance().GetString(_T("OCR"), _T("Recognizing")));
 
     // Copy bitmap for background thread
     HDC hdc = ::GetDC(nullptr);
@@ -649,7 +652,7 @@ CString CScreenshotOCRDlg::CallTranslateAPI(const CString& text, const CString& 
     HINTERNET hSession = ::WinHttpOpen(L"MFC OCR Tool/1.0",
         WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
         WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
-    if (!hSession) return _T("翻译失败：无法初始化网络。");
+    if (!hSession) return CLocalizationManager::GetInstance().GetString(_T("OCR"), _T("TranslateErrInitNetwork"));
 
     DWORD timeout = timeoutSeconds * 1000;
     ::WinHttpSetOption(hSession, WINHTTP_OPTION_CONNECT_TIMEOUT, &timeout, sizeof(timeout));
@@ -658,20 +661,20 @@ CString CScreenshotOCRDlg::CallTranslateAPI(const CString& text, const CString& 
 
     HINTERNET hConnect = ::WinHttpConnect(hSession,
         L"api.mymemory.translated.net", INTERNET_DEFAULT_HTTPS_PORT, 0);
-    if (!hConnect) { ::WinHttpCloseHandle(hSession); return _T("翻译失败：无法连接服务器。"); }
+    if (!hConnect) { ::WinHttpCloseHandle(hSession); return CLocalizationManager::GetInstance().GetString(_T("OCR"), _T("TranslateErrConnectServer")); }
 
     HINTERNET hRequest = ::WinHttpOpenRequest(hConnect, L"POST", L"/get",
         nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
-    if (!hRequest) { ::WinHttpCloseHandle(hConnect); ::WinHttpCloseHandle(hSession); return _T("翻译失败：无法创建请求。"); }
+    if (!hRequest) { ::WinHttpCloseHandle(hConnect); ::WinHttpCloseHandle(hSession); return CLocalizationManager::GetInstance().GetString(_T("OCR"), _T("TranslateErrCreateRequest")); }
 
     LPCWSTR headers = L"Content-Type: application/x-www-form-urlencoded\r\n";
     BOOL bResult = ::WinHttpSendRequest(hRequest, headers, static_cast<DWORD>(wcslen(headers)),
         const_cast<char*>(postData.c_str()), static_cast<DWORD>(postData.size()),
         static_cast<DWORD>(postData.size()), 0);
-    if (!bResult) { ::WinHttpCloseHandle(hRequest); ::WinHttpCloseHandle(hConnect); ::WinHttpCloseHandle(hSession); return _T("翻译失败：请求超时或网络错误。"); }
+    if (!bResult) { ::WinHttpCloseHandle(hRequest); ::WinHttpCloseHandle(hConnect); ::WinHttpCloseHandle(hSession); return CLocalizationManager::GetInstance().GetString(_T("OCR"), _T("TranslateErrTimeout")); }
 
     bResult = ::WinHttpReceiveResponse(hRequest, nullptr);
-    if (!bResult) { ::WinHttpCloseHandle(hRequest); ::WinHttpCloseHandle(hConnect); ::WinHttpCloseHandle(hSession); return _T("翻译失败：服务器无响应。"); }
+    if (!bResult) { ::WinHttpCloseHandle(hRequest); ::WinHttpCloseHandle(hConnect); ::WinHttpCloseHandle(hSession); return CLocalizationManager::GetInstance().GetString(_T("OCR"), _T("TranslateNoResponse")); }
 
     std::string response;
     DWORD dwSize = 0;
@@ -695,7 +698,7 @@ CString CScreenshotOCRDlg::CallTranslateAPI(const CString& text, const CString& 
     ::WinHttpCloseHandle(hConnect);
     ::WinHttpCloseHandle(hSession);
 
-    if (response.empty()) return _T("翻译失败：服务器返回空响应。");
+    if (response.empty()) return CLocalizationManager::GetInstance().GetString(_T("OCR"), _T("TranslateEmptyResponse"));
 
     std::string marker = "\"translatedText\":\"";
     size_t pos = response.find(marker);
@@ -709,7 +712,7 @@ CString CScreenshotOCRDlg::CallTranslateAPI(const CString& text, const CString& 
             if (end != std::string::npos)
             {
                 std::string err = response.substr(pos + marker.size(), end - pos - marker.size());
-                CString cserr = _T("翻译失败：");
+                CString cserr = CLocalizationManager::GetInstance().GetString(_T("OCR"), _T("TranslateErrPrefix"));
                 int wlen = MultiByteToWideChar(CP_UTF8, 0, err.c_str(), -1, nullptr, 0);
                 if (wlen > 0)
                 {
@@ -721,12 +724,12 @@ CString CScreenshotOCRDlg::CallTranslateAPI(const CString& text, const CString& 
                 return cserr;
             }
         }
-        return _T("翻译失败：无法解析响应。");
+        return CLocalizationManager::GetInstance().GetString(_T("OCR"), _T("TranslateErrParseResponse"));
     }
 
     size_t start = pos + marker.size();
     size_t end = response.find('"', start);
-    if (end == std::string::npos) return _T("翻译失败：响应格式异常。");
+    if (end == std::string::npos) return CLocalizationManager::GetInstance().GetString(_T("OCR"), _T("TranslateErrResponseFormat"));
 
     std::string translated = response.substr(start, end - start);
     std::string unescaped;
@@ -763,7 +766,7 @@ CString CScreenshotOCRDlg::CallTranslateAPI(const CString& text, const CString& 
         result = buf;
         delete[] buf;
     }
-    if (result.IsEmpty()) return _T("翻译失败：结果为空。");
+    if (result.IsEmpty()) return CLocalizationManager::GetInstance().GetString(_T("OCR"), _T("TranslateResultEmpty"));
     return result;
 }
 
@@ -772,7 +775,7 @@ void CScreenshotOCRDlg::OnBnClickedBtnTranslate()
 {
     if (m_bBusy)
     {
-        MessageBox(_T("正在处理中，请稍候..."), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(CLocalizationManager::GetInstance().GetString(_T("OCR"), _T("OcrBusy")), CLocalizationManager::GetInstance().GetString(_T("OCR"), _T("Tip")), MB_OK | MB_ICONINFORMATION);
         return;
     }
     CString text;
@@ -780,12 +783,15 @@ void CScreenshotOCRDlg::OnBnClickedBtnTranslate()
     text.Trim();
     if (text.IsEmpty())
     {
-        MessageBox(_T("请先截图识别文字。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(CLocalizationManager::GetInstance().GetString(_T("OCR"), _T("PleaseCapture")), CLocalizationManager::GetInstance().GetString(_T("OCR"), _T("Tip")), MB_OK | MB_ICONINFORMATION);
         return;
     }
-    if (text.Find(_T("失败")) >= 0 || text.Find(_T("错误")) >= 0)
+    auto& loc = CLocalizationManager::GetInstance();
+    CString failStr = loc.GetString(_T("OCR"), _T("TranslateFailPrefix"));
+    CString errStr = loc.GetString(_T("OCR"), _T("TranslateParseFail"));
+    if (text.Find(failStr) >= 0 || text.Find(errStr) >= 0)
     {
-        MessageBox(_T("OCR 识别未成功，无法翻译。"), _T("提示"), MB_OK | MB_ICONWARNING);
+        MessageBox(loc.GetString(_T("OCR"), _T("OcrTranslateFail")), loc.GetString(_T("OCR"), _T("Tip")), MB_OK | MB_ICONWARNING);
         return;
     }
 
@@ -793,7 +799,7 @@ void CScreenshotOCRDlg::OnBnClickedBtnTranslate()
     GetDlgItem(IDC_BTN_OCR_CAPTURE)->EnableWindow(FALSE);
     GetDlgItem(IDC_BTN_OCR_TRANSLATE)->EnableWindow(FALSE);
     GetDlgItem(IDC_COMBO_OCR_LANG)->EnableWindow(FALSE);
-    SetDlgItemText(IDC_EDIT_OCR_TRANSLATED, _T("正在翻译中，请稍候..."));
+    SetDlgItemText(IDC_EDIT_OCR_TRANSLATED, CLocalizationManager::GetInstance().GetString(_T("OCR"), _T("Translating")));
 
     CString langPair = GetSelectedLangPair();
     std::thread(TranslateThreadProc, text, langPair, m_hWnd).detach();
@@ -823,7 +829,7 @@ void CScreenshotOCRDlg::OnBnClickedBtnCopy()
     CString text;
     GetDlgItemText(IDC_EDIT_OCR_TRANSLATED, text);
     if (text.IsEmpty()) GetDlgItemText(IDC_EDIT_OCR_RESULT, text);
-    if (text.IsEmpty()) { MessageBox(_T("没有可复制的内容。"), _T("提示"), MB_OK | MB_ICONINFORMATION); return; }
+    if (text.IsEmpty()) { MessageBox(CLocalizationManager::GetInstance().GetString(_T("OCR"), _T("NoContent")), CLocalizationManager::GetInstance().GetString(_T("OCR"), _T("Tip")), MB_OK | MB_ICONINFORMATION); return; }
 
     if (::OpenClipboard(m_hWnd))
     {

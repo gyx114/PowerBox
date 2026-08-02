@@ -1,4 +1,4 @@
-// ContextMenuDlg.cpp: implementation file
+﻿// ContextMenuDlg.cpp: implementation file
 //
 
 #include "pch.h"
@@ -10,6 +10,7 @@
 #include <set>
 #include "GuidInfosDic.h"
 #include "AIApiClient.h"
+#include "LocalizationManager.h"
 
 #include <shlwapi.h>
 #include <shlobj.h>
@@ -158,34 +159,35 @@ void CContextMenuDlg::InitLocations()
 	// ScanEntries scans both <basePath>\shell (static verbs) and
 	// <basePath>\shellex (COM handlers, both ContextMenuHandlers and -ContextMenuHandlers).
 	// Some scenes have additional paths scanned in ScanEntries().
-	m_scenes.push_back({ _T("全部"),                                 _T("") });
-	m_scenes.push_back({ _T("文件 (*)"),                             _T("*") });
-	m_scenes.push_back({ _T("文件夹 (所有文件夹)"),                   _T("Directory") });
-	m_scenes.push_back({ _T("文件夹 (虚拟文件夹)"),                   _T("Folder") });
-	m_scenes.push_back({ _T("目录背景"),                             _T("Directory\\Background") });
-	m_scenes.push_back({ _T("桌面背景"),                             _T("DesktopBackground") });
-	m_scenes.push_back({ _T("驱动器"),                               _T("Drive") });
-	m_scenes.push_back({ _T("所有文件"),                             _T("AllFilesystemObjects") });
-	m_scenes.push_back({ _T("此电脑"),                               _T("CLSID\\{20D04FE0-3AEA-1069-A2D8-08002B30309D}") });
-	m_scenes.push_back({ _T("回收站"),                               _T("CLSID\\{645FF040-5081-101B-9F08-00AA002F954E}") });
-	m_scenes.push_back({ _T("库文件夹"),                             _T("LibraryFolder") });
-	m_scenes.push_back({ _T("UWP快捷方式"),                          _T("Launcher.ImmersiveApplication") });
-	m_scenes.push_back({ _T("exe文件"),                              _T("SystemFileAssociations\\.exe") });
-	m_scenes.push_back({ _T("未知文件"),                             _T("Unknown") });
-	m_scenes.push_back({ _T("快捷方式"),                             _T("lnkfile") });
-	m_scenes.push_back({ _T(".jpg / .jpeg (JPEG图片)"),          _T("SystemFileAssociations\\.jpg") });
-	m_scenes.push_back({ _T(".png (PNG图片)"),                    _T("SystemFileAssociations\\.png") });
-	m_scenes.push_back({ _T(".gif (GIF图片)"),                    _T("SystemFileAssociations\\.gif") });
-	m_scenes.push_back({ _T(".bmp (BMP图片)"),                    _T("SystemFileAssociations\\.bmp") });
-	m_scenes.push_back({ _T(".txt (文本文件)"),                   _T("SystemFileAssociations\\.txt") });
-	m_scenes.push_back({ _T(".pdf (PDF文档)"),                    _T("SystemFileAssociations\\.pdf") });
-	m_scenes.push_back({ _T(".doc / .docx (Word文档)"),           _T("SystemFileAssociations\\.doc") });
-	m_scenes.push_back({ _T(".mp4 (视频文件)"),                   _T("SystemFileAssociations\\.mp4") });
-	m_scenes.push_back({ _T(".mp3 (音频文件)"),                   _T("SystemFileAssociations\\.mp3") });
-	m_scenes.push_back({ _T(".zip / .rar (压缩文件)"),            _T("SystemFileAssociations\\.zip") });
-	m_scenes.push_back({ _T(".exe (可执行文件)"),                 _T("SystemFileAssociations\\.exe") });
-	m_scenes.push_back({ _T(".dll (库文件)"),                     _T("SystemFileAssociations\\.dll") });
-	m_scenes.push_back({ _T(".html / .htm (网页)"),               _T("SystemFileAssociations\\.html") });
+	auto& loc = CLocalizationManager::GetInstance();
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneAll")),                                 _T("") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneFile")),                             _T("*") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneFolder")),                   _T("Directory") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneVirtualFolder")),                   _T("Folder") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneDirBackground")),                             _T("Directory\\Background") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneDesktopBg")),                             _T("DesktopBackground") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneDrive")),                               _T("Drive") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneAllFiles")),                             _T("AllFilesystemObjects") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneThisPC")),                               _T("CLSID\\{20D04FE0-3AEA-1069-A2D8-08002B30309D}") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneRecycleBin")),                               _T("CLSID\\{645FF040-5081-101B-9F08-00AA002F954E}") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneLibrary")),                             _T("LibraryFolder") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneUWP")),                          _T("Launcher.ImmersiveApplication") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneExe")),                              _T("SystemFileAssociations\\.exe") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneUnknown")),                             _T("Unknown") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneShortcut")),                             _T("lnkfile") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneJpg")),          _T("SystemFileAssociations\\.jpg") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("ScenePng")),                    _T("SystemFileAssociations\\.png") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneGif")),                    _T("SystemFileAssociations\\.gif") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneBmp")),                    _T("SystemFileAssociations\\.bmp") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneTxt")),                   _T("SystemFileAssociations\\.txt") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("ScenePdf")),                    _T("SystemFileAssociations\\.pdf") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneDoc")),           _T("SystemFileAssociations\\.doc") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneMp4")),                   _T("SystemFileAssociations\\.mp4") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneMp3")),                   _T("SystemFileAssociations\\.mp3") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneZip")),            _T("SystemFileAssociations\\.zip") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneExeFile")),                 _T("SystemFileAssociations\\.exe") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneDll")),                     _T("SystemFileAssociations\\.dll") });
+	m_scenes.push_back({ loc.GetString(_T("ContextMenu"), _T("SceneHtml")),               _T("SystemFileAssociations\\.html") });
 
 	CComboBox* pCombo = (CComboBox*)GetDlgItem(IDC_COMBO_CM_LOCATION);
 	if (pCombo)
@@ -1277,7 +1279,8 @@ void CContextMenuDlg::ScanEntries(const CString& filter)
 	// In filtered mode, scan only the matching scene.
 	// For extension-specific scenes (SystemFileAssociations\*), also scan "*"
 	// since all-file handlers also apply to specific extensions.
-	bool bScanAll = filter.IsEmpty() || filter == _T("全部");
+	auto& loc = CLocalizationManager::GetInstance();
+	bool bScanAll = filter.IsEmpty() || filter == loc.GetString(_T("ContextMenu"), _T("SceneAll"));
 
 	// Find the matching scene
 	const Scene* pMatchScene = nullptr;
@@ -1297,7 +1300,7 @@ void CContextMenuDlg::ScanEntries(const CString& filter)
 	bool bIsExtension = pMatchScene && pMatchScene->basePath.Find(_T("SystemFileAssociations\\")) == 0;
 	if (bIsExtension)
 	{
-		ScanScene(_T("*"), _T("文件 (*)"), seen);
+		ScanScene(_T("*"), loc.GetString(_T("ContextMenu"), _T("SceneFile")), seen);
 	}
 
 	for (const auto& scene : m_scenes)
@@ -1312,12 +1315,12 @@ void CContextMenuDlg::ScanEntries(const CString& filter)
 		// Additional paths for specific scenes (matching ContextMenuManager's LoadItems):
 		//   Library: also scans LibraryFolder\Background and UserLibraryFolder
 		//   ExeFile:  also scans exefile (GetOpenModePath(".exe"))
-		if (scene.name == _T("库文件夹"))
+		if (scene.name == loc.GetString(_T("ContextMenu"), _T("SceneLibrary")))
 		{
 			ScanScene(_T("LibraryFolder\\Background"), scene.name, seen);
 			ScanScene(_T("UserLibraryFolder"), scene.name, seen);
 		}
-		else if (scene.name == _T("exe文件"))
+		else if (scene.name == loc.GetString(_T("ContextMenu"), _T("SceneExe")))
 		{
 			ScanScene(_T("exefile"), scene.name, seen);
 		}
@@ -1333,6 +1336,8 @@ void CContextMenuDlg::RefreshList()
 	CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_CM_ENTRIES);
 	if (!pList) return;
 
+	auto& loc = CLocalizationManager::GetInstance();
+
 	pList->SetRedraw(FALSE);
 	pList->DeleteAllItems();
 
@@ -1342,18 +1347,20 @@ void CContextMenuDlg::RefreshList()
 		pList->SetItemText(idx, 1, m_entries[i].displayName);
 
 		// Column 2: type
-		pList->SetItemText(idx, 2, m_entries[i].bIsShellEx ? _T("ShellEx") : _T("静态"));
+		pList->SetItemText(idx, 2, m_entries[i].bIsShellEx ?
+			loc.GetString(_T("ContextMenu"), _T("TypeShellEx")) :
+			loc.GetString(_T("ContextMenu"), _T("TypeStatic")));
 
 		// Column 3: visibility
 		CString strVis;
 		if (!m_entries[i].bEnabled)
-			strVis = _T("已禁用");
+			strVis = loc.GetString(_T("ContextMenu"), _T("Disabled"));
 		else if (m_entries[i].bDisabled)
-			strVis = _T("系统禁用");
+			strVis = loc.GetString(_T("ContextMenu"), _T("Hidden"));
 		else if (m_entries[i].bExtended)
-			strVis = _T("Shift显示");
+			strVis = loc.GetString(_T("ContextMenu"), _T("Extended"));
 		else
-			strVis = _T("正常");
+			strVis = loc.GetString(_T("ContextMenu"), _T("Visible"));
 		pList->SetItemText(idx, 3, strVis);
 
 		// Column 4: key name
@@ -1369,12 +1376,12 @@ void CContextMenuDlg::RefreshList()
 	pList->SetRedraw(TRUE);
 
 	CString status;
-	status.Format(_T("共找到 %d 个右键菜单项"), (int)m_entries.size());
+	status.Format(loc.GetString(_T("ContextMenu"), _T("StatusFoundItems")), (int)m_entries.size());
 	// Append dictionary path info
 	if (!s_dictPath.IsEmpty())
 	{
 		CString tmp;
-		tmp.Format(_T("  |  字典：%s"), s_dictPath);
+		tmp.Format(loc.GetString(_T("ContextMenu"), _T("StatusDictPath")), s_dictPath);
 		status += tmp;
 	}
 	else
@@ -1383,12 +1390,12 @@ void CContextMenuDlg::RefreshList()
 		if (!cachePath.IsEmpty() && PathFileExists(cachePath))
 		{
 			CString tmp;
-			tmp.Format(_T("  |  字典：内嵌+缓存 (%s)"), cachePath);
+			tmp.Format(loc.GetString(_T("ContextMenu"), _T("StatusDictEmbeddedCache")), cachePath);
 			status += tmp;
 		}
 		else
 		{
-			status += _T("  |  字典：内嵌硬编码");
+			status += loc.GetString(_T("ContextMenu"), _T("StatusDictEmbedded"));
 		}
 	}
 	UpdateStatus(status);
@@ -1406,6 +1413,12 @@ void CContextMenuDlg::UpdateStatus(const CString& text)
 BOOL CContextMenuDlg::OnInitDialog()
 {
 	CDialogEx::OnInitDialog();
+
+	// Set window title with localization
+	{
+		auto& loc = CLocalizationManager::GetInstance();
+		SetWindowText(loc.GetString(_T("DlgCaption"), _T("ContextMenuDlg")));
+	}
 
 	// Read layout positions
 	auto ReadRect = [&](int id) -> CRect {
@@ -1425,13 +1438,14 @@ BOOL CContextMenuDlg::OnInitDialog()
 	CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_CM_ENTRIES);
 	if (pList)
 	{
+		auto& loc = CLocalizationManager::GetInstance();
 		pList->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
-		pList->InsertColumn(0, _T("位置"),     LVCFMT_LEFT, 50);
-		pList->InsertColumn(1, _T("显示名称"), LVCFMT_LEFT, 150);
-		pList->InsertColumn(2, _T("类型"),     LVCFMT_LEFT, 60);
-		pList->InsertColumn(3, _T("可见性"),   LVCFMT_LEFT, 70);
-		pList->InsertColumn(4, _T("键名"),     LVCFMT_LEFT, 70);
-		pList->InsertColumn(5, _T("命令"),     LVCFMT_LEFT, 130);
+		pList->InsertColumn(0, loc.GetString(_T("ContextMenu"), _T("ColLocation")),     LVCFMT_LEFT, 50);
+		pList->InsertColumn(1, loc.GetString(_T("ContextMenu"), _T("ColDisplayName")), LVCFMT_LEFT, 150);
+		pList->InsertColumn(2, loc.GetString(_T("ContextMenu"), _T("ColType")),     LVCFMT_LEFT, 60);
+		pList->InsertColumn(3, loc.GetString(_T("ContextMenu"), _T("ColVisibility")),   LVCFMT_LEFT, 70);
+		pList->InsertColumn(4, loc.GetString(_T("ContextMenu"), _T("ColKeyName")),     LVCFMT_LEFT, 70);
+		pList->InsertColumn(5, loc.GetString(_T("ContextMenu"), _T("ColCommand")),     LVCFMT_LEFT, 130);
 	}
 
 	InitLocations();
@@ -1439,14 +1453,15 @@ BOOL CContextMenuDlg::OnInitDialog()
 
 	// Show current dictionary path on status bar
 	{
+		auto& loc = CLocalizationManager::GetInstance();
 		CString dictInfo;
 		CString cachePath = GetCachePath();
 		if (!s_dictPath.IsEmpty())
-			dictInfo.Format(_T("当前字典：%s  |  缓存：%s"), s_dictPath, cachePath);
+			dictInfo.Format(loc.GetString(_T("ContextMenu"), _T("DictInfoCurrent")), s_dictPath, cachePath);
 		else if (!cachePath.IsEmpty() && PathFileExists(cachePath))
-			dictInfo.Format(_T("当前字典：内嵌 + 缓存  |  缓存：%s"), cachePath);
+			dictInfo.Format(loc.GetString(_T("ContextMenu"), _T("DictInfoEmbeddedCache")), cachePath);
 		else
-			dictInfo.Format(_T("当前字典：内嵌硬编码  |  缓存：%s"), cachePath);
+			dictInfo.Format(loc.GetString(_T("ContextMenu"), _T("DictInfoEmbedded")), cachePath);
 		UpdateStatus(dictInfo);
 	}
 
@@ -1534,12 +1549,13 @@ void CContextMenuDlg::OnBnClickedRefresh()
 
 void CContextMenuDlg::OnBnClickedExtension()
 {
+	auto& loc = CLocalizationManager::GetInstance();
 	CString ext;
 	GetDlgItemText(IDC_EDIT_CM_EXTENSION, ext);
 	ext.Trim();
 	if (ext.IsEmpty())
 	{
-		MessageBox(_T("请输入要查询的文件后缀，如 .mp4、.txt 等。"), _T("提示"), MB_ICONINFORMATION);
+		MessageBox(loc.GetString(_T("ContextMenu"), _T("InputExtHint")), loc.GetString(_T("Msg"), _T("Info")), MB_ICONINFORMATION);
 		return;
 	}
 
@@ -1559,13 +1575,13 @@ void CContextMenuDlg::OnBnClickedExtension()
 	// Scan: include "*" (all-file handlers) + extension-specific handlers
 	m_entries.clear();
 	std::set<CString> seen;
-	ScanScene(_T("*"), _T("文件 (*)"), seen);
+	ScanScene(_T("*"), loc.GetString(_T("ContextMenu"), _T("SceneFile")), seen);
 	ScanScene(basePath, ext, seen);
 
 	RefreshList();
 
 	CString status;
-	status.Format(_T("查询后缀 %s：共找到 %d 个右键菜单项"), ext, (int)m_entries.size());
+	status.Format(loc.GetString(_T("ContextMenu"), _T("StatusQueryExt")), ext, (int)m_entries.size());
 	UpdateStatus(status);
 }
 
@@ -1743,6 +1759,7 @@ void CContextMenuDlg::LoadSelfContextMenuState()
 
 void CContextMenuDlg::SaveSelfContextMenuState(bool bEnable)
 {
+	auto& loc = CLocalizationManager::GetInstance();
 	TCHAR szExe[MAX_PATH];
 	GetModuleFileName(nullptr, szExe, MAX_PATH);
 	CString exePath = szExe;
@@ -1757,8 +1774,8 @@ void CContextMenuDlg::SaveSelfContextMenuState(bool bEnable)
 			KEY_WRITE, nullptr, &hKey, &dwDisp) == ERROR_SUCCESS)
 		{
 			RegSetValueEx(hKey, nullptr, 0, REG_SZ,
-				(LPBYTE)_T("用 PowerBox 打开"),
-				(DWORD)((_tcslen(_T("用 PowerBox 打开")) + 1) * sizeof(TCHAR)));
+				(LPBYTE)(LPCTSTR)loc.GetString(_T("ContextMenu"), _T("FolderMenuLabel")),
+				(DWORD)((loc.GetString(_T("ContextMenu"), _T("FolderMenuLabel")).GetLength() + 1) * sizeof(TCHAR)));
 			RegSetValueEx(hKey, _T("Icon"), 0, REG_SZ,
 				(LPBYTE)exePath.GetString(),
 				(exePath.GetLength() + 1) * sizeof(TCHAR));
@@ -1821,7 +1838,10 @@ void CContextMenuDlg::OnBnClickedCheckFolder()
 	BOOL bChecked = IsDlgButtonChecked(IDC_CHECK_CM_FOLDER);
 	SaveSelfContextMenuState(bChecked == BST_CHECKED);
 
-	CString msg = bChecked ? _T("已添加文件夹右键菜单项") : _T("已移除文件夹右键菜单项");
+	auto& loc = CLocalizationManager::GetInstance();
+	CString msg = bChecked ?
+		loc.GetString(_T("ContextMenu"), _T("StatusFolderMenuAdded")) :
+		loc.GetString(_T("ContextMenu"), _T("StatusFolderMenuRemoved"));
 	UpdateStatus(msg);
 	OnBnClickedRefresh();
 }
@@ -1877,11 +1897,12 @@ void CContextMenuDlg::OnBnClickedCheckWin11Classic()
 	BOOL bCheck = IsDlgButtonChecked(IDC_CHECK_CM_WIN11_CLASSIC);
 	SaveWin11ClassicState(bCheck == BST_CHECKED);
 
+	auto& loc = CLocalizationManager::GetInstance();
 	CString msg;
 	if (bCheck)
-		msg = _T("已启用Win11经典菜单，正在重启资源管理器...");
+		msg = loc.GetString(_T("ContextMenu"), _T("StatusWin11Enabled"));
 	else
-		msg = _T("已恢复Win11新菜单，正在重启资源管理器...");
+		msg = loc.GetString(_T("ContextMenu"), _T("StatusWin11Disabled"));
 	UpdateStatus(msg);
 }
 
@@ -1906,6 +1927,7 @@ void CContextMenuDlg::ToggleEntry(int index, bool bRefresh)
 {
 	if (index < 0 || index >= (int)m_entries.size()) return;
 
+	auto& loc = CLocalizationManager::GetInstance();
 	auto& entry = m_entries[index];
 
 	// Build the HKCR-relative full path: regPath\keyName (e.g. "*\shell\edit")
@@ -1938,7 +1960,7 @@ void CContextMenuDlg::ToggleEntry(int index, bool bRefresh)
 		int lastSlash = hkcrFullPath.ReverseFind(_T('\\'));
 		if (lastSlash < 0)
 		{
-			MessageBox(_T("无法解析ShellEx注册表路径。"), _T("操作失败"), MB_ICONERROR);
+			MessageBox(loc.GetString(_T("ContextMenu"), _T("MsgCantParseShellExPath")), loc.GetString(_T("ContextMenu"), _T("MsgConfirmDisable")), MB_ICONERROR);
 			return;
 		}
 		CString keyName = hkcrFullPath.Mid(lastSlash + 1);
@@ -1947,7 +1969,7 @@ void CContextMenuDlg::ToggleEntry(int index, bool bRefresh)
 		int secondSlash = parentPath.ReverseFind(_T('\\'));
 		if (secondSlash < 0)
 		{
-			MessageBox(_T("无法解析ShellEx注册表路径。"), _T("操作失败"), MB_ICONERROR);
+			MessageBox(loc.GetString(_T("ContextMenu"), _T("MsgCantParseShellExPath")), loc.GetString(_T("ContextMenu"), _T("MsgConfirmDisable")), MB_ICONERROR);
 			return;
 		}
 		CString shellexBase = hkcrFullPath.Left(secondSlash);  // e.g. "*\shellex"
@@ -1961,8 +1983,8 @@ void CContextMenuDlg::ToggleEntry(int index, bool bRefresh)
 		else
 		{
 			CString errMsg;
-			errMsg.Format(_T("无法识别的ShellEx文件夹：%s"), curFolder);
-			MessageBox(errMsg, _T("操作失败"), MB_ICONERROR);
+			errMsg.Format(loc.GetString(_T("ContextMenu"), _T("MsgUnrecognizedShellEx")), curFolder);
+			MessageBox(errMsg, loc.GetString(_T("ContextMenu"), _T("MsgConfirmDisable")), MB_ICONERROR);
 			return;
 		}
 
@@ -1978,7 +2000,7 @@ void CContextMenuDlg::ToggleEntry(int index, bool bRefresh)
 		HKEY hSrcParent = nullptr;
 		if (RegOpenKeyEx(HKEY_CLASSES_ROOT, srcParentPath, 0, KEY_READ | KEY_WRITE, &hSrcParent) != ERROR_SUCCESS)
 		{
-			MessageBox(_T("无法打开源注册表项。"), _T("操作失败"), MB_ICONERROR);
+			MessageBox(loc.GetString(_T("ContextMenu"), _T("MsgOpenSourceParentFail")), loc.GetString(_T("ContextMenu"), _T("MsgConfirmDisable")), MB_ICONERROR);
 			return;
 		}
 
@@ -1990,7 +2012,7 @@ void CContextMenuDlg::ToggleEntry(int index, bool bRefresh)
 			REG_OPTION_NON_VOLATILE, KEY_WRITE | KEY_READ, nullptr, &hDstParent, &dwDisp) != ERROR_SUCCESS)
 		{
 			RegCloseKey(hSrcParent);
-			MessageBox(_T("无法创建目标注册表项。"), _T("操作失败"), MB_ICONERROR);
+			MessageBox(loc.GetString(_T("ContextMenu"), _T("MsgCreateTargetFail")), loc.GetString(_T("ContextMenu"), _T("MsgConfirmDisable")), MB_ICONERROR);
 			return;
 		}
 
@@ -2002,9 +2024,9 @@ void CContextMenuDlg::ToggleEntry(int index, bool bRefresh)
 			RegCloseKey(hSrcParent);
 			RegCloseKey(hDstParent);
 			CString errMsg;
-			errMsg.Format(_T("复制注册表项失败。\n\n源: %s\\%s\n目标: %s\\%s"),
+			errMsg.Format(loc.GetString(_T("ContextMenu"), _T("MsgCopyRegKeyFailed")),
 				srcParentPath, keyName, dstParentPath, keyName);
-			MessageBox(errMsg, _T("操作失败"), MB_ICONERROR);
+			MessageBox(errMsg, loc.GetString(_T("ContextMenu"), _T("MsgConfirmDisable")), MB_ICONERROR);
 			return;
 		}
 		RegCloseKey(hDstParent);
@@ -2024,8 +2046,8 @@ void CContextMenuDlg::ToggleEntry(int index, bool bRefresh)
 				RegCloseKey(hDstParentRollback);
 			}
 			CString errMsg;
-			errMsg.Format(_T("删除旧注册表项失败，已回滚。\n错误码: %d"), delResult);
-			MessageBox(errMsg, _T("操作失败"), MB_ICONERROR);
+			errMsg.Format(loc.GetString(_T("ContextMenu"), _T("MsgDeleteOldRegFailed")), delResult);
+			MessageBox(errMsg, loc.GetString(_T("ContextMenu"), _T("MsgConfirmDisable")), MB_ICONERROR);
 			return;
 		}
 
@@ -2057,8 +2079,8 @@ void CContextMenuDlg::ToggleEntry(int index, bool bRefresh)
 		if (lResult != ERROR_SUCCESS)
 		{
 			CString errMsg;
-			errMsg.Format(_T("无法打开注册表项：%s\n错误代码：%d"), hkcrFullPath, lResult);
-			MessageBox(errMsg, _T("操作失败"), MB_ICONERROR);
+			errMsg.Format(loc.GetString(_T("ContextMenu"), _T("MsgCantOpenRegKey")), hkcrFullPath, lResult);
+			MessageBox(errMsg, loc.GetString(_T("ContextMenu"), _T("MsgConfirmDisable")), MB_ICONERROR);
 			return;
 		}
 
@@ -2108,12 +2130,15 @@ void CContextMenuDlg::ToggleEntry(int index, bool bRefresh)
 
 	// Record operation history
 	CString type = _T("toggle");
-	CString details = entry.bEnabled ? _T("已启用") : _T("已禁用");
+	CString details = loc.GetString(_T("ContextMenu"), entry.bEnabled ? _T("StatusActionEnabled") : _T("StatusActionDisabled"));
 	details += _T(": ") + entry.regPath + _T("\\") + entry.keyName;
 	AddHistoryEntry(type, entry.displayName, details, entry.regPath, entry.keyName);
 
 	CString msg;
-	msg.Format(_T("已%s: %s"), entry.bEnabled ? _T("启用") : _T("禁用"), entry.displayName);
+	CString toggleFmt = loc.GetString(_T("ContextMenu"), _T("StatusToggleFormat"));
+	msg.Format(toggleFmt,
+		loc.GetString(_T("ContextMenu"), entry.bEnabled ? _T("StatusActionEnabled") : _T("StatusActionDisabled")),
+		entry.displayName);
 	UpdateStatus(msg);
 }
 
@@ -2127,6 +2152,8 @@ void CContextMenuDlg::OnBnClickedDelete()
 	CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_CM_ENTRIES);
 	if (!pList) return;
 
+	auto& loc = CLocalizationManager::GetInstance();
+
 	std::vector<int> selected;
 	POSITION pos = pList->GetFirstSelectedItemPosition();
 	while (pos)
@@ -2134,7 +2161,7 @@ void CContextMenuDlg::OnBnClickedDelete()
 
 	if (selected.empty())
 	{
-		MessageBox(_T("请先选择要禁用的项。"), _T("提示"), MB_ICONINFORMATION);
+		MessageBox(loc.GetString(_T("ContextMenu"), _T("MsgNoSelection")), loc.GetString(_T("Msg"), _T("Info")), MB_ICONINFORMATION);
 		return;
 	}
 
@@ -2148,14 +2175,14 @@ void CContextMenuDlg::OnBnClickedDelete()
 
 	if (nEnabled == 0)
 	{
-		MessageBox(_T("选中的项均已禁用。"), _T("提示"), MB_ICONINFORMATION);
+		MessageBox(loc.GetString(_T("ContextMenu"), _T("MsgAllSelectedDisabled")), loc.GetString(_T("Msg"), _T("Info")), MB_ICONINFORMATION);
 		return;
 	}
 
 	CString msg;
-	msg.Format(_T("确定要禁用选中的 %d 个右键菜单项吗？\n禁用后可通过右键菜单\"启用\"恢复。"),
+	msg.Format(loc.GetString(_T("ContextMenu"), _T("MsgConfirmDisableCount")),
 		nEnabled);
-	if (MessageBox(msg, _T("确认禁用"), MB_ICONWARNING | MB_YESNO) != IDYES)
+	if (MessageBox(msg, loc.GetString(_T("ContextMenu"), _T("ConfirmDisable")), MB_ICONWARNING | MB_YESNO) != IDYES)
 		return;
 
 	// Secondary confirmation for system-critical items
@@ -2166,10 +2193,10 @@ void CContextMenuDlg::OnBnClickedDelete()
 	{
 		if (idx < 0 || idx >= (int)m_entries.size() || !m_entries[idx].bEnabled)
 			continue;
-		CString loc = m_entries[idx].location;
-		if (loc.Find(_T("*")) >= 0 || loc.Find(_T("Folder")) >= 0 ||
-			loc.Find(_T("Directory")) >= 0 || loc.Find(_T("Drive")) >= 0 ||
-			loc.Find(_T("AllFilesystemObjects")) >= 0)
+		CString locStr = m_entries[idx].location;
+		if (locStr.Find(_T("*")) >= 0 || locStr.Find(_T("Folder")) >= 0 ||
+			locStr.Find(_T("Directory")) >= 0 || locStr.Find(_T("Drive")) >= 0 ||
+			locStr.Find(_T("AllFilesystemObjects")) >= 0)
 		{
 			bHasCritical = true;
 			break;
@@ -2177,12 +2204,8 @@ void CContextMenuDlg::OnBnClickedDelete()
 	}
 	if (bHasCritical)
 	{
-		CString criticalMsg;
-		criticalMsg.Format(_T("警告：部分选中项为系统关键右键菜单项！\n\n")
-			_T("禁用这些项可能影响 Windows 资源管理器的正常行为。\n")
-			_T("修改前会自动创建注册表备份。\n\n")
-			_T("确定要继续吗？"));
-		if (MessageBox(criticalMsg, _T("严重警告 - 确认禁用"),
+		CString criticalMsg = loc.GetString(_T("ContextMenu"), _T("MsgCriticalWarning"));
+		if (MessageBox(criticalMsg, loc.GetString(_T("ContextMenu"), _T("MsgCriticalWarningTitle")),
 			MB_ICONWARNING | MB_YESNO) != IDYES)
 			return;
 	}
@@ -2205,7 +2228,7 @@ void CContextMenuDlg::OnBnClickedDelete()
 	RefreshList();
 
 	CString status;
-	status.Format(_T("已禁用 %d 项"), nDisabled);
+	status.Format(loc.GetString(_T("ContextMenu"), _T("StatusDisabledCount")), nDisabled);
 	UpdateStatus(status);
 }
 
@@ -2214,10 +2237,12 @@ void CContextMenuDlg::OnBnClickedLocate()
 	CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_CM_ENTRIES);
 	if (!pList) return;
 
+	auto& loc = CLocalizationManager::GetInstance();
+
 	POSITION pos = pList->GetFirstSelectedItemPosition();
 	if (!pos)
 	{
-		MessageBox(_T("请先选择要定位的项。"), _T("提示"), MB_ICONINFORMATION);
+		MessageBox(loc.GetString(_T("ContextMenu"), _T("MsgNoSelection")), loc.GetString(_T("Msg"), _T("Info")), MB_ICONINFORMATION);
 		return;
 	}
 
@@ -2240,6 +2265,8 @@ void CContextMenuDlg::OnNMRClickList(NMHDR* pNMHDR, LRESULT* pResult)
 	CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_CM_ENTRIES);
 	if (!pList) return;
 
+	auto& loc = CLocalizationManager::GetInstance();
+
 	int nSelected = pList->GetSelectedCount();
 	if (nSelected == 0) return;
 
@@ -2254,21 +2281,22 @@ void CContextMenuDlg::OnNMRClickList(NMHDR* pNMHDR, LRESULT* pResult)
 		if (idx >= 0 && idx < (int)m_entries.size())
 		{
 			bool bEnabled = m_entries[idx].bEnabled;
-			menu.AppendMenu(MF_STRING, ID_MENU_CM_TOGGLE, bEnabled ? _T("禁用") : _T("启用"));
+			menu.AppendMenu(MF_STRING, ID_MENU_CM_TOGGLE,
+				bEnabled ? loc.GetString(_T("ContextMenu"), _T("RClickDisable")) : loc.GetString(_T("ContextMenu"), _T("RClickEnable")));
 		}
 	}
 	else
 	{
 		// Multiple selection: show "启用选中"/"禁用选中"
-		menu.AppendMenu(MF_STRING, ID_MENU_CM_ENABLE_ALL, _T("启用选中"));
-		menu.AppendMenu(MF_STRING, ID_MENU_CM_DELETE, _T("禁用选中"));
+		menu.AppendMenu(MF_STRING, ID_MENU_CM_ENABLE_ALL, loc.GetString(_T("ContextMenu"), _T("RClickEnableSelected")));
+		menu.AppendMenu(MF_STRING, ID_MENU_CM_DELETE, loc.GetString(_T("ContextMenu"), _T("RClickDisableSelected")));
 	}
 
 	menu.AppendMenu(MF_SEPARATOR);
-	menu.AppendMenu(MF_STRING, ID_MENU_CM_CUSTOMPARSE, _T("自定义解析"));
-	menu.AppendMenu(MF_STRING, ID_MENU_CM_AI_ANALYZE, _T("AI解析"));
+	menu.AppendMenu(MF_STRING, ID_MENU_CM_CUSTOMPARSE, loc.GetString(_T("ContextMenu"), _T("RClickCustomParse")));
+	menu.AppendMenu(MF_STRING, ID_MENU_CM_AI_ANALYZE, loc.GetString(_T("ContextMenu"), _T("RClickAiAnalyze")));
 	menu.AppendMenu(MF_SEPARATOR);
-	menu.AppendMenu(MF_STRING, ID_MENU_CM_LOCATE, _T("定位(注册表)"));
+	menu.AppendMenu(MF_STRING, ID_MENU_CM_LOCATE, loc.GetString(_T("ContextMenu"), _T("RClickLocateReg")));
 
 	CPoint pt;
 	GetCursorPos(&pt);
@@ -2285,6 +2313,8 @@ void CContextMenuDlg::OnMenuEnableAll()
 	CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_CM_ENTRIES);
 	if (!pList) return;
 
+	auto& loc = CLocalizationManager::GetInstance();
+
 	std::vector<int> selected;
 	POSITION pos = pList->GetFirstSelectedItemPosition();
 	while (pos)
@@ -2300,13 +2330,13 @@ void CContextMenuDlg::OnMenuEnableAll()
 
 	if (nDisabled == 0)
 	{
-		MessageBox(_T("选中的项均已启用。"), _T("提示"), MB_ICONINFORMATION);
+		MessageBox(loc.GetString(_T("ContextMenu"), _T("MsgAllSelectedEnabled")), loc.GetString(_T("Msg"), _T("Info")), MB_ICONINFORMATION);
 		return;
 	}
 
 	CString msg;
-	msg.Format(_T("确定要启用选中的 %d 个右键菜单项吗？"), nDisabled);
-	if (MessageBox(msg, _T("确认启用"), MB_ICONWARNING | MB_YESNO) != IDYES)
+	msg.Format(loc.GetString(_T("ContextMenu"), _T("MsgConfirmEnableCount")), nDisabled);
+	if (MessageBox(msg, loc.GetString(_T("ContextMenu"), _T("ConfirmEnable")), MB_ICONWARNING | MB_YESNO) != IDYES)
 		return;
 
 	int nEnabled = 0;
@@ -2323,7 +2353,7 @@ void CContextMenuDlg::OnMenuEnableAll()
 	RefreshList();
 
 	CString status;
-	status.Format(_T("已启用 %d 项"), nEnabled);
+	status.Format(loc.GetString(_T("ContextMenu"), _T("StatusEnabledCount")), nEnabled);
 	UpdateStatus(status);
 }
 
@@ -2331,6 +2361,8 @@ void CContextMenuDlg::OnMenuToggle()
 {
 	CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_CM_ENTRIES);
 	if (!pList) return;
+
+	auto& loc = CLocalizationManager::GetInstance();
 
 	POSITION pos = pList->GetFirstSelectedItemPosition();
 	if (!pos) return;
@@ -2341,8 +2373,9 @@ void CContextMenuDlg::OnMenuToggle()
 	ToggleEntry(idx);
 
 	CString status;
-	status.Format(_T("已%s: %s"),
-		m_entries[idx].bEnabled ? _T("启用") : _T("禁用"),
+	CString toggleFmt = loc.GetString(_T("ContextMenu"), _T("StatusToggleFormat"));
+	status.Format(toggleFmt,
+		loc.GetString(_T("ContextMenu"), m_entries[idx].bEnabled ? _T("StatusActionEnabled") : _T("StatusActionDisabled")),
 		m_entries[idx].displayName);
 	UpdateStatus(status);
 }
@@ -2360,6 +2393,8 @@ void CContextMenuDlg::OnMenuCustomParse()
 {
 	CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_CM_ENTRIES);
 	if (!pList) return;
+
+	auto& loc = CLocalizationManager::GetInstance();
 
 	POSITION pos = pList->GetFirstSelectedItemPosition();
 	if (!pos) return;
@@ -2393,7 +2428,7 @@ void CContextMenuDlg::OnMenuCustomParse()
 
 	if (clsid.IsEmpty())
 	{
-		MessageBox(_T("无法获取该项的 CLSID，不能进行自定义解析。"), _T("提示"), MB_OK | MB_ICONWARNING);
+		MessageBox(loc.GetString(_T("ContextMenu"), _T("MsgNoClsid")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
 		return;
 	}
 
@@ -2427,9 +2462,9 @@ void CContextMenuDlg::OnMenuCustomParse()
 
 			CString msg;
 			if (customName.IsEmpty())
-				msg.Format(_T("已删除 %s 的自定义解析。"), clsid);
+				msg.Format(loc.GetString(_T("ContextMenu"), _T("StatusCustomParseDeleted")), clsid);
 			else
-				msg.Format(_T("已保存 %s 的自定义解析为：%s"), clsid, customName);
+				msg.Format(loc.GetString(_T("ContextMenu"), _T("StatusCustomParseSaved")), clsid, customName);
 			UpdateStatus(msg);
 		}
 	}
@@ -2446,11 +2481,12 @@ bool CContextMenuDlg::InputCustomName(const CString& clsid, const CString& scene
 
 	// Create a simple dialog dynamically
 	CString prompt;
-	CString strCurName = currentName.IsEmpty() ? CString(_T("(无)")) : currentName;
-	prompt.Format(_T("CLSID: %s\n当前名称: %s\n\n输入自定义显示名（留空可删除自定义）:"),
+	auto& loc = CLocalizationManager::GetInstance();
+	CString strCurName = currentName.IsEmpty() ? CString(loc.GetString(_T("Msg"), _T("None"))) : currentName;
+	prompt.Format(loc.GetString(_T("ContextMenu"), _T("MsgEnterCustomName")),
 		clsidNoBraces, strCurName);
 
-	CCustomParseInputDlg dlg(this, _T("自定义解析"), prompt, currentName);
+	CCustomParseInputDlg dlg(this, loc.GetString(_T("ContextMenu"), _T("CustomParseTitle")), prompt, currentName);
 	if (dlg.DoModal() == IDOK)
 	{
 		outName = dlg.GetInput();
@@ -2584,6 +2620,7 @@ static CString RemoveSectionFromIni(const CString& content, const CString& secti
 
 void CContextMenuDlg::OnBnClickedDictOpen()
 {
+	auto& loc = CLocalizationManager::GetInstance();
 	CString dictPath = s_dictPath;
 	if (dictPath.IsEmpty())
 	{
@@ -2604,7 +2641,7 @@ void CContextMenuDlg::OnBnClickedDictOpen()
 	}
 	else
 	{
-		MessageBox(_T("字典文件夹不存在。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+		MessageBox(loc.GetString(_T("ContextMenu"), _T("MsgDictFolderNotFound")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONINFORMATION);
 	}
 }
 
@@ -2662,10 +2699,11 @@ CString CContextMenuDlg::GetConfigPath()
 
 void CContextMenuDlg::OnBnClickedDictPath()
 {
+	auto& loc = CLocalizationManager::GetInstance();
 	CFolderPickerDialog dlg(
 		s_dictPath.IsEmpty() ? nullptr : s_dictPath,
 		0, this);
-	dlg.m_ofn.lpstrTitle = _T("选择字典文件夹");
+	dlg.m_ofn.lpstrTitle = loc.GetString(_T("ContextMenu"), _T("BtnDictPath"));
 
 	if (dlg.DoModal() == IDOK)
 	{
@@ -2693,7 +2731,7 @@ void CContextMenuDlg::OnBnClickedDictPath()
 		OnBnClickedRefresh();
 
 		CString msg;
-		msg.Format(_T("字典文件夹已更新：%s"), s_dictPath);
+		msg.Format(loc.GetString(_T("ContextMenu"), _T("StatusDictPathUpdated")), s_dictPath);
 		UpdateStatus(msg);
 	}
 }
@@ -3089,6 +3127,7 @@ static CString GetClsidDllName(const CString& clsidWithBraces)
 void CContextMenuDlg::RebuildDictionary()
 {
 	// Collect CLSIDs per scene: scene basePath -> set of CLSIDs
+	auto& loc = CLocalizationManager::GetInstance();
 	// This allows us to query COM with the correct IDataObject for each scene
 	std::map<CString, std::set<CString>> sceneClsids;
 	{
@@ -3161,13 +3200,13 @@ void CContextMenuDlg::RebuildDictionary()
 
 	if (allClsids.empty())
 	{
-		UpdateStatus(_T("未找到任何 ShellEx CLSID，无需重建。"));
+		UpdateStatus(loc.GetString(_T("ContextMenu"), _T("StatusNoClsidFound")));
 		return;
 	}
 
 	int nTotal = (int)allClsids.size();
 	CString statusMsg;
-	statusMsg.Format(_T("正在重建字典，共 %d 个 CLSID（%d 个场景），请稍候..."),
+	statusMsg.Format(loc.GetString(_T("ContextMenu"), _T("StatusRebuildProgress")),
 		nTotal, (int)sceneClsids.size());
 	UpdateStatus(statusMsg);
 
@@ -3305,7 +3344,7 @@ void CContextMenuDlg::RebuildDictionary()
 			OnBnClickedRefresh();
 
 			CString msg;
-			msg.Format(_T("字典重建完成：%d/%d 个 CLSID 已解析（注册表: %d, COM: %d, 回退: %d）。缓存路径：%s"),
+			msg.Format(loc.GetString(_T("ContextMenu"), _T("StatusRebuildComplete")),
 				nResolved, nTotal, nResolved - nComResolved - nFallback, nComResolved, nFallback, cachePath);
 			UpdateStatus(msg);
 			return;
@@ -3313,16 +3352,16 @@ void CContextMenuDlg::RebuildDictionary()
 	}
 
 	CString msg;
-	msg.Format(_T("字典重建完成：%d/%d 个 CLSID 已解析，但缓存保存失败。"),
+	msg.Format(loc.GetString(_T("ContextMenu"), _T("StatusRebuildFailed")),
 		nResolved, nTotal);
 	UpdateStatus(msg);
 }
 
 void CContextMenuDlg::OnBnClickedRebuild()
 {
-    CString msg = _T("将扫描所有已注册的 ShellEx CLSID，并通过注册表和 COM 接口解析其显示名称。\n");
-    msg += _T("此过程可能需要几秒钟，是否继续？");
-    if (MessageBox(msg, _T("重建字典"), MB_ICONINFORMATION | MB_YESNO) != IDYES)
+	auto& loc = CLocalizationManager::GetInstance();
+	CString msg = loc.GetString(_T("ContextMenu"), _T("MsgRebuildPrompt"));
+    if (MessageBox(msg, loc.GetString(_T("ContextMenu"), _T("RebuildTitle")), MB_ICONINFORMATION | MB_YESNO) != IDYES)
         return;
 
     RebuildDictionary();
@@ -3332,6 +3371,8 @@ void CContextMenuDlg::OnMenuAiAnalyze()
 {
     CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_CM_ENTRIES);
     if (!pList) return;
+
+    auto& loc = CLocalizationManager::GetInstance();
 
     POSITION pos = pList->GetFirstSelectedItemPosition();
     if (!pos) return;
@@ -3343,19 +3384,20 @@ void CContextMenuDlg::OnMenuAiAnalyze()
 
     // Build prompt for AI to analyze the menu item
     CString prompt;
-    prompt.Format(
-        _T("分析Windows右键菜单注册表项:\n")
-        _T("- 场景: %s\n")
-        _T("- 键名: %s\n")
-        _T("- 显示名: %s\n")
-        _T("- 命令: %s\n")
-        _T("- 类型: %s\n")
-        _T("请推测这是哪个软件的右键菜单项，具体功能是什么。回答不超过30字。"),
-        entry.location,
-        entry.keyName,
-        entry.displayName,
-        entry.command,
-        entry.bIsShellEx ? _T("Shell扩展(COM)") : _T("静态动词"));
+    CString tmp;
+    prompt = loc.GetString(_T("ContextMenu"), _T("AiPromptHeader")) + _T("\n");
+    tmp.Format(_T("- ") + loc.GetString(_T("ContextMenu"), _T("AiPromptScene")), entry.location);
+    prompt += tmp + _T("\n");
+    tmp.Format(_T("- ") + loc.GetString(_T("ContextMenu"), _T("AiPromptKeyName")), entry.keyName);
+    prompt += tmp + _T("\n");
+    tmp.Format(_T("- ") + loc.GetString(_T("ContextMenu"), _T("AiPromptDisplayName")), entry.displayName);
+    prompt += tmp + _T("\n");
+    tmp.Format(_T("- ") + loc.GetString(_T("ContextMenu"), _T("AiPromptCommand")), entry.command);
+    prompt += tmp + _T("\n");
+    tmp.Format(_T("- ") + loc.GetString(_T("ContextMenu"), _T("AiPromptType")),
+        entry.bIsShellEx ? loc.GetString(_T("ContextMenu"), _T("TypeShellEx")) : loc.GetString(_T("ContextMenu"), _T("TypeStatic")));
+    prompt += tmp + _T("\n");
+    prompt += loc.GetString(_T("ContextMenu"), _T("AiPromptFooter"));
 
     // Get AI config
     CString vendor = AfxGetApp()->GetProfileString(_T("AI"), _T("Vendor"), _T("DeepSeek"));
@@ -3366,7 +3408,7 @@ void CContextMenuDlg::OnMenuAiAnalyze()
 
     if (apiKey.IsEmpty())
     {
-        MessageBox(_T("请先在 File > Settings > AI Assistant 中配置 API Key。"), _T("AI解析"), MB_ICONINFORMATION);
+        MessageBox(loc.GetString(_T("ContextMenu"), _T("MsgAiNoApiKey")), loc.GetString(_T("ContextMenu"), _T("AiAnalyzeTitle")), MB_ICONINFORMATION);
         return;
     }
 
@@ -3381,6 +3423,7 @@ void CContextMenuDlg::OnMenuAiAnalyze()
 
 LRESULT CContextMenuDlg::OnAiResponse(WPARAM wParam, LPARAM lParam)
 {
+	auto& loc = CLocalizationManager::GetInstance();
     CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_CM_ENTRIES);
     if (pList) pList->EnableWindow(TRUE);
 
@@ -3393,11 +3436,13 @@ LRESULT CContextMenuDlg::OnAiResponse(WPARAM wParam, LPARAM lParam)
     bool bSuccess = (wParam == 1);
     if (bSuccess)
     {
-        MessageBox(response, _T("AI解析结果"), MB_ICONINFORMATION);
+        MessageBox(response, loc.GetString(_T("ContextMenu"), _T("MsgAiAnalyzeResult")), MB_ICONINFORMATION);
     }
     else
     {
-        MessageBox(_T("AI解析失败: ") + response, _T("AI解析"), MB_ICONWARNING);
+        CString errMsg;
+        errMsg.Format(loc.GetString(_T("ContextMenu"), _T("MsgAiAnalyzeFail")), response);
+        MessageBox(errMsg, loc.GetString(_T("ContextMenu"), _T("AiAnalyzeTitle")), MB_ICONWARNING);
     }
 
     return 0;
@@ -3520,12 +3565,13 @@ void CContextMenuDlg::AddHistoryEntry(const CString& type, const CString& itemNa
 
 bool CContextMenuDlg::ExportRegistryBackup(const CString& regPath, const CString& /*description*/)
 {
+	auto& loc = CLocalizationManager::GetInstance();
     CString backupDir = GetBackupDir();
     if (!PathFileExists(backupDir))
     {
         if (!CreateDirectory(backupDir, nullptr))
         {
-            UpdateStatus(_T("无法创建备份目录"));
+            UpdateStatus(loc.GetString(_T("ContextMenu"), _T("StatusBackupDirFail")));
             return false;
         }
     }
@@ -3564,9 +3610,10 @@ bool CContextMenuDlg::ExportRegistryBackup(const CString& regPath, const CString
 
 void CContextMenuDlg::OnBnClickedUndo()
 {
+	auto& loc = CLocalizationManager::GetInstance();
     if (m_history.empty())
     {
-        MessageBox(_T("没有可撤销的操作。"), _T("撤销"), MB_ICONINFORMATION);
+        MessageBox(loc.GetString(_T("ContextMenu"), _T("MsgNoHistoryUndo")), loc.GetString(_T("ContextMenu"), _T("ConfirmUndo")), MB_ICONINFORMATION);
         return;
     }
 
@@ -3586,20 +3633,15 @@ void CContextMenuDlg::OnBnClickedUndo()
 
     if (targetIdx < 0)
     {
-        MessageBox(_T("找不到对应的菜单项，可能已被删除。"), _T("撤销失败"), MB_ICONWARNING);
+        MessageBox(loc.GetString(_T("ContextMenu"), _T("MsgItemNotFound")), loc.GetString(_T("ContextMenu"), _T("ConfirmUndo")), MB_ICONWARNING);
         return;
     }
 
     CString msg;
-    msg.Format(_T("确定要撤销以下操作吗？\n\n")
-        _T("时间：%s\n")
-        _T("操作：%s\n")
-        _T("项目：%s\n")
-        _T("详情：%s\n\n")
-        _T("将把该项恢复到操作前的状态。"),
+    msg.Format(loc.GetString(_T("ContextMenu"), _T("MsgUndoConfirm")),
         lastEntry.timestamp, lastEntry.type, lastEntry.itemName, lastEntry.details);
 
-    if (MessageBox(msg, _T("确认撤销"), MB_ICONWARNING | MB_YESNO) != IDYES)
+    if (MessageBox(msg, loc.GetString(_T("ContextMenu"), _T("MsgUndoConfirmTitle")), MB_ICONWARNING | MB_YESNO) != IDYES)
         return;
 
     // Toggle the entry back to its previous state
@@ -3610,15 +3652,16 @@ void CContextMenuDlg::OnBnClickedUndo()
     SaveHistory();
 
     CString status;
-    status.Format(_T("已撤销: %s"), lastEntry.itemName);
+    status.Format(loc.GetString(_T("ContextMenu"), _T("StatusUndoFormat")), lastEntry.itemName);
     UpdateStatus(status);
 }
 
 void CContextMenuDlg::OnBnClickedHistory()
 {
+	auto& loc = CLocalizationManager::GetInstance();
     if (m_history.empty())
     {
-        MessageBox(_T("没有操作历史。"), _T("操作历史"), MB_ICONINFORMATION);
+        MessageBox(loc.GetString(_T("ContextMenu"), _T("MsgNoHistory")), loc.GetString(_T("ContextMenu"), _T("MsgHistoryTitle")), MB_ICONINFORMATION);
         return;
     }
 
@@ -3634,7 +3677,7 @@ void CContextMenuDlg::OnBnClickedHistory()
     }
 
     if (count >= 50)
-        historyText += _T("\r\n...（仅显示最近 50 条）");
+        historyText += _T("\r\n") + loc.GetString(_T("ContextMenu"), _T("StatusHistoryRecent"));
 
-    MessageBox(historyText, _T("操作历史（最近优先）"), MB_ICONINFORMATION);
+    MessageBox(historyText, loc.GetString(_T("ContextMenu"), _T("MsgHistoryTitle")), MB_ICONINFORMATION);
 }

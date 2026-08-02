@@ -3,6 +3,7 @@
 #include "BatchRenameDlg.h"
 #include "BatchRenameAIDlg.h"
 #include "RegexGuideDlg.h"
+#include "LocalizationManager.h"
 #include "resource.h"
 #include <algorithm>
 #include <set>
@@ -165,13 +166,15 @@ END_MESSAGE_MAP()
 BOOL CBatchRenameDlg::OnInitDialog()
 {
     CDialogEx::OnInitDialog();
+    auto& loc = CLocalizationManager::GetInstance();
+    SetWindowText(loc.GetString(_T("DlgCaption"), _T("BatchRenameDlg")));
 
     DragAcceptFiles(TRUE);
 
     // Initialize tabs
     m_tabCtrl.SubclassDlgItem(IDC_TAB_FOLDER, this);
-    m_tabCtrl.InsertItem(0, _T("文件夹操作"));
-    m_tabCtrl.InsertItem(1, _T("文件批量处理"));
+    m_tabCtrl.InsertItem(0, loc.GetString(_T("BatchRename"), _T("TabFolder")));
+    m_tabCtrl.InsertItem(1, loc.GetString(_T("BatchRename"), _T("TabFile")));
 
     // Initialize file list
     CListCtrl* pFileList = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST_RENAME));
@@ -182,9 +185,9 @@ BOOL CBatchRenameDlg::OnInitDialog()
         CRect rcList;
         pFileList->GetClientRect(&rcList);
         int totalWidth = rcList.Width() - ::GetSystemMetrics(SM_CXVSCROLL) - 4;
-        pFileList->InsertColumn(0, _T("序号"), LVCFMT_CENTER, totalWidth * 1 / 15);
-        pFileList->InsertColumn(1, _T("原文件名"), LVCFMT_LEFT, totalWidth * 4.5 / 10);
-        pFileList->InsertColumn(2, _T("新文件名/状态"), LVCFMT_LEFT, totalWidth * 4.5 / 10 - totalWidth / 12 + 80);
+        pFileList->InsertColumn(0, loc.GetString(_T("BatchRename"), _T("ColSerial")), LVCFMT_CENTER, totalWidth * 1 / 15);
+        pFileList->InsertColumn(1, loc.GetString(_T("BatchRename"), _T("ColOriginal")), LVCFMT_LEFT, (int)(totalWidth * 4.5 / 10));
+        pFileList->InsertColumn(2, loc.GetString(_T("BatchRename"), _T("ColNew")), LVCFMT_LEFT, (int)(totalWidth * 4.5 / 10 - totalWidth / 12 + 80));
     }
 
     // Initialize folder list
@@ -196,7 +199,7 @@ BOOL CBatchRenameDlg::OnInitDialog()
         CRect rcList;
         pFolderList->GetClientRect(&rcList);
         int totalWidth = rcList.Width() - ::GetSystemMetrics(SM_CXVSCROLL) - 4;
-        pFolderList->InsertColumn(0, _T("文件夹名"), LVCFMT_LEFT, totalWidth);
+        pFolderList->InsertColumn(0, loc.GetString(_T("BatchRename"), _T("ColFolderName")), LVCFMT_LEFT, totalWidth);
     }
 
     GetDlgItem(IDC_BTN_RENAME_EXECUTE)->EnableWindow(FALSE);
@@ -323,7 +326,7 @@ void CBatchRenameDlg::OnBnClickedBrowse()
 {
     BROWSEINFO bi = {0};
     bi.hwndOwner = m_hWnd;
-    bi.lpszTitle = _T("选择文件夹");
+    bi.lpszTitle = CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("BrowseTitle"));
     bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
 
     LPITEMIDLIST pidl = ::SHBrowseForFolder(&bi);
@@ -384,7 +387,7 @@ void CBatchRenameDlg::OnDropFiles(HDROP hDrop)
     DWORD attrs = ::GetFileAttributes(path);
     if (attrs == INVALID_FILE_ATTRIBUTES || !(attrs & FILE_ATTRIBUTE_DIRECTORY))
     {
-        MessageBox(_T("仅支持拖入文件夹。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("DragFolderOnly")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Tip")), MB_OK | MB_ICONINFORMATION);
         return;
     }
 
@@ -465,7 +468,7 @@ void CBatchRenameDlg::UpdateFolderSelectionCount()
     }
 
     CString text;
-    text.Format(_T("已选中: %d/%d"), nChecked, nCount);
+    text.Format(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("SelectedCount")), nChecked, nCount);
     SetDlgItemText(IDC_STATIC_FOLDER_SELCOUNT, text);
 }
 
@@ -474,13 +477,13 @@ void CBatchRenameDlg::OnBnClickedFolderRename()
     std::vector<int> selected = GetCheckedFolders();
     if (selected.empty())
     {
-        MessageBox(_T("请先勾选要重命名的文件夹。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("SelectFoldersFirst")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Tip")), MB_OK | MB_ICONINFORMATION);
         return;
     }
 
     // Show input dialog
     CString defaultName = m_folders[selected[0]].name;
-    CInputDialog dlg(_T("请输入新的文件夹名称:"), _T("重命名文件夹"), defaultName);
+    CInputDialog dlg(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("EnterNewFolderName")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("RenameFolder")), defaultName);
     if (dlg.DoModal() != IDOK) return;
 
     CString newName = dlg.GetInput();
@@ -493,7 +496,7 @@ void CBatchRenameDlg::OnBnClickedFolderRename()
     {
         if (newName.Find(invalid[i]) != -1)
         {
-            MessageBox(_T("文件夹名包含非法字符。"), _T("错误"), MB_OK | MB_ICONERROR);
+            MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("InvalidFolderName")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Error")), MB_OK | MB_ICONERROR);
             return;
         }
     }
@@ -504,9 +507,9 @@ void CBatchRenameDlg::OnBnClickedFolderRename()
         std::error_code ec;
         fs::rename(m_folders[selected[0]].fullPath, newPath, ec);
         if (ec)
-            MessageBox(_T("重命名失败。"), _T("错误"), MB_OK | MB_ICONERROR);
+            MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("RenameFailed")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Error")), MB_OK | MB_ICONERROR);
         else
-            MessageBox(_T("重命名成功。"), _T("结果"), MB_OK | MB_ICONINFORMATION);
+            MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("RenameSuccess")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Result")), MB_OK | MB_ICONINFORMATION);
     }
     else
     {
@@ -522,8 +525,8 @@ void CBatchRenameDlg::OnBnClickedFolderRename()
             else success++;
         }
         CString msg;
-        msg.Format(_T("重命名完成：成功 %d 个，失败 %d 个。"), success, fail);
-        MessageBox(msg, _T("结果"), MB_OK | MB_ICONINFORMATION);
+        msg.Format(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("RenameResult")), success, fail);
+        MessageBox(msg, CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Result")), MB_OK | MB_ICONINFORMATION);
     }
 
     LoadFolders();
@@ -534,14 +537,14 @@ void CBatchRenameDlg::OnBnClickedFolderMove()
     std::vector<int> selected = GetCheckedFolders();
     if (selected.empty())
     {
-        MessageBox(_T("请先勾选要移动的文件夹。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("SelectFoldersToMove")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Tip")), MB_OK | MB_ICONINFORMATION);
         return;
     }
 
     // Show browse dialog to select target path
     BROWSEINFO bi = {0};
     bi.hwndOwner = m_hWnd;
-    bi.lpszTitle = _T("选择目标文件夹");
+    bi.lpszTitle = CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("SelectTargetFolder"));
     bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
     LPITEMIDLIST pidl = ::SHBrowseForFolder(&bi);
     if (!pidl) return;
@@ -564,24 +567,25 @@ void CBatchRenameDlg::OnBnClickedFolderMove()
         else success++;
     }
     CString msg;
-    msg.Format(_T("移动完成：成功 %d 个，失败 %d 个。"), success, fail);
-    MessageBox(msg, _T("结果"), MB_OK | MB_ICONINFORMATION);
+    msg.Format(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("MoveResult")), success, fail);
+    MessageBox(msg, CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Result")), MB_OK | MB_ICONINFORMATION);
 
     LoadFolders();
 }
 
 void CBatchRenameDlg::OnBnClickedFolderDelete()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     std::vector<int> selected = GetCheckedFolders();
     if (selected.empty())
     {
-        MessageBox(_T("请先勾选要删除的文件夹。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(loc.GetString(_T("BatchRename"), _T("SelectFoldersToDelete")), loc.GetString(_T("BatchRename"), _T("Tip")), MB_OK | MB_ICONINFORMATION);
         return;
     }
 
     CString msg;
-	msg.Format(_T("确定要将选中的 %d 个文件夹移入回收站吗？"), (int)selected.size());
-	if (MessageBox(msg, _T("确认删除"), MB_YESNO | MB_ICONWARNING) != IDYES)
+	msg.Format(loc.GetString(_T("BatchRename"), _T("ConfirmDeleteFolders")), (int)selected.size());
+	if (MessageBox(msg, loc.GetString(_T("BatchRename"), _T("ConfirmDelete")), MB_YESNO | MB_ICONWARNING) != IDYES)
 		return;
 
 	int success = 0, fail = 0;
@@ -592,8 +596,8 @@ void CBatchRenameDlg::OnBnClickedFolderDelete()
 		else
 			fail++;
 	}
-    msg.Format(_T("删除完成：成功 %d 个，失败 %d 个。"), success, fail);
-    MessageBox(msg, _T("结果"), MB_OK | MB_ICONINFORMATION);
+    msg.Format(loc.GetString(_T("BatchRename"), _T("DeleteResult")), success, fail);
+    MessageBox(msg, loc.GetString(_T("BatchRename"), _T("Result")), MB_OK | MB_ICONINFORMATION);
 
     LoadFolders();
 }
@@ -602,14 +606,14 @@ void CBatchRenameDlg::OnBnClickedCurrentRename()
 {
     if (m_folderPath.IsEmpty())
     {
-        MessageBox(_T("请先选择文件夹。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("SelectFolderFirst")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Tip")), MB_OK | MB_ICONINFORMATION);
         return;
     }
 
     fs::path curPath(static_cast<LPCWSTR>(m_folderPath));
     CString curName = curPath.filename().c_str();
 
-    CInputDialog dlg(_T("请输入新的目录名称:"), _T("重命名当前目录"), curName);
+    CInputDialog dlg(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("EnterNewDirName")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("RenameCurrentDir")), curName);
     if (dlg.DoModal() != IDOK) return;
 
     CString newName = dlg.GetInput();
@@ -621,7 +625,7 @@ void CBatchRenameDlg::OnBnClickedCurrentRename()
     {
         if (newName.Find(invalid[i]) != -1)
         {
-            MessageBox(_T("目录名包含非法字符。"), _T("错误"), MB_OK | MB_ICONERROR);
+            MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("InvalidDirName")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Error")), MB_OK | MB_ICONERROR);
             return;
         }
     }
@@ -631,25 +635,25 @@ void CBatchRenameDlg::OnBnClickedCurrentRename()
     fs::rename(curPath, newPath, ec);
     if (ec)
     {
-        MessageBox(_T("重命名失败。"), _T("错误"), MB_OK | MB_ICONERROR);
+        MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("RenameFailed")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Error")), MB_OK | MB_ICONERROR);
         return;
     }
 
     SetFolderPath(newPath.c_str());
-    MessageBox(_T("重命名成功。"), _T("结果"), MB_OK | MB_ICONINFORMATION);
+    MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("RenameSuccess")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Result")), MB_OK | MB_ICONINFORMATION);
 }
 
 void CBatchRenameDlg::OnBnClickedCurrentMove()
 {
     if (m_folderPath.IsEmpty())
     {
-        MessageBox(_T("请先选择文件夹。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("SelectFolderFirst")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Tip")), MB_OK | MB_ICONINFORMATION);
         return;
     }
 
     BROWSEINFO bi = {0};
     bi.hwndOwner = m_hWnd;
-    bi.lpszTitle = _T("选择目标文件夹");
+    bi.lpszTitle = CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("SelectTargetFolder"));
     bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
     LPITEMIDLIST pidl = ::SHBrowseForFolder(&bi);
     if (!pidl) return;
@@ -666,39 +670,39 @@ void CBatchRenameDlg::OnBnClickedCurrentMove()
     fs::path newPath = fs::path(destPath) / curPath.filename();
 
     CString msg;
-    msg.Format(_T("确定将 \"%s\" 移动到 \"%s\" 吗？"), curPath.filename().c_str(), destPath);
-    if (MessageBox(msg, _T("确认移动"), MB_YESNO | MB_ICONQUESTION) != IDYES)
+    msg.Format(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("ConfirmMoveDir")), curPath.filename().c_str(), destPath);
+    if (MessageBox(msg, CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("ConfirmMove")), MB_YESNO | MB_ICONQUESTION) != IDYES)
         return;
 
     std::error_code ec;
     fs::rename(curPath, newPath, ec);
     if (ec)
     {
-        MessageBox(_T("移动失败。"), _T("错误"), MB_OK | MB_ICONERROR);
+        MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("MoveFailed")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Error")), MB_OK | MB_ICONERROR);
         return;
     }
 
     SetFolderPath(newPath.c_str());
-    MessageBox(_T("移动成功。"), _T("结果"), MB_OK | MB_ICONINFORMATION);
+    MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("MoveSuccess")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Result")), MB_OK | MB_ICONINFORMATION);
 }
 
 void CBatchRenameDlg::OnBnClickedCurrentDelete()
 {
     if (m_folderPath.IsEmpty())
     {
-        MessageBox(_T("请先选择文件夹。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("SelectFolderFirst")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Tip")), MB_OK | MB_ICONINFORMATION);
         return;
     }
 
     fs::path curPath(static_cast<LPCWSTR>(m_folderPath));
 	CString msg;
-	msg.Format(_T("确定要将当前目录 \"%s\" 及其所有内容移入回收站吗？"), curPath.filename().c_str());
-	if (MessageBox(msg, _T("确认删除"), MB_YESNO | MB_ICONWARNING) != IDYES)
+	msg.Format(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("ConfirmDeleteCurrentDir")), curPath.filename().c_str());
+	if (MessageBox(msg, CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("ConfirmDelete")), MB_YESNO | MB_ICONWARNING) != IDYES)
 		return;
 
 	if (!MoveToRecycleBin(curPath))
 	{
-		MessageBox(_T("移入回收站失败。"), _T("错误"), MB_OK | MB_ICONERROR);
+		MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("MoveToRecycleFailed")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Error")), MB_OK | MB_ICONERROR);
 		return;
 	}
 
@@ -710,7 +714,7 @@ void CBatchRenameDlg::OnBnClickedCurrentDelete()
     RefreshFolderList();
     RefreshFileList();
 
-    MessageBox(_T("删除成功。"), _T("结果"), MB_OK | MB_ICONINFORMATION);
+    MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("DeleteSuccess")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Result")), MB_OK | MB_ICONINFORMATION);
 }
 
 void CBatchRenameDlg::OnBnClickedFolderSelectAll()
@@ -740,19 +744,20 @@ void CBatchRenameDlg::OnFolderListRightClick(NMHDR* /*pNMHDR*/, LRESULT* pResult
     CPoint pt;
     ::GetCursorPos(&pt);
 
+    auto& loc = CLocalizationManager::GetInstance();
     CMenu menu;
     menu.CreatePopupMenu();
     if (nChecked > 0)
     {
-        menu.AppendMenu(MF_STRING, IDM_FOLDER_RENAME, _T("重命名"));
-        menu.AppendMenu(MF_STRING, IDM_FOLDER_MOVE, _T("移动"));
-        menu.AppendMenu(MF_STRING, IDM_FOLDER_DELETE, _T("删除"));
+        menu.AppendMenu(MF_STRING, IDM_FOLDER_RENAME, loc.GetString(_T("BatchRename"), _T("RenameFolder")));
+        menu.AppendMenu(MF_STRING, IDM_FOLDER_MOVE, loc.GetString(_T("BatchRename"), _T("MoveTo")));
+        menu.AppendMenu(MF_STRING, IDM_FOLDER_DELETE, loc.GetString(_T("BatchRename"), _T("MarkedDeleted")));
         menu.AppendMenu(MF_SEPARATOR);
-        menu.AppendMenu(MF_STRING, IDM_FOLDER_EXPLORE, _T("在资源管理器中定位"));
+        menu.AppendMenu(MF_STRING, IDM_FOLDER_EXPLORE, loc.GetString(_T("BatchRename"), _T("LocateInExplorer")));
     }
     menu.AppendMenu(MF_SEPARATOR);
-    menu.AppendMenu(MF_STRING, IDC_BTN_FOLDER_SELECTALL, _T("全选"));
-    menu.AppendMenu(MF_STRING, IDC_BTN_FOLDER_DESELECTALL, _T("取消全选"));
+    menu.AppendMenu(MF_STRING, IDC_BTN_FOLDER_SELECTALL, loc.GetString(_T("BatchRename"), _T("SelectAll")));
+    menu.AppendMenu(MF_STRING, IDC_BTN_FOLDER_DESELECTALL, loc.GetString(_T("BatchRename"), _T("DeselectAll")));
     menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, this);
     *pResult = 0;
 }
@@ -1035,6 +1040,7 @@ void CBatchRenameDlg::OnFileMoveDown()
 
 void CBatchRenameDlg::OnFileMoveToUp()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST_RENAME));
     if (!pList) return;
     auto sel = CBatchRenameDlg_GetSelectedIndices(pList);
@@ -1044,13 +1050,13 @@ void CBatchRenameDlg::OnFileMoveToUp()
     int nMaxTarget = nCurFirst - 1;   // must be strictly before current position
     if (nMaxTarget < 1)
     {
-        MessageBox(_T("选中项已在最前，无法继续前移。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("AlreadyAtTop")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Tip")), MB_OK | MB_ICONINFORMATION);
         return;
     }
 
     CString strPrompt;
-    strPrompt.Format(_T("请输入移动后第一项的标号 (1 - %d)："), nMaxTarget);
-    CInputDialog dlg(strPrompt, _T("前移到"), _T("1"));
+    strPrompt.Format(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("EnterTargetPosition")), nMaxTarget);
+    CInputDialog dlg(strPrompt, CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("MoveTo")), _T("1"));
     if (dlg.DoModal() != IDOK) return;
 
     CString strInput = dlg.GetInput();
@@ -1061,8 +1067,8 @@ void CBatchRenameDlg::OnFileMoveToUp()
     if (nTarget < 1 || nTarget > nMaxTarget)
     {
         CString msg;
-        msg.Format(_T("请输入 1 到 %d 之间的数字。"), nMaxTarget);
-        MessageBox(msg, _T("提示"), MB_OK | MB_ICONINFORMATION);
+        msg.Format(loc.GetString(_T("BatchRename"), _T("EnterValidNumber")), nMaxTarget);
+        MessageBox(msg, loc.GetString(_T("BatchRename"), _T("Tip")), MB_OK | MB_ICONINFORMATION);
         return;
     }
 
@@ -1087,15 +1093,15 @@ void CBatchRenameDlg::OnFileMoveToDown()
 
     if (nMinTarget > nMaxTarget)
     {
-        MessageBox(_T("选中项已在最后，无法继续后移。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("AlreadyAtBottom")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Tip")), MB_OK | MB_ICONINFORMATION);
         return;
     }
 
     CString strPrompt;
-    strPrompt.Format(_T("请输入移动后第一项的标号 (%d - %d)："), nMinTarget, nMaxTarget);
+    strPrompt.Format(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("EnterTargetPositionRange")), nMinTarget, nMaxTarget);
     CString strDefault;
     strDefault.Format(_T("%d"), nMaxTarget);
-    CInputDialog dlg(strPrompt, _T("后移到"), strDefault);
+    CInputDialog dlg(strPrompt, CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("MoveToBottom")), strDefault);
     if (dlg.DoModal() != IDOK) return;
 
     CString strInput = dlg.GetInput();
@@ -1106,8 +1112,8 @@ void CBatchRenameDlg::OnFileMoveToDown()
     if (nTarget < nMinTarget || nTarget > nMaxTarget)
     {
         CString msg;
-        msg.Format(_T("请输入 %d 到 %d 之间的数字。"), nMinTarget, nMaxTarget);
-        MessageBox(msg, _T("提示"), MB_OK | MB_ICONINFORMATION);
+        msg.Format(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("EnterValidNumberRange")), nMinTarget, nMaxTarget);
+        MessageBox(msg, CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Tip")), MB_OK | MB_ICONINFORMATION);
         return;
     }
 
@@ -1519,6 +1525,7 @@ void CBatchRenameDlg::ApplyTrackRules()
 
 void CBatchRenameDlg::ApplyRules()
 {
+    auto& loc = CLocalizationManager::GetInstance();
     // Apply ignore rules first, then track rules (track takes priority, can override ignore)
     ApplyIgnoreRules();
     ApplyTrackRules();
@@ -1590,7 +1597,7 @@ void CBatchRenameDlg::ApplyRules()
                 if (bShouldDelete)
                 {
                     m_entries[i].bMarkedDelete = true;
-                    m_entries[i].newName = _T("被删除");
+                    m_entries[i].newName = loc.GetString(_T("BatchRename"), _T("MarkedDeleted"));
                     continue;
                 }
             }
@@ -1599,7 +1606,7 @@ void CBatchRenameDlg::ApplyRules()
 
         if (m_entries[i].bMarkedDelete)
         {
-            m_entries[i].newName = _T("被删除");
+            m_entries[i].newName = loc.GetString(_T("BatchRename"), _T("MarkedDeleted"));
             continue;
         }
 
@@ -1694,13 +1701,14 @@ void CBatchRenameDlg::RefreshFileList()
 
 		int idx = pList->InsertItem(static_cast<int>(i), strIdx);
 		pList->SetItemText(idx, 1, m_entries[i].oldName);
+		auto& loc = CLocalizationManager::GetInstance();
 		CString status;
 		if (m_entries[i].bIgnored)
-			status = _T("已忽略");
+			status = loc.GetString(_T("BatchRename"), _T("Ignored"));
 		else if (m_entries[i].bTracked)
-			status = _T("【跟踪】") + m_entries[i].newName;
+			status = loc.GetString(_T("BatchRename"), _T("TrackPrefix")) + m_entries[i].newName;
 		else if (m_entries[i].bAiGenerated)
-			status = _T("【AI】") + m_entries[i].newName;
+			status = loc.GetString(_T("BatchRename"), _T("AiPrefix")) + m_entries[i].newName;
 		else
 			status = m_entries[i].newName;
 		pList->SetItemText(idx, 2, status);
@@ -1737,7 +1745,7 @@ void CBatchRenameDlg::OnBnClickedFileExecute()
 {
     if (!m_bPreviewDone)
     {
-        MessageBox(_T("请先点击预览，确认操作结果。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("PreviewFirst")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Tip")), MB_OK | MB_ICONINFORMATION);
         return;
     }
 
@@ -1759,8 +1767,8 @@ void CBatchRenameDlg::OnBnClickedFileExecute()
             if (!entry.bIgnored && !entry.bMarkedDelete && entry.oldName != entry.newName)
                 renameCountCheck++;
         }
-        msg.Format(_T("将删除 %d 个文件，重命名 %d 个文件。确定继续？"), deleteCount, renameCountCheck);
-        if (MessageBox(msg, _T("确认"), MB_YESNO | MB_ICONWARNING) != IDYES)
+        msg.Format(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("ConfirmExecute")), deleteCount, renameCountCheck);
+        if (MessageBox(msg, CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Confirm")), MB_YESNO | MB_ICONWARNING) != IDYES)
             return;
     }
     else
@@ -1772,13 +1780,13 @@ void CBatchRenameDlg::OnBnClickedFileExecute()
             if (entry.bIgnored || entry.bMarkedDelete) continue;
             if (newNames.count(entry.newName))
             {
-                MessageBox(_T("存在重名的新文件名，请检查规则。"), _T("错误"), MB_OK | MB_ICONERROR);
+                MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("DuplicateNames")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Error")), MB_OK | MB_ICONERROR);
                 return;
             }
             newNames.insert(entry.newName);
         }
 
-        if (MessageBox(_T("确定要执行重命名吗？"), _T("确认"), MB_YESNO | MB_ICONWARNING) != IDYES)
+        if (MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("ConfirmRename")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Confirm")), MB_YESNO | MB_ICONWARNING) != IDYES)
             return;
     }
 
@@ -1817,9 +1825,9 @@ void CBatchRenameDlg::OnBnClickedFileExecute()
     }
 
     CString msg;
-    msg.Format(_T("操作完成：删除 %d 个（失败 %d），重命名 %d 个（失败 %d）。"),
+    msg.Format(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("OperationResult")),
         actualDeleted, deleteFail, renameCount, renameFail);
-    MessageBox(msg, _T("结果"), MB_OK | MB_ICONINFORMATION);
+    MessageBox(msg, CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Result")), MB_OK | MB_ICONINFORMATION);
 
     m_bPreviewDone = false;
     GetDlgItem(IDC_BTN_RENAME_EXECUTE)->EnableWindow(FALSE);
@@ -1832,7 +1840,7 @@ void CBatchRenameDlg::OnBnClickedRenameUndo()
     if (m_undoList.empty())
         return;
 
-    if (MessageBox(_T("Undo all renames from last execute?"), _T("Undo"), MB_YESNO | MB_ICONQUESTION) != IDYES)
+    if (MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("UndoConfirm")), _T("Undo"), MB_YESNO | MB_ICONQUESTION) != IDYES)
         return;
 
     int undoCount = 0;
@@ -1853,7 +1861,7 @@ void CBatchRenameDlg::OnBnClickedRenameUndo()
     GetDlgItem(IDC_BTN_RENAME_UNDO)->EnableWindow(FALSE);
 
     CString msg;
-    msg.Format(_T("Undo complete: %d reverted, %d failed."), undoCount, undoFail);
+    msg.Format(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("UndoResult")), undoCount, undoFail);
     MessageBox(msg, _T("Undo"), MB_OK | MB_ICONINFORMATION);
 
     LoadFiles();
@@ -1892,40 +1900,41 @@ void CBatchRenameDlg::OnFileListRightClick(NMHDR* /*pNMHDR*/, LRESULT* pResult)
     menu.CreatePopupMenu();
     if (nSel > 0)
     {
-        menu.AppendMenu(MF_STRING, IDM_FILE_IGNORE, _T("忽略"));
-        menu.AppendMenu(MF_STRING, IDM_FILE_UNIGNORE, _T("取消忽略"));
+        auto& loc = CLocalizationManager::GetInstance();
+        menu.AppendMenu(MF_STRING, IDM_FILE_IGNORE, loc.GetString(_T("BatchRename"), _T("Ignore")));
+        menu.AppendMenu(MF_STRING, IDM_FILE_UNIGNORE, loc.GetString(_T("BatchRename"), _T("Unignore")));
         menu.AppendMenu(MF_SEPARATOR);
-        menu.AppendMenu(MF_STRING, IDM_FILE_TRACK, _T("跟踪"));
-        menu.AppendMenu(MF_STRING, IDM_FILE_UNTRACK, _T("取消跟踪"));
+        menu.AppendMenu(MF_STRING, IDM_FILE_TRACK, loc.GetString(_T("BatchRename"), _T("Track")));
+        menu.AppendMenu(MF_STRING, IDM_FILE_UNTRACK, loc.GetString(_T("BatchRename"), _T("Untrack")));
         menu.AppendMenu(MF_SEPARATOR);
-        menu.AppendMenu(MF_STRING, IDM_FILE_MARK_DELETE, _T("标记删除"));
-        menu.AppendMenu(MF_STRING, IDM_FILE_UNMARK_DELETE, _T("取消标记"));
+        menu.AppendMenu(MF_STRING, IDM_FILE_MARK_DELETE, loc.GetString(_T("BatchRename"), _T("MarkDelete")));
+        menu.AppendMenu(MF_STRING, IDM_FILE_UNMARK_DELETE, loc.GetString(_T("BatchRename"), _T("UnmarkDelete")));
         menu.AppendMenu(MF_SEPARATOR);
-        menu.AppendMenu(MF_STRING, IDM_FILE_CHANGE_EXT, _T("修改后缀"));
-        menu.AppendMenu(MF_STRING, IDM_FILE_RESTORE_EXT, _T("恢复原后缀名"));
+        menu.AppendMenu(MF_STRING, IDM_FILE_CHANGE_EXT, loc.GetString(_T("BatchRename"), _T("ChangeExt")));
+        menu.AppendMenu(MF_STRING, IDM_FILE_RESTORE_EXT, loc.GetString(_T("BatchRename"), _T("RestoreExt")));
         menu.AppendMenu(MF_SEPARATOR);
 
         // Submenu: move up
         CMenu menuUp;
         menuUp.CreatePopupMenu();
-        menuUp.AppendMenu(MF_STRING, IDM_FILE_MOVE_UP, _T("前移1个"));
-        menuUp.AppendMenu(MF_STRING, IDM_FILE_MOVE_TO_UP, _T("前移到..."));
-        menu.AppendMenu(MF_POPUP, reinterpret_cast<UINT_PTR>(menuUp.GetSafeHmenu()), _T("前移"));
+        menuUp.AppendMenu(MF_STRING, IDM_FILE_MOVE_UP, loc.GetString(_T("BatchRename"), _T("MoveUpOne")));
+        menuUp.AppendMenu(MF_STRING, IDM_FILE_MOVE_TO_UP, loc.GetString(_T("BatchRename"), _T("MoveUpTo")));
+        menu.AppendMenu(MF_POPUP, reinterpret_cast<UINT_PTR>(menuUp.GetSafeHmenu()), loc.GetString(_T("BatchRename"), _T("MoveUpMenu")));
         menuUp.Detach();
 
         // Submenu: move down
         CMenu menuDown;
         menuDown.CreatePopupMenu();
-        menuDown.AppendMenu(MF_STRING, IDM_FILE_MOVE_DOWN, _T("后移1个"));
-        menuDown.AppendMenu(MF_STRING, IDM_FILE_MOVE_TO_DOWN, _T("后移到..."));
-        menu.AppendMenu(MF_POPUP, reinterpret_cast<UINT_PTR>(menuDown.GetSafeHmenu()), _T("后移"));
+        menuDown.AppendMenu(MF_STRING, IDM_FILE_MOVE_DOWN, loc.GetString(_T("BatchRename"), _T("MoveDownOne")));
+        menuDown.AppendMenu(MF_STRING, IDM_FILE_MOVE_TO_DOWN, loc.GetString(_T("BatchRename"), _T("MoveDownTo")));
+        menu.AppendMenu(MF_POPUP, reinterpret_cast<UINT_PTR>(menuDown.GetSafeHmenu()), loc.GetString(_T("BatchRename"), _T("MoveDownMenu")));
         menuDown.Detach();
 
         menu.AppendMenu(MF_SEPARATOR);
-        menu.AppendMenu(MF_STRING, IDM_FILE_EXPLORE, _T("在资源管理器中定位"));
+        menu.AppendMenu(MF_STRING, IDM_FILE_EXPLORE, loc.GetString(_T("BatchRename"), _T("LocateInExplorer")));
         menu.AppendMenu(MF_SEPARATOR);
-        menu.AppendMenu(MF_STRING, IDM_FILE_AI_ANALYZE, _T("AI解析文件名"));
-        menu.AppendMenu(MF_STRING, IDM_FILE_CANCEL_AI, _T("取消AI标记"));
+        menu.AppendMenu(MF_STRING, IDM_FILE_AI_ANALYZE, loc.GetString(_T("BatchRename"), _T("AiAnalyze")));
+        menu.AppendMenu(MF_STRING, IDM_FILE_CANCEL_AI, loc.GetString(_T("BatchRename"), _T("CancelAiMark")));
     }
     menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, this);
     *pResult = 0;
@@ -2000,8 +2009,9 @@ void CBatchRenameDlg::OnFileUnmarkAll()
 
 void CBatchRenameDlg::OnFileResetAll()
 {
-    if (MessageBox(_T("确定要清除所有改动吗？\n将重置前缀、后缀、替换、序号、删除标记、AI 生成名称。"),
-        _T("确认"), MB_YESNO | MB_ICONQUESTION) != IDYES)
+    auto& loc = CLocalizationManager::GetInstance();
+    if (MessageBox(loc.GetString(_T("BatchRename"), _T("ResetAllConfirm")),
+        loc.GetString(_T("BatchRename"), _T("Confirm")), MB_YESNO | MB_ICONQUESTION) != IDYES)
         return;
 
     // Clear all edit boxes
@@ -2074,7 +2084,7 @@ void CBatchRenameDlg::OnFileChangeExt()
 
     // Show input dialog
     CString newExt;
-    CInputDialog dlg(_T("请输入新后缀（不含点号）:"), _T("修改后缀"), defaultExt);
+    CInputDialog dlg(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("EnterNewExt")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("ChangeExtTitle")), defaultExt);
     if (dlg.DoModal() != IDOK) return;
 
     newExt = dlg.GetInput();
@@ -2087,7 +2097,7 @@ void CBatchRenameDlg::OnFileChangeExt()
     {
         if (newExt.Find(invalid[i]) != -1)
         {
-            MessageBox(_T("后缀包含非法字符。"), _T("错误"), MB_OK | MB_ICONERROR);
+            MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("InvalidExt")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Error")), MB_OK | MB_ICONERROR);
             return;
         }
     }
@@ -2146,7 +2156,8 @@ void CBatchRenameDlg::OnBnClickedAiAssistant()
 {
     if (m_entries.empty())
     {
-        MessageBox(_T("请先选择文件夹加载文件列表。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        auto& loc = CLocalizationManager::GetInstance();
+        MessageBox(loc.GetString(_T("BatchRename"), _T("SelectFolderFirst")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONINFORMATION);
         return;
     }
 
@@ -2161,7 +2172,7 @@ void CBatchRenameDlg::OnBnClickedAiAssistant()
 
     if (files.empty())
     {
-        MessageBox(_T("没有可重命名的文件（所有文件已忽略或标记删除）。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("NoFilesToRename")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Tip")), MB_OK | MB_ICONINFORMATION);
         return;
     }
 
@@ -2197,8 +2208,8 @@ void CBatchRenameDlg::OnBnClickedAiAssistant()
     GetDlgItem(IDC_BTN_RENAME_EXECUTE)->EnableWindow(TRUE);
 
     CString msg;
-    msg.Format(_T("AI 已为 %d 个文件生成新名称，请预览确认后点击「执行」。"), appliedCount);
-    MessageBox(msg, _T("AI 助手"), MB_OK | MB_ICONINFORMATION);
+    msg.Format(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("AiGeneratedNames")), appliedCount);
+    MessageBox(msg, CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("AiAssistant")), MB_OK | MB_ICONINFORMATION);
 }
 
 // AI analyze: open dialog with only selected files
@@ -2225,7 +2236,7 @@ void CBatchRenameDlg::OnFileAiAnalyze()
 
     if (files.empty())
     {
-        MessageBox(_T("请先选择要分析的文件。"), _T("提示"), MB_OK | MB_ICONINFORMATION);
+        MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("SelectFilesFirst")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("Tip")), MB_OK | MB_ICONINFORMATION);
         return;
     }
 
@@ -2261,8 +2272,8 @@ void CBatchRenameDlg::OnFileAiAnalyze()
     GetDlgItem(IDC_BTN_RENAME_EXECUTE)->EnableWindow(TRUE);
 
     CString msg;
-    msg.Format(_T("AI 已为 %d 个文件生成新名称，请预览确认后点击「执行」。"), appliedCount);
-    MessageBox(msg, _T("AI 助手"), MB_OK | MB_ICONINFORMATION);
+    msg.Format(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("AiGeneratedNames")), appliedCount);
+    MessageBox(msg, CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("AiAssistant")), MB_OK | MB_ICONINFORMATION);
 }
 
 void CBatchRenameDlg::OnFileCancelAi()

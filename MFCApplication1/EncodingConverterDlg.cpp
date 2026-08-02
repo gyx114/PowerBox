@@ -5,6 +5,7 @@
 #include "framework.h"
 #include "MFCApplication1.h"
 #include "EncodingConverterDlg.h"
+#include "LocalizationManager.h"
 #include "afxdialogex.h"
 #include <shellapi.h>
 #include <string>
@@ -71,6 +72,8 @@ void CEncodingConverterDlg::PopulateEncodings()
 BOOL CEncodingConverterDlg::OnInitDialog()
 {
 	CDialogEx::OnInitDialog();
+
+	SetWindowText(CLocalizationManager::GetInstance().GetString(_T("DlgCaption"), _T("EncodingDlg")));
 
 	DragAcceptFiles(TRUE);
 
@@ -228,7 +231,8 @@ void CEncodingConverterDlg::LoadFile(const CString& path)
 	CFile file;
 	if (!file.Open(path, CFile::modeRead))
 	{
-		MessageBox(_T("Failed to open file."), _T("Error"), MB_ICONERROR);
+		MessageBox(CLocalizationManager::GetInstance().GetString(_T("Encoding"), _T("FailedToOpen")), 
+			CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("Error")), MB_ICONERROR);
 		return;
 	}
 
@@ -237,7 +241,8 @@ void CEncodingConverterDlg::LoadFile(const CString& path)
 	{
 		file.Close();
 		if (size > 10 * 1024 * 1024)
-			MessageBox(_T("File too large (max 10 MB)."), _T("Error"), MB_ICONERROR);
+			MessageBox(CLocalizationManager::GetInstance().GetString(_T("Encoding"), _T("FileTooLarge")), 
+					  CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("Error")), MB_ICONERROR);
 		return;
 	}
 
@@ -444,7 +449,8 @@ void CEncodingConverterDlg::SaveFile(const CString& path, int targetEncIdx)
 	CFile file;
 	if (!file.Open(path, CFile::modeCreate | CFile::modeWrite))
 	{
-		MessageBox(_T("Failed to save file."), _T("Error"), MB_ICONERROR);
+		MessageBox(CLocalizationManager::GetInstance().GetString(_T("Encoding"), _T("FailedToSave")), 
+			CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("Error")), MB_ICONERROR);
 		return;
 	}
 
@@ -456,7 +462,8 @@ void CEncodingConverterDlg::OnBnClickedSaveas()
 {
 	if (m_rawBytes.empty())
 	{
-		MessageBox(_T("No file loaded."), _T("Info"), MB_ICONINFORMATION);
+		MessageBox(CLocalizationManager::GetInstance().GetString(_T("Encoding"), _T("NoFileLoaded")), 
+			CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("Info")), MB_ICONINFORMATION);
 		return;
 	}
 
@@ -480,7 +487,8 @@ void CEncodingConverterDlg::OnBnClickedSaveas()
 	if (dlg.DoModal() == IDOK)
 	{
 		SaveFile(dlg.GetPathName(), tgtIdx);
-		MessageBox(_T("File saved successfully."), _T("Info"), MB_ICONINFORMATION);
+		MessageBox(CLocalizationManager::GetInstance().GetString(_T("Encoding"), _T("FileSaved")), 
+			CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("Info")), MB_ICONINFORMATION);
 	}
 }
 
@@ -488,7 +496,8 @@ void CEncodingConverterDlg::OnBnClickedOverwrite()
 {
 	if (m_filePath.IsEmpty())
 	{
-		MessageBox(_T("No original file to overwrite."), _T("Info"), MB_ICONINFORMATION);
+		MessageBox(CLocalizationManager::GetInstance().GetString(_T("Encoding"), _T("NoOriginalFile")), 
+			CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("Info")), MB_ICONINFORMATION);
 		return;
 	}
 
@@ -512,5 +521,6 @@ void CEncodingConverterDlg::OnBnClickedOverwrite()
 
 	// Save with target encoding to the same path
 	SaveFile(m_filePath, tgtIdx);
-	MessageBox(_T("File overwritten successfully."), _T("Info"), MB_ICONINFORMATION);
+	MessageBox(CLocalizationManager::GetInstance().GetString(_T("Encoding"), _T("FileOverwritten")), 
+			CLocalizationManager::GetInstance().GetString(_T("Msg"), _T("Info")), MB_ICONINFORMATION);
 }
