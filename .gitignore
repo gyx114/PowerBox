@@ -17,8 +17,6 @@ x64/*.lib
 .vs/
 *.suo
 *.user
-!x64/Release/*.exe
-!x64/Debug/*.exe
 *.aps
 *.tmp
 ~*
