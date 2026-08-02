@@ -35,3 +35,6 @@ bool LaunchProcessAsShellUser(LPCTSTR exe, LPCTSTR params, CString* pError = nul
 // key-down + key-up cycle. Only releases keys that are actually stuck, to avoid
 // triggering side effects (e.g. Alt opening the menu bar).
 void ForceReleaseModifierKeys();
+
+// Find a child window by its current text and set new text (for IDC_STATIC labels)
+void SetChildTextByCurrentText(CWnd* pParent, LPCTSTR oldText, LPCTSTR newText);

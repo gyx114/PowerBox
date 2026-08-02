@@ -6,6 +6,7 @@
 #include "MFCApplication1.h"
 #include "EnvVarDlg.h"
 #include "LocalizationManager.h"
+#include "Utils.h"
 #include "afxdialogex.h"
 #include <algorithm>
 #include <fstream>
@@ -534,7 +535,37 @@ BOOL CEnvVarDlg::OnInitDialog()
 
 	RefreshAll();
 
+	TranslateUI();
+
 	return TRUE;
+}
+
+void CEnvVarDlg::TranslateUI()
+{
+	auto& loc = CLocalizationManager::GetInstance();
+
+	// Translate static labels using SetChildTextByCurrentText
+	SetChildTextByCurrentText(this, _T("搜索:"), loc.GetString(_T("EnvVar"), _T("LabelSearch")));
+	SetChildTextByCurrentText(this, _T("系统变量"), loc.GetString(_T("EnvVar"), _T("SystemLabel")));
+	SetChildTextByCurrentText(this, _T("用户变量"), loc.GetString(_T("EnvVar"), _T("UserLabel")));
+
+	// Translate buttons
+	SetDlgItemText(IDC_BTN_ENV_ADD, loc.GetString(_T("EnvVar"), _T("BtnAdd")));
+	SetDlgItemText(IDC_BTN_ENV_EDIT, loc.GetString(_T("EnvVar"), _T("BtnEdit")));
+	SetDlgItemText(IDC_BTN_ENV_DELETE, loc.GetString(_T("EnvVar"), _T("BtnDelete")));
+	SetDlgItemText(IDC_BTN_ENV_REFRESH, loc.GetString(_T("EnvVar"), _T("BtnRefresh")));
+	SetDlgItemText(IDC_BTN_ENV_EXPORT, loc.GetString(_T("EnvVar"), _T("BtnExport")));
+
+	// Translate status label
+	SetChildTextByCurrentText(this, _T("就绪"), loc.GetString(_T("EnvVar"), _T("StatusRefreshed")));
+
+	// Set search edit box placeholder (cue banner, not actual text)
+	CEdit* pSearch = (CEdit*)GetDlgItem(IDC_EDIT_ENV_SEARCH);
+	if (pSearch)
+	{
+		CString hint = loc.GetString(_T("EnvVar"), _T("SearchPlaceholder"));
+		pSearch->SendMessage(EM_SETCUEBANNER, (WPARAM)TRUE, (LPARAM)(LPCTSTR)hint);
+	}
 }
 
 void CEnvVarDlg::PostNcDestroy()

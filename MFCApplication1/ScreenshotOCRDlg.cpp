@@ -402,6 +402,7 @@ BOOL CScreenshotOCRDlg::OnInitDialog()
         pCombo->SetCurSel(0);  // Default Chinese to English
     }
 
+    TranslateUI();
     return TRUE;
 }
 
@@ -433,6 +434,17 @@ CString CScreenshotOCRDlg::GetSelectedLangPair() const
             return s_langPairs[sel].second;
     }
     return L"zh-CN|en";  // Default Chinese to English
+}
+
+void CScreenshotOCRDlg::TranslateUI()
+{
+    auto& loc = CLocalizationManager::GetInstance();
+    SetDlgItemText(IDC_BTN_OCR_CAPTURE, loc.GetString(_T("OCR"), _T("BtnCapture")));
+    SetDlgItemText(IDC_BTN_OCR_TRANSLATE, loc.GetString(_T("OCR"), _T("BtnTranslate")));
+    SetDlgItemText(IDC_BTN_OCR_COPY, loc.GetString(_T("OCR"), _T("BtnCopy")));
+    SetChildTextByCurrentText(this, _T("识别结果:"), loc.GetString(_T("OCR"), _T("LabelResult")));
+    SetChildTextByCurrentText(this, _T("翻译结果:"), loc.GetString(_T("OCR"), _T("LabelTranslated")));
+    SetDlgItemText(IDC_STATIC_OCR_STATUS, loc.GetString(_T("OCR"), _T("StatusHint")));
 }
 
 void CScreenshotOCRDlg::OnOK() {}

@@ -44,6 +44,7 @@ private:
 	void RefreshList(int listId, const std::vector<EnvVarEntry>& vars);
 	void PopulateList(int listId, const std::vector<EnvVarEntry>& vars);
 	void AdjustColumnWidths(int listId);
+	void TranslateUI();
 	void UpdateStatus(const CString& text);
 	void DoSearchFilter();
 	void FilterList(int listId, const std::vector<EnvVarEntry>& vars);

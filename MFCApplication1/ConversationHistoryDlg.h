@@ -44,6 +44,7 @@ private:
     std::vector<ConversationInfo> m_conversations;
 
     CString GetConversationsFolder();
+    void TranslateUI();
     void RefreshList();
     void LoadConversation(const ConversationInfo& conv);
     void DeleteConversation(const ConversationInfo& conv);

@@ -4,6 +4,7 @@
 #include "BatchRenameAIDlg.h"
 #include "RegexGuideDlg.h"
 #include "LocalizationManager.h"
+#include "Utils.h"
 #include "resource.h"
 #include <algorithm>
 #include <set>
@@ -214,7 +215,72 @@ BOOL CBatchRenameDlg::OnInitDialog()
     }
 
     ShowTab(0);
+    TranslateUI();
     return TRUE;
+}
+
+// ========== Translation ==========
+
+void CBatchRenameDlg::TranslateUI()
+{
+    auto& loc = CLocalizationManager::GetInstance();
+
+    // Top buttons
+    SetDlgItemText(IDC_BTN_RENAME_BROWSE, loc.GetString(_T("BatchRename"), _T("BtnBrowse")));
+    SetDlgItemText(IDC_BTN_RENAME_REFRESH, loc.GetString(_T("BatchRename"), _T("BtnRefresh")));
+    SetDlgItemText(IDC_BTN_RENAME_CLEAR, loc.GetString(_T("BatchRename"), _T("BtnClear")));
+
+    // Folder tab — current dir operations
+    SetDlgItemText(IDC_BTN_CURRENT_RENAME, loc.GetString(_T("BatchRename"), _T("BtnRenameDir")));
+    SetDlgItemText(IDC_BTN_CURRENT_MOVE, loc.GetString(_T("BatchRename"), _T("BtnMoveDir")));
+    SetDlgItemText(IDC_BTN_CURRENT_DELETE, loc.GetString(_T("BatchRename"), _T("BtnDeleteDir")));
+
+    // Folder tab — subfolder operations
+    SetDlgItemText(IDC_BTN_FOLDER_RENAME, loc.GetString(_T("BatchRename"), _T("BtnRename")));
+    SetDlgItemText(IDC_BTN_FOLDER_MOVE, loc.GetString(_T("BatchRename"), _T("BtnMove")));
+    SetDlgItemText(IDC_BTN_FOLDER_DELETE, loc.GetString(_T("BatchRename"), _T("BtnDelete")));
+    SetDlgItemText(IDC_BTN_FOLDER_SELECTALL, loc.GetString(_T("BatchRename"), _T("BtnSelectAll")));
+    SetDlgItemText(IDC_BTN_FOLDER_DESELECTALL, loc.GetString(_T("BatchRename"), _T("BtnDeselectAll")));
+
+    // Static labels (matched by current text)
+    SetChildTextByCurrentText(this, _T("文件夹:"), loc.GetString(_T("BatchRename"), _T("LabelFolder")));
+    SetChildTextByCurrentText(this, _T("当前目录:"), loc.GetString(_T("BatchRename"), _T("LabelCurrentDir")));
+    SetChildTextByCurrentText(this, _T("子目录操作:"), loc.GetString(_T("BatchRename"), _T("LabelSubdir")));
+    SetChildTextByCurrentText(this, _T("前缀:"), loc.GetString(_T("BatchRename"), _T("PrefixLabel")));
+    SetChildTextByCurrentText(this, _T("后缀:"), loc.GetString(_T("BatchRename"), _T("SuffixLabel")));
+    SetChildTextByCurrentText(this, _T("替换:"), loc.GetString(_T("BatchRename"), _T("ReplaceFromLabel")));
+    SetChildTextByCurrentText(this, _T("为:"), loc.GetString(_T("BatchRename"), _T("ReplaceToLabel")));
+    SetChildTextByCurrentText(this, _T("起始:"), loc.GetString(_T("BatchRename"), _T("LabelStartNum")));
+    SetChildTextByCurrentText(this, _T("提示: 扩展名不会被修改, 右键文件列表可标记删除/忽略/跟踪"),
+        loc.GetString(_T("BatchRename"), _T("LabelTip")));
+
+    // Checkboxes
+    SetDlgItemText(IDC_CHECK_RENAME_REGEX, loc.GetString(_T("BatchRename"), _T("RegexLabel")));
+    SetDlgItemText(IDC_CHECK_RENAME_NUMBER, loc.GetString(_T("BatchRename"), _T("NumberLabel")));
+    SetDlgItemText(IDC_CHECK_NUMBER_AFTER_EXT, loc.GetString(_T("BatchRename"), _T("NumberAfterExt")));
+    SetDlgItemText(IDC_CHECK_DELETE_MATCH, loc.GetString(_T("BatchRename"), _T("DeleteMatchLabel")));
+    SetDlgItemText(IDC_CHECK_DELETE_INVERT, loc.GetString(_T("BatchRename"), _T("CheckInvert")));
+    SetDlgItemText(IDC_CHECK_IGNORE_EXT, loc.GetString(_T("BatchRename"), _T("CheckIgnoreExt")));
+    SetDlgItemText(IDC_CHECK_IGNORE_MATCH, loc.GetString(_T("BatchRename"), _T("CheckIgnoreMatch")));
+    SetDlgItemText(IDC_CHECK_IGNORE_REGEX, loc.GetString(_T("BatchRename"), _T("RegexLabel")));
+    SetDlgItemText(IDC_CHECK_TRACK_EXT, loc.GetString(_T("BatchRename"), _T("CheckTrackExt")));
+    SetDlgItemText(IDC_CHECK_TRACK_MATCH, loc.GetString(_T("BatchRename"), _T("CheckTrackMatch")));
+    SetDlgItemText(IDC_CHECK_TRACK_REGEX, loc.GetString(_T("BatchRename"), _T("RegexLabel")));
+
+    // Bottom buttons
+    SetDlgItemText(IDC_BTN_AI_ASSISTANT, loc.GetString(_T("BatchRename"), _T("BtnAiAssistant")));
+    SetDlgItemText(IDC_BTN_RENAME_PREVIEW, loc.GetString(_T("BatchRename"), _T("BtnPreview")));
+    SetDlgItemText(IDC_BTN_RENAME_EXECUTE, loc.GetString(_T("BatchRename"), _T("BtnExecute")));
+    SetDlgItemText(IDC_BTN_FILE_UNMARK_ALL, loc.GetString(_T("BatchRename"), _T("BtnClearDelete")));
+    SetDlgItemText(IDC_BTN_FILE_RESET_ALL, loc.GetString(_T("BatchRename"), _T("BtnResetAll")));
+    SetDlgItemText(IDC_BTN_RENAME_UNDO, loc.GetString(_T("BatchRename"), _T("BtnUndo")));
+    SetDlgItemText(IDC_BTN_RENAME_REGEX_HELP, loc.GetString(_T("BatchRename"), _T("BtnRegexHelp")));
+    SetDlgItemText(IDC_BTN_IGNORE_CLEAR, loc.GetString(_T("BatchRename"), _T("BtnClearIgnore")));
+    SetDlgItemText(IDC_BTN_TRACK_CLEAR, loc.GetString(_T("BatchRename"), _T("BtnClearTrack")));
+
+    // GroupBox (matched by current text)
+    SetChildTextByCurrentText(this, _T("忽略规则"), loc.GetString(_T("BatchRename"), _T("GroupIgnore")));
+    SetChildTextByCurrentText(this, _T("跟踪规则"), loc.GetString(_T("BatchRename"), _T("GroupTrack")));
 }
 
 // ========== Tab switching ==========

@@ -45,6 +45,7 @@ private:
 	int m_listHeight;   // fixed list height from RC (only width changes on resize)
 	int m_btnWidth, m_btnHeight, m_btnGap;
 
+	void TranslateUI();
 	void InitListColumns();
 	void QueryFileLocks();
 	void AddFile(const CString& filePath);

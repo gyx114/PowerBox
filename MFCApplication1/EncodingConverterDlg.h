@@ -21,6 +21,7 @@ protected:
 	virtual BOOL OnInitDialog();
 	virtual BOOL PreTranslateMessage(MSG* pMsg);
 	virtual void PostNcDestroy();
+	void TranslateUI();
 
 	DECLARE_MESSAGE_MAP()
 

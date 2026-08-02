@@ -3,6 +3,7 @@
 #include "AIApiClient.h"
 #include "json.hpp"
 #include "LocalizationManager.h"
+#include "Utils.h"
 #include <set>
 #include <map>
 #include <regex>
@@ -65,10 +66,27 @@ BOOL CBatchRenameAIDlg::OnInitDialog()
     status.Format(loc.GetString(L"BatchRename", L"AiDlgStatus"), (int)m_files.size());
     ShowStatus(status);
 
+    // Translate UI controls
+    TranslateUI();
+
     // Set focus to description edit
     GetDlgItem(IDC_AI_DESC)->SetFocus();
 
     return FALSE;
+}
+
+void CBatchRenameAIDlg::TranslateUI()
+{
+    auto& loc = CLocalizationManager::GetInstance();
+
+    // Translate static labels
+    SetChildTextByCurrentText(this, _T("描述你的重命名需求（支持自然语言）："), loc.GetString(_T("BatchRename"), _T("AiDlgDesc")));
+    SetChildTextByCurrentText(this, _T("AI 建议的新文件名预览："), loc.GetString(_T("BatchRename"), _T("AiDlgPreview")));
+
+    // Translate buttons
+    SetDlgItemText(IDC_AI_SEND, loc.GetString(_T("BatchRename"), _T("BtnAiSend")));
+    SetDlgItemText(IDC_AI_APPLY, loc.GetString(_T("BatchRename"), _T("BtnApply")));
+    SetDlgItemText(IDCANCEL, loc.GetString(_T("BatchRename"), _T("BtnCancel")));
 }
 
 void CBatchRenameAIDlg::OnCancel()

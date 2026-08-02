@@ -15,6 +15,7 @@ protected:
     virtual BOOL PreTranslateMessage(MSG* pMsg) override;
     virtual void OnCancel() override;
     virtual void PostNcDestroy() override;
+    void TranslateUI();
     afx_msg void OnClose();
 
     DECLARE_MESSAGE_MAP()

@@ -10,6 +10,7 @@
 #include <shellapi.h>
 #include <string>
 #include <filesystem>
+#include "Utils.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -121,6 +122,7 @@ BOOL CEncodingConverterDlg::OnInitDialog()
 	CComboBox* pSource = (CComboBox*)GetDlgItem(IDC_COMBO_ENC_SOURCE);
 	if (pSource) pSource->EnableWindow(FALSE);
 
+	TranslateUI();
 	return TRUE;
 }
 
@@ -129,6 +131,16 @@ BOOL CEncodingConverterDlg::PreTranslateMessage(MSG* pMsg)
 	if (IsDialogMessage(pMsg))
 		return TRUE;
 	return CDialogEx::PreTranslateMessage(pMsg);
+}
+
+void CEncodingConverterDlg::TranslateUI()
+{
+	auto& loc = CLocalizationManager::GetInstance();
+	SetDlgItemText(IDC_BTN_ENC_OPEN, loc.GetString(_T("Encoding"), _T("BtnOpen")));
+	SetDlgItemText(IDC_BTN_ENC_SAVEAS, loc.GetString(_T("Encoding"), _T("BtnSaveAs")));
+	SetDlgItemText(IDC_BTN_ENC_OVERWRITE, loc.GetString(_T("Encoding"), _T("BtnOverwrite")));
+	SetChildTextByCurrentText(this, _T("源编码:"), loc.GetString(_T("Encoding"), _T("LabelSrcEnc")));
+	SetChildTextByCurrentText(this, _T("目标编码:"), loc.GetString(_T("Encoding"), _T("LabelDstEnc")));
 }
 
 void CEncodingConverterDlg::PostNcDestroy()

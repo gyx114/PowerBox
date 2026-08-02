@@ -30,6 +30,7 @@ protected:
 
 private:
     std::vector<CString> m_procInfos;  // formatted process info strings
+    void TranslateUI();
     void SetResult(const CString& text);
     void AppendResult(const CString& text);
 };

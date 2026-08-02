@@ -76,6 +76,7 @@ private:
 	static CString ResolveMUIString(const CString& raw);
 	static void LoadGuidDictionary();
 	static CString LookupGuidDict(const CString& clsid, const CString& scenePath = CString());
+	void TranslateUI();
 	void RefreshList();
 	void UpdateStatus(const CString& text);
 	void AdjustColumnWidths();

@@ -24,6 +24,7 @@ protected:
     virtual void OnOK() override;
     virtual void OnCancel() override;
     virtual void PostNcDestroy() override;
+    void TranslateUI();
     afx_msg void OnClose();
 
     CWnd* m_pMainWnd{nullptr};

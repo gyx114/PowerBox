@@ -4,6 +4,7 @@
 #include "qrcodegen.hpp"
 #include "resource.h"
 #include "LocalizationManager.h"
+#include "Utils.h"
 #include <gdiplus.h>
 #include <fstream>
 
@@ -34,6 +35,7 @@ BOOL CQRCodeGenDlg::OnInitDialog()
     GetDlgItem(IDC_BTN_QR_COPY)->EnableWindow(FALSE);
     GetDlgItem(IDC_BTN_QR_SAVE)->EnableWindow(FALSE);
 
+    TranslateUI();
     return TRUE;
 }
 
@@ -180,6 +182,15 @@ HBITMAP CQRCodeGenDlg::CreateQRBitmap(const qrcodegen::QrCode& qr, int moduleSiz
     ::ReleaseDC(NULL, hdcScreen);
 
     return hBitmap;
+}
+
+void CQRCodeGenDlg::TranslateUI()
+{
+    auto& loc = CLocalizationManager::GetInstance();
+    SetDlgItemText(IDC_BTN_QR_GENERATE, loc.GetString(_T("QRCode"), _T("BtnGenerate")));
+    SetDlgItemText(IDC_BTN_QR_COPY, loc.GetString(_T("QRCode"), _T("BtnCopy")));
+    SetDlgItemText(IDC_BTN_QR_SAVE, loc.GetString(_T("QRCode"), _T("BtnSave")));
+    SetChildTextByCurrentText(this, _T("输入文本(URL/文字):"), loc.GetString(_T("QRCode"), _T("LabelInput")));
 }
 
 void CQRCodeGenDlg::OnCancel()

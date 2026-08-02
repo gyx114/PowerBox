@@ -74,6 +74,7 @@ CString CLocalizationManager::GetString(LPCTSTR section, LPCTSTR key, LPCTSTR de
             result.Replace(_T("\\r\\n"), _T("\r\n"));
             result.Replace(_T("\\n"), _T("\n"));
             result.Replace(_T("\\\""), _T("\""));
+            result.Replace(_T("\\\\"), _T("\\"));
             return result;
         }
     }
@@ -175,6 +176,28 @@ void CLocalizationManager::LoadBuiltinDefaults()
     // Git tab columns
     m_defaults[MakeKey(_T("GitTab"), _T("ColDesc"))] = _T("说明");
     m_defaults[MakeKey(_T("GitTab"), _T("ColCmd"))] = _T("命令");
+
+    // ===== Git commands (default descriptions) =====
+    m_defaults[MakeKey(_T("GitCommands"), _T("Cmd1Desc"))] = _T("初始化本地仓库");
+    m_defaults[MakeKey(_T("GitCommands"), _T("Cmd2Desc"))] = _T("暂存所有文件");
+    m_defaults[MakeKey(_T("GitCommands"), _T("Cmd3Desc"))] = _T("提交到本地仓库");
+    m_defaults[MakeKey(_T("GitCommands"), _T("Cmd4Desc"))] = _T("添加远程仓库");
+    m_defaults[MakeKey(_T("GitCommands"), _T("Cmd5Desc"))] = _T("分支重命名为 main");
+    m_defaults[MakeKey(_T("GitCommands"), _T("Cmd6Desc"))] = _T("推送并设置上游");
+    m_defaults[MakeKey(_T("GitCommands"), _T("Cmd7Desc"))] = _T("拉取远程更新");
+    m_defaults[MakeKey(_T("GitCommands"), _T("Cmd8Desc"))] = _T("克隆远程仓库");
+    m_defaults[MakeKey(_T("GitCommands"), _T("Cmd9Desc"))] = _T("查看状态");
+    m_defaults[MakeKey(_T("GitCommands"), _T("Cmd10Desc"))] = _T("暂存所有更改");
+    m_defaults[MakeKey(_T("GitCommands"), _T("Cmd11Desc"))] = _T("提交到本地仓库");
+    m_defaults[MakeKey(_T("GitCommands"), _T("Cmd12Desc"))] = _T("推送到远程");
+    m_defaults[MakeKey(_T("GitCommands"), _T("Cmd13Desc"))] = _T("列出所有分支（含远程）");
+    m_defaults[MakeKey(_T("GitCommands"), _T("Cmd14Desc"))] = _T("创建并切换分支");
+    m_defaults[MakeKey(_T("GitCommands"), _T("Cmd15Desc"))] = _T("切换分支");
+    m_defaults[MakeKey(_T("GitCommands"), _T("Cmd16Desc"))] = _T("合并分支到当前");
+    m_defaults[MakeKey(_T("GitCommands"), _T("Cmd17Desc"))] = _T("删除已合并分支");
+    m_defaults[MakeKey(_T("GitCommands"), _T("Cmd18Desc"))] = _T("查看简洁提交日志");
+    m_defaults[MakeKey(_T("GitCommands"), _T("Cmd19Desc"))] = _T("恢复工作区文件");
+    m_defaults[MakeKey(_T("GitCommands"), _T("Cmd20Desc"))] = _T("取消暂存文件");
 
     // ===== Common messages =====
     m_defaults[MakeKey(_T("Msg"), _T("ConfirmEndProcess"))] = _T("确定要结束进程\n%s (PID: %s) 吗？");
@@ -340,7 +363,7 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("TrayMenu"), _T("Exit"))] = _T("退出程序");
 
     // ===== Window tab controls =====
-    m_defaults[MakeKey(_T("WindowTab"), _T("TranparencyLabel"))] = _T("透明度: 100%%");
+    m_defaults[MakeKey(_T("WindowTab"), _T("TranparencyLabel"))] = _T("透明度: 100%");
     m_defaults[MakeKey(_T("WindowTab"), _T("LocateBtn"))] = _T("定位窗口");
     m_defaults[MakeKey(_T("WindowTab"), _T("ForceKillBtn"))] = _T("强制结束");
     m_defaults[MakeKey(_T("WindowTab"), _T("ScreenshotBtn"))] = _T("截图到剪贴板");
@@ -466,6 +489,8 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("ContextMenu"), _T("BtnHistory"))] = _T("历史记录");
     m_defaults[MakeKey(_T("ContextMenu"), _T("BtnQuery"))] = _T("查询");
     m_defaults[MakeKey(_T("ContextMenu"), _T("ExtensionPlaceholder"))] = _T("输入后缀名(可省略.)");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("LabelLocation"))] = _T("位置筛选:");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("StatusReady"))] = _T("就绪");
 
     // ===== Environment Variable Manager =====
     m_defaults[MakeKey(_T("EnvVar"), _T("ColName"))] = _T("变量名");
@@ -478,6 +503,7 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("EnvVar"), _T("BtnRefresh"))] = _T("刷新");
     m_defaults[MakeKey(_T("EnvVar"), _T("BtnExport"))] = _T("导出");
     m_defaults[MakeKey(_T("EnvVar"), _T("SearchPlaceholder"))] = _T("搜索环境变量...");
+    m_defaults[MakeKey(_T("EnvVar"), _T("LabelSearch"))] = _T("搜索:");
     m_defaults[MakeKey(_T("EnvVar"), _T("RClickEdit"))] = _T("编辑");
     m_defaults[MakeKey(_T("EnvVar"), _T("RClickDelete"))] = _T("删除");
     m_defaults[MakeKey(_T("EnvVar"), _T("RClickCopyName"))] = _T("复制名称");
@@ -521,8 +547,38 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("BatchRename"), _T("TrackMatchLabel"))] = _T("跟踪匹配");
     m_defaults[MakeKey(_T("BatchRename"), _T("DeleteMatchLabel"))] = _T("匹配删除");
     m_defaults[MakeKey(_T("BatchRename"), _T("NumberAfterExt"))] = _T("编号在扩展名后");
+    m_defaults[MakeKey(_T("BatchRename"), _T("BtnClear"))] = _T("清空");
+    m_defaults[MakeKey(_T("BatchRename"), _T("BtnRenameDir"))] = _T("重命名目录");
+    m_defaults[MakeKey(_T("BatchRename"), _T("BtnMoveDir"))] = _T("移动目录");
+    m_defaults[MakeKey(_T("BatchRename"), _T("BtnDeleteDir"))] = _T("删除目录");
+    m_defaults[MakeKey(_T("BatchRename"), _T("BtnRename"))] = _T("重命名");
+    m_defaults[MakeKey(_T("BatchRename"), _T("BtnMove"))] = _T("移动");
+    m_defaults[MakeKey(_T("BatchRename"), _T("BtnDelete"))] = _T("删除");
+    m_defaults[MakeKey(_T("BatchRename"), _T("BtnSelectAll"))] = _T("全选");
+    m_defaults[MakeKey(_T("BatchRename"), _T("BtnDeselectAll"))] = _T("取消全选");
+    m_defaults[MakeKey(_T("BatchRename"), _T("BtnClearDelete"))] = _T("清除删除标记");
+    m_defaults[MakeKey(_T("BatchRename"), _T("BtnRegexHelp"))] = _T("正则表达式手册");
+    m_defaults[MakeKey(_T("BatchRename"), _T("BtnClearIgnore"))] = _T("取消全部忽略");
+    m_defaults[MakeKey(_T("BatchRename"), _T("BtnClearTrack"))] = _T("取消全部跟踪");
+    m_defaults[MakeKey(_T("BatchRename"), _T("CheckInvert"))] = _T("反选");
+    m_defaults[MakeKey(_T("BatchRename"), _T("CheckIgnoreExt"))] = _T("忽略后缀(英文;相隔)");
+    m_defaults[MakeKey(_T("BatchRename"), _T("CheckIgnoreMatch"))] = _T("忽略匹配(包括后缀)");
+    m_defaults[MakeKey(_T("BatchRename"), _T("CheckTrackExt"))] = _T("跟踪后缀(英文;相隔)");
+    m_defaults[MakeKey(_T("BatchRename"), _T("CheckTrackMatch"))] = _T("跟踪匹配(包括后缀)");
+    m_defaults[MakeKey(_T("BatchRename"), _T("LabelFolder"))] = _T("文件夹:");
+    m_defaults[MakeKey(_T("BatchRename"), _T("LabelCurrentDir"))] = _T("当前目录:");
+    m_defaults[MakeKey(_T("BatchRename"), _T("LabelSubdir"))] = _T("子目录操作:");
+    m_defaults[MakeKey(_T("BatchRename"), _T("LabelStartNum"))] = _T("起始:");
+    m_defaults[MakeKey(_T("BatchRename"), _T("LabelTip"))] = _T("提示: 扩展名不会被修改, 右键文件列表可标记删除/忽略/跟踪");
+    m_defaults[MakeKey(_T("BatchRename"), _T("GroupIgnore"))] = _T("忽略规则");
+    m_defaults[MakeKey(_T("BatchRename"), _T("GroupTrack"))] = _T("跟踪规则");
     m_defaults[MakeKey(_T("BatchRename"), _T("AiDlgNoValidMapping"))] = _T("AI 没有生成有效的重命名映射。\n跳过了 %d 个无效/重复条目。");
     m_defaults[MakeKey(_T("BatchRename"), _T("AiDlgCleanedIllegal"))] = _T("\n清理了 %d 个含非法字符的文件名。");
+    m_defaults[MakeKey(_T("BatchRename"), _T("AiDlgDesc"))] = _T("描述你的重命名需求（支持自然语言）：");
+    m_defaults[MakeKey(_T("BatchRename"), _T("AiDlgPreview"))] = _T("AI 建议的新文件名预览：");
+    m_defaults[MakeKey(_T("BatchRename"), _T("BtnAiSend"))] = _T("发送给AI");
+    m_defaults[MakeKey(_T("BatchRename"), _T("BtnApply"))] = _T("应用");
+    m_defaults[MakeKey(_T("BatchRename"), _T("BtnCancel"))] = _T("取消");
 
     // ===== Process Scan =====
     m_defaults[MakeKey(_T("ProcessScan"), _T("ColProcessName"))] = _T("进程名");
@@ -546,11 +602,15 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("QRCode"), _T("BtnGenerate"))] = _T("生成二维码");
     m_defaults[MakeKey(_T("QRCode"), _T("BtnCopy"))] = _T("复制到剪贴板");
     m_defaults[MakeKey(_T("QRCode"), _T("BtnSave"))] = _T("保存");
+    m_defaults[MakeKey(_T("QRCode"), _T("LabelInput"))] = _T("输入文本(URL/文字):");
 
     // ===== Screenshot OCR =====
     m_defaults[MakeKey(_T("OCR"), _T("BtnCapture"))] = _T("开始截图");
     m_defaults[MakeKey(_T("OCR"), _T("BtnCopy"))] = _T("复制结果");
     m_defaults[MakeKey(_T("OCR"), _T("BtnTranslate"))] = _T("翻译 >>");
+    m_defaults[MakeKey(_T("OCR"), _T("LabelResult"))] = _T("识别结果:");
+    m_defaults[MakeKey(_T("OCR"), _T("LabelTranslated"))] = _T("翻译结果:");
+    m_defaults[MakeKey(_T("OCR"), _T("StatusHint"))] = _T("点击按钮后拖拽选择屏幕区域,按ESC取消");
     m_defaults[MakeKey(_T("OCR"), _T("LangChinese"))] = _T("中文");
     m_defaults[MakeKey(_T("OCR"), _T("LangEnglish"))] = _T("英文");
     m_defaults[MakeKey(_T("OCR"), _T("LangJapanese"))] = _T("日文");
@@ -566,6 +626,8 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("Encoding"), _T("BtnSaveAs"))] = _T("另存为");
     m_defaults[MakeKey(_T("Encoding"), _T("BtnOverwrite"))] = _T("覆盖");
     m_defaults[MakeKey(_T("Encoding"), _T("BtnConvert"))] = _T("转换");
+    m_defaults[MakeKey(_T("Encoding"), _T("LabelSrcEnc"))] = _T("源编码:");
+    m_defaults[MakeKey(_T("Encoding"), _T("LabelDstEnc"))] = _T("目标编码:");
 
     // ===== Git Command Dialog =====
     m_defaults[MakeKey(_T("GitCmdDlg"), _T("StatusReady"))] = _T("状态: 准备就绪");
@@ -582,6 +644,10 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("GitCmdDlg"), _T("RClickDelete"))] = _T("删除命令");
     m_defaults[MakeKey(_T("GitCmdDlg"), _T("RClickExecuteSelected"))] = _T("执行选中命令");
     m_defaults[MakeKey(_T("GitCmdDlg"), _T("RClickDeleteSelected"))] = _T("删除选中命令");
+    m_defaults[MakeKey(_T("GitCmdDlg"), _T("LabelWorkDir"))] = _T("工作目录:");
+    m_defaults[MakeKey(_T("GitCmdDlg"), _T("LabelAiAsk"))] = _T("向AI提问:");
+    m_defaults[MakeKey(_T("GitCmdDlg"), _T("BtnAiAsk"))] = _T("提问");
+    m_defaults[MakeKey(_T("GitCmdDlg"), _T("LabelCmdList"))] = _T("命令列表 (右键执行/复制/编辑/删除):");
 
     // ===== Git command execution =====
     m_defaults[MakeKey(_T("GitExec"), _T("ConfirmTitle"))] = _T("确认执行");
@@ -599,6 +665,7 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("ConvHistory"), _T("BtnRename"))] = _T("重命名");
     m_defaults[MakeKey(_T("ConvHistory"), _T("BtnDelete"))] = _T("删除");
     m_defaults[MakeKey(_T("ConvHistory"), _T("BtnPath"))] = _T("保存位置");
+    m_defaults[MakeKey(_T("ConvHistory"), _T("BtnClose"))] = _T("关闭");
     m_defaults[MakeKey(_T("ConvHistory"), _T("RClickLoad"))] = _T("加载");
     m_defaults[MakeKey(_T("ConvHistory"), _T("RClickDelete"))] = _T("删除");
     m_defaults[MakeKey(_T("ConvHistory"), _T("RClickRename"))] = _T("重命名");
@@ -736,6 +803,9 @@ void CLocalizationManager::LoadBuiltinDefaults()
     // ===== Process AI result dialog =====
     m_defaults[MakeKey(_T("ProcessAiResult"), _T("DefaultFileName"))] = _T("AI分析结果.txt");
     m_defaults[MakeKey(_T("ProcessAiResult"), _T("FileFilter"))] = _T("文本文件 (*.txt)|*.txt|所有文件 (*.*)|*.*||");
+    m_defaults[MakeKey(_T("ProcessAiResult"), _T("BtnCopy"))] = _T("复制结果");
+    m_defaults[MakeKey(_T("ProcessAiResult"), _T("BtnSave"))] = _T("保存结果");
+    m_defaults[MakeKey(_T("ProcessAiResult"), _T("BtnClose"))] = _T("关闭");
 
     // ===== OCR translation error messages =====
     m_defaults[MakeKey(_T("OCR"), _T("TranslateErrInitNetwork"))] = _T("翻译失败：无法初始化网络。");

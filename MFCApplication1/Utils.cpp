@@ -172,6 +172,22 @@ void ForceReleaseModifierKeys()
     }
 }
 
+// Find a child window by its current text and set new text
+void SetChildTextByCurrentText(CWnd* pParent, LPCTSTR oldText, LPCTSTR newText)
+{
+    if (!pParent || !oldText || !newText) return;
+    for (CWnd* pChild = pParent->GetWindow(GW_CHILD); pChild; pChild = pChild->GetNextWindow())
+    {
+        CString text;
+        pChild->GetWindowText(text);
+        if (text == oldText)
+        {
+            pChild->SetWindowText(newText);
+            return;
+        }
+    }
+}
+
 // Allow UIPI messages (for cross-privilege window communication)
 void AllowUIPIMessage(HWND hwnd, UINT msg, BOOL allow)
 {

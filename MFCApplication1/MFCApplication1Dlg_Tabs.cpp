@@ -136,26 +136,28 @@ void CMFCApplication1Dlg::InitGitTab()
 
     if (GetFileAttributes(configPath) == INVALID_FILE_ATTRIBUTES)
     {
-        WritePrivateProfileString(section, _T("Cmd1"),  _T("Init local repo|git init"), configPath);
-        WritePrivateProfileString(section, _T("Cmd2"),  _T("Stage all files|git add ."), configPath);
-        WritePrivateProfileString(section, _T("Cmd3"),  _T("Commit to local repo|git commit -m \"first commit\""), configPath);
-        WritePrivateProfileString(section, _T("Cmd4"),  _T("Add remote origin|git remote add origin <url>"), configPath);
-        WritePrivateProfileString(section, _T("Cmd5"),  _T("Rename branch to main|git branch -M main"), configPath);
-        WritePrivateProfileString(section, _T("Cmd6"),  _T("Push and set upstream|git push -u origin main"), configPath);
-        WritePrivateProfileString(section, _T("Cmd7"),  _T("Pull remote updates|git pull"), configPath);
-        WritePrivateProfileString(section, _T("Cmd8"),  _T("Clone remote repo|git clone <url>"), configPath);
-        WritePrivateProfileString(section, _T("Cmd9"),  _T("Check status|git status"), configPath);
-        WritePrivateProfileString(section, _T("Cmd10"), _T("Stage all changes|git add ."), configPath);
-        WritePrivateProfileString(section, _T("Cmd11"), _T("Commit to local repo|git commit -m \"message\""), configPath);
-        WritePrivateProfileString(section, _T("Cmd12"), _T("Push to remote|git push"), configPath);
-        WritePrivateProfileString(section, _T("Cmd13"), _T("List all branches (including remote)|git branch -a"), configPath);
-        WritePrivateProfileString(section, _T("Cmd14"), _T("Create and switch branch|git checkout -b <branch>"), configPath);
-        WritePrivateProfileString(section, _T("Cmd15"), _T("Switch branch|git checkout <branch>"), configPath);
-        WritePrivateProfileString(section, _T("Cmd16"), _T("Merge branch into current|git merge <branch>"), configPath);
-        WritePrivateProfileString(section, _T("Cmd17"), _T("Delete merged branch|git branch -d <branch>"), configPath);
-        WritePrivateProfileString(section, _T("Cmd18"), _T("View concise commit log|git log --oneline"), configPath);
-        WritePrivateProfileString(section, _T("Cmd19"), _T("Restore working tree changes|git restore <file>"), configPath);
-        WritePrivateProfileString(section, _T("Cmd20"), _T("Unstage files|git restore --staged <file>"), configPath);
+        // Write translation keys instead of translated text, so descriptions
+        // always match the current language when read.
+        WritePrivateProfileString(section, _T("Cmd1"),  _T("Cmd1Desc|git init"), configPath);
+        WritePrivateProfileString(section, _T("Cmd2"),  _T("Cmd2Desc|git add ."), configPath);
+        WritePrivateProfileString(section, _T("Cmd3"),  _T("Cmd3Desc|git commit -m \"first commit\""), configPath);
+        WritePrivateProfileString(section, _T("Cmd4"),  _T("Cmd4Desc|git remote add origin <url>"), configPath);
+        WritePrivateProfileString(section, _T("Cmd5"),  _T("Cmd5Desc|git branch -M main"), configPath);
+        WritePrivateProfileString(section, _T("Cmd6"),  _T("Cmd6Desc|git push -u origin main"), configPath);
+        WritePrivateProfileString(section, _T("Cmd7"),  _T("Cmd7Desc|git pull"), configPath);
+        WritePrivateProfileString(section, _T("Cmd8"),  _T("Cmd8Desc|git clone <url>"), configPath);
+        WritePrivateProfileString(section, _T("Cmd9"),  _T("Cmd9Desc|git status"), configPath);
+        WritePrivateProfileString(section, _T("Cmd10"), _T("Cmd10Desc|git add ."), configPath);
+        WritePrivateProfileString(section, _T("Cmd11"), _T("Cmd11Desc|git commit -m \"message\""), configPath);
+        WritePrivateProfileString(section, _T("Cmd12"), _T("Cmd12Desc|git push"), configPath);
+        WritePrivateProfileString(section, _T("Cmd13"), _T("Cmd13Desc|git branch -a"), configPath);
+        WritePrivateProfileString(section, _T("Cmd14"), _T("Cmd14Desc|git checkout -b <branch>"), configPath);
+        WritePrivateProfileString(section, _T("Cmd15"), _T("Cmd15Desc|git checkout <branch>"), configPath);
+        WritePrivateProfileString(section, _T("Cmd16"), _T("Cmd16Desc|git merge <branch>"), configPath);
+        WritePrivateProfileString(section, _T("Cmd17"), _T("Cmd17Desc|git branch -d <branch>"), configPath);
+        WritePrivateProfileString(section, _T("Cmd18"), _T("Cmd18Desc|git log --oneline"), configPath);
+        WritePrivateProfileString(section, _T("Cmd19"), _T("Cmd19Desc|git restore <file>"), configPath);
+        WritePrivateProfileString(section, _T("Cmd20"), _T("Cmd20Desc|git restore --staged <file>"), configPath);
     }
 
     // Load command list from INI
@@ -171,6 +173,12 @@ void CMFCApplication1Dlg::InitGitTab()
         CString desc, cmd;
         if (sep != -1) { desc = val.Left(sep); cmd = val.Mid(sep + 1); }
         else { desc = val; cmd = _T(""); }
+
+        // If desc is a translation key (e.g. "Cmd1Desc"), look up the current language text
+        CString translated = loc.GetString(_T("GitCommands"), desc, _T(""));
+        if (!translated.IsEmpty())
+            desc = translated;
+
         int idx = pList4->InsertItem(i - 1, desc);
         pList4->SetItemText(idx, 1, cmd);
     }

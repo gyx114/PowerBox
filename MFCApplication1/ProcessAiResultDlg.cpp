@@ -4,6 +4,7 @@
 #include "resource.h"
 #include "AIApiClient.h"
 #include "LocalizationManager.h"
+#include "Utils.h"
 #include <fstream>
 
 IMPLEMENT_DYNAMIC(CProcessAiResultDlg, CDialogEx)
@@ -33,6 +34,8 @@ BOOL CProcessAiResultDlg::OnInitDialog()
     CDialogEx::OnInitDialog();
 
     SetWindowText(CLocalizationManager::GetInstance().GetString(_T("DlgCaption"), _T("ProcessAiResultDlg")));
+
+    TranslateUI();
 
     if (m_procInfos.empty())
     {
@@ -106,6 +109,16 @@ BOOL CProcessAiResultDlg::OnInitDialog()
 
     CAIApiClient::SendAsync(messages, vendor, apiKey, model, m_hWnd);
     return TRUE;
+}
+
+void CProcessAiResultDlg::TranslateUI()
+{
+    auto& loc = CLocalizationManager::GetInstance();
+
+    // Translate buttons
+    SetDlgItemText(IDC_BTN_COPY_RESULT, loc.GetString(_T("ProcessAiResult"), _T("BtnCopy")));
+    SetDlgItemText(IDC_BTN_SAVE_RESULT, loc.GetString(_T("ProcessAiResult"), _T("BtnSave")));
+    SetDlgItemText(IDC_BTN_CLOSE_RESULT, loc.GetString(_T("ProcessAiResult"), _T("BtnClose")));
 }
 
 void CProcessAiResultDlg::SetResult(const CString& text)

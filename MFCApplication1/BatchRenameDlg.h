@@ -34,6 +34,7 @@ protected:
     virtual void DoDataExchange(CDataExchange* pDX) override;
     virtual BOOL OnInitDialog() override;
     virtual BOOL PreTranslateMessage(MSG* pMsg) override;
+    void TranslateUI();
     virtual void OnCancel() override;
     virtual void PostNcDestroy() override;
     afx_msg void OnClose();

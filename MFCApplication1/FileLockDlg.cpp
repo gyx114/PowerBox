@@ -5,6 +5,7 @@
 #include "MFCApplication1.h"
 #include "FileLockDlg.h"
 #include "LocalizationManager.h"
+#include "Utils.h"
 #include "afxdialogex.h"
 #include <RestartManager.h>
 #include <TlHelp32.h>
@@ -103,7 +104,21 @@ BOOL CFileLockDlg::OnInitDialog()
 	// Set hint text
 	SetDlgItemText(IDC_STATIC_FILELOCK_HINT, m_hintText);
 
+	TranslateUI();
+
 	return TRUE;
+}
+
+void CFileLockDlg::TranslateUI()
+{
+	auto& loc = CLocalizationManager::GetInstance();
+
+	// Translate buttons
+	SetDlgItemText(IDC_BTN_FILELOCK_END, loc.GetString(_T("FileLock"), _T("BtnEnd")));
+	SetDlgItemText(IDC_BTN_FILELOCK_ENDALL, loc.GetString(_T("FileLock"), _T("BtnEndAll")));
+	SetDlgItemText(IDC_BTN_FILELOCK_LOCATE, loc.GetString(_T("FileLock"), _T("BtnLocate")));
+	SetDlgItemText(IDC_BTN_FILELOCK_REFRESH, loc.GetString(_T("FileLock"), _T("BtnRefresh")));
+	SetDlgItemText(IDC_BTN_FILELOCK_CLEAR, loc.GetString(_T("FileLock"), _T("BtnClear")));
 }
 
 BOOL CFileLockDlg::PreTranslateMessage(MSG* pMsg)

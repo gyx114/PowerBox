@@ -3,6 +3,7 @@
 #include "ProcessScanDlg.h"
 #include "resource.h"
 #include "LocalizationManager.h"
+#include "Utils.h"
 #include "AIApiClient.h"
 #include <Shellapi.h>
 #include <Psapi.h>
@@ -127,7 +128,23 @@ BOOL CProcessScanDlg::OnInitDialog()
     statusReady.Format(loc.GetString(_T("ProcessScan"), _T("StatusReadyFormat")), loc.GetString(_T("ProcessScan"), _T("BtnStartScan")));
     UpdateStatus(statusReady);
 
+    TranslateUI();
+
     return TRUE;
+}
+
+void CProcessScanDlg::TranslateUI()
+{
+    auto& loc = CLocalizationManager::GetInstance();
+
+    // Translate buttons
+    SetDlgItemText(IDC_BTN_SCAN_END, loc.GetString(_T("ProcessScan"), _T("BtnEnd")));
+    SetDlgItemText(IDC_BTN_SCAN_LOCATE, loc.GetString(_T("ProcessScan"), _T("BtnLocate")));
+    SetDlgItemText(IDC_BTN_SCAN_ENDALL, loc.GetString(_T("ProcessScan"), _T("BtnEndAll")));
+    SetDlgItemText(IDC_BTN_SCAN_START, loc.GetString(_T("ProcessScan"), _T("BtnStartScan")));
+
+    // Translate static label
+    SetChildTextByCurrentText(this, _T("审查级别:"), loc.GetString(_T("ProcessScan"), _T("LevelLabel")));
 }
 
 void CProcessScanDlg::PostNcDestroy()

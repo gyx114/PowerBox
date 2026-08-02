@@ -74,6 +74,7 @@ private:
     int m_outputLeft, m_outputTop, m_outputHeight;
     int m_copyBtnLeft, m_closeBtnLeft, m_bottomBtnTop, m_bottomBtnWidth, m_bottomBtnHeight;
 
+    void TranslateUI();
     void ResizeControls();
     void StartExecution(const CString& strCommand);
     void AppendOutput(const CString& text);

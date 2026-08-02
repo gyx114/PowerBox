@@ -6,6 +6,7 @@
 #include "MFCApplication1.h"
 #include "GitCmdResultDlg.h"
 #include "LocalizationManager.h"
+#include "Utils.h"
 #include "afxdialogex.h"
 #include <thread>
 
@@ -150,7 +151,28 @@ BOOL CGitCmdResultDlg::OnInitDialog()
 
     m_bInitialized = true;
 
+    TranslateUI();
+
     return TRUE;
+}
+
+void CGitCmdResultDlg::TranslateUI()
+{
+    auto& loc = CLocalizationManager::GetInstance();
+
+    // Translate static labels
+    SetChildTextByCurrentText(this, _T("工作目录:"), loc.GetString(_T("GitCmdDlg"), _T("LabelWorkDir")));
+    SetDlgItemText(IDC_STATIC_GIT_STATUS, loc.GetString(_T("GitCmdDlg"), _T("StatusReady")));
+    SetChildTextByCurrentText(this, _T("向AI提问:"), loc.GetString(_T("GitCmdDlg"), _T("LabelAiAsk")));
+    SetChildTextByCurrentText(this, _T("命令列表 (右键执行/复制/编辑/删除):"), loc.GetString(_T("GitCmdDlg"), _T("LabelCmdList")));
+    SetChildTextByCurrentText(this, _T("执行输出:"), loc.GetString(_T("GitCmdDlg"), _T("OutputLabel")));
+
+    // Translate buttons
+    SetDlgItemText(IDC_BTN_GIT_AI_ASK, loc.GetString(_T("GitCmdDlg"), _T("BtnAiAsk")));
+    SetDlgItemText(IDC_BTN_GIT_ADD_CMD, loc.GetString(_T("GitCmdDlg"), _T("BtnAddCmd")));
+    SetDlgItemText(IDC_BTN_GIT_CLEAR_CMDS, loc.GetString(_T("GitCmdDlg"), _T("BtnClearCmds")));
+    SetDlgItemText(IDC_BTN_GIT_OUTPUT_COPY, loc.GetString(_T("GitCmdDlg"), _T("BtnCopyOutput")));
+    SetDlgItemText(IDC_BTN_GIT_OUTPUT_CLOSE, loc.GetString(_T("GitCmdDlg"), _T("BtnClose")));
 }
 
 void CGitCmdResultDlg::PostNcDestroy()

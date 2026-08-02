@@ -11,6 +11,7 @@
 #include "GuidInfosDic.h"
 #include "AIApiClient.h"
 #include "LocalizationManager.h"
+#include "Utils.h"
 
 #include <shlwapi.h>
 #include <shlobj.h>
@@ -1475,7 +1476,40 @@ BOOL CContextMenuDlg::OnInitDialog()
 	LoadWin11ClassicState();
 	LoadHistory();
 
+	TranslateUI();
+
 	return TRUE;
+}
+
+void CContextMenuDlg::TranslateUI()
+{
+	auto& loc = CLocalizationManager::GetInstance();
+
+	// Translate static labels
+	SetChildTextByCurrentText(this, _T("位置筛选:"), loc.GetString(_T("ContextMenu"), _T("LabelLocation")));
+	SetChildTextByCurrentText(this, _T("就绪"), loc.GetString(_T("ContextMenu"), _T("StatusReady")));
+
+	// Translate buttons
+	SetDlgItemText(IDC_BTN_CM_EXTENSION, loc.GetString(_T("ContextMenu"), _T("BtnQuery")));
+	SetDlgItemText(IDC_BTN_CM_REFRESH, loc.GetString(_T("ContextMenu"), _T("BtnRefresh")));
+	SetDlgItemText(IDC_BTN_CM_DELETE, loc.GetString(_T("ContextMenu"), _T("BtnDelete")));
+	SetDlgItemText(IDC_BTN_CM_LOCATE, loc.GetString(_T("ContextMenu"), _T("BtnLocate")));
+	SetDlgItemText(IDC_BTN_CM_UNDO, loc.GetString(_T("ContextMenu"), _T("BtnUndo")));
+	SetDlgItemText(IDC_BTN_CM_HISTORY, loc.GetString(_T("ContextMenu"), _T("BtnHistory")));
+	SetDlgItemText(IDC_BTN_CM_REBUILD, loc.GetString(_T("ContextMenu"), _T("BtnRebuild")));
+	SetDlgItemText(IDC_BTN_CM_DICTPATH, loc.GetString(_T("ContextMenu"), _T("BtnDictPath")));
+	SetDlgItemText(IDC_BTN_CM_DICTOPEN, loc.GetString(_T("ContextMenu"), _T("BtnDictOpen")));
+
+	// Translate checkboxes
+	SetDlgItemText(IDC_CHECK_CM_FOLDER, loc.GetString(_T("ContextMenu"), _T("FolderMenuLabel")));
+	SetDlgItemText(IDC_CHECK_CM_WIN11_CLASSIC, loc.GetString(_T("ContextMenu"), _T("Win11ClassicLabel")));
+
+	// Set extension edit box placeholder
+	CEdit* pExt = (CEdit*)GetDlgItem(IDC_EDIT_CM_EXTENSION);
+	if (pExt)
+	{
+		pExt->SetWindowText(loc.GetString(_T("ContextMenu"), _T("ExtensionPlaceholder")));
+	}
 }
 
 void CContextMenuDlg::PostNcDestroy()

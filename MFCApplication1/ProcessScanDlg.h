@@ -70,6 +70,7 @@ private:
     int m_statusWidth, m_statusHeight;  // fixed status label size from RC
     int m_colRatios[4];  // column width ratios for dynamic resizing
 
+    void TranslateUI();
     void RefreshList();
     void ParseAIResponse(const CString& json);
     void EndProcess(int index);

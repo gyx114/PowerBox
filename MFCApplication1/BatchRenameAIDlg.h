@@ -27,6 +27,7 @@ protected:
     virtual void DoDataExchange(CDataExchange* pDX) override;
     virtual BOOL OnInitDialog() override;
     virtual void OnCancel() override;
+    void TranslateUI();
 
     DECLARE_MESSAGE_MAP()
 

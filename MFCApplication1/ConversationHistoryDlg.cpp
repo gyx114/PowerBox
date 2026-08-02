@@ -3,6 +3,7 @@
 #include "MFCApplication1.h"
 #include "ConversationHistoryDlg.h"
 #include "LocalizationManager.h"
+#include "Utils.h"
 #include "afxdialogex.h"
 #include <shellapi.h>
 
@@ -249,7 +250,21 @@ BOOL CConversationHistoryDlg::OnInitDialog()
 
     RefreshList();
 
+    TranslateUI();
+
     return TRUE;
+}
+
+void CConversationHistoryDlg::TranslateUI()
+{
+    auto& loc = CLocalizationManager::GetInstance();
+
+    // Translate buttons
+    SetDlgItemText(IDC_BTN_CONV_LOAD, loc.GetString(_T("ConvHistory"), _T("BtnLoad")));
+    SetDlgItemText(IDC_BTN_CONV_RENAME, loc.GetString(_T("ConvHistory"), _T("BtnRename")));
+    SetDlgItemText(IDC_BTN_CONV_DELETE, loc.GetString(_T("ConvHistory"), _T("BtnDelete")));
+    SetDlgItemText(IDC_BTN_CONV_PATH, loc.GetString(_T("ConvHistory"), _T("BtnPath")));
+    SetDlgItemText(IDOK, loc.GetString(_T("ConvHistory"), _T("BtnClose")));
 }
 
 void CConversationHistoryDlg::OnDestroy()
