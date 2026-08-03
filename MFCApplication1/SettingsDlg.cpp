@@ -4,6 +4,8 @@
 #include "LocalizationManager.h"
 #include "AIApiClient.h"
 #include "resource.h"
+#include "MFCApplication1Dlg.h"
+#include <Shellapi.h>
 
 CSettingsDlg::CSettingsDlg(CWnd* pParent /*= nullptr*/) : CDialogEx(IDD_SETTINGS_DIALOG, pParent) {}
 
@@ -78,7 +80,7 @@ BOOL CSettingsDlg::OnInitDialog()
     SetChildTextByCurrentText(this, _T("连点器间隔(ms):"), loc.GetString(_T("Settings"), _T("LabelClickInterval")));
     SetChildTextByCurrentText(this, _T("开始键:"), loc.GetString(_T("Settings"), _T("LabelStartKey")));
     SetChildTextByCurrentText(this, _T("停止键:"), loc.GetString(_T("Settings"), _T("LabelStopKey")));
-    SetChildTextByCurrentText(this, _T("切换语言需要重启应用才能生效。"), loc.GetString(_T("Settings"), _T("LanguageRestartHint")));
+    SetChildTextByCurrentText(this, _T("切换语言后应用将自动重启。"), loc.GetString(_T("Settings"), _T("LanguageRestartHint")));
 
     // Browse buttons (unique IDs)
     SetDlgItemText(IDC_BROWSE_BILI, loc.GetString(_T("Settings"), _T("BtnBrowse")));
@@ -247,6 +249,7 @@ void CSettingsDlg::OnOK()
     }
 
     // Save language
+    CString strOldLang = AfxGetApp()->GetProfileString(_T("Settings"), _T("Language"), _T("zh-CN"));
     CComboBox* pLangCombo = static_cast<CComboBox*>(GetDlgItem(IDC_COMBO_LANGUAGE));
     if (pLangCombo)
     {
@@ -256,7 +259,23 @@ void CSettingsDlg::OnOK()
         AfxGetApp()->WriteProfileString(_T("Settings"), _T("Language"), m_strCurrentLang);
     }
 
+    bool bRestart = (strOldLang != m_strCurrentLang);
+
     DestroyWindow();
+
+    if (bRestart)
+    {
+        TCHAR szExePath[MAX_PATH] = {0};
+        GetModuleFileName(nullptr, szExePath, MAX_PATH);
+        ShellExecute(nullptr, _T("open"), szExePath, nullptr, nullptr, SW_SHOWNORMAL);
+        // Set exiting flag before sending close, so main window won't be minimized to tray
+        CMFCApplication1Dlg* pMain = static_cast<CMFCApplication1Dlg*>(AfxGetMainWnd());
+        if (pMain)
+        {
+            pMain->m_bExiting = true;
+            pMain->PostMessage(WM_CLOSE);
+        }
+    }
 }
 
 void CSettingsDlg::OnCancel()

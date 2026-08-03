@@ -461,7 +461,7 @@ void CLocalizationManager::LoadBuiltinDefaults()
 
     // ===== Settings dialog =====
     m_defaults[MakeKey(_T("Settings"), _T("LanguageLabel"))] = _T("语言");
-    m_defaults[MakeKey(_T("Settings"), _T("LanguageRestartHint"))] = _T("切换语言需要重启应用才能生效。");
+    m_defaults[MakeKey(_T("Settings"), _T("LanguageRestartHint"))] = _T("切换语言后应用将自动重启。");
     m_defaults[MakeKey(_T("Settings"), _T("TabPath"))] = _T("路径配置");
     m_defaults[MakeKey(_T("Settings"), _T("TabTemplate"))] = _T("文件命名");
     m_defaults[MakeKey(_T("Settings"), _T("TabAutoClicker"))] = _T("连点器");

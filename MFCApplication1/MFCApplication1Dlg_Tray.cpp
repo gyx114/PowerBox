@@ -133,6 +133,33 @@ void CMFCApplication1Dlg::OnHotKey(UINT nHotKeyId, UINT nKey1, UINT nKey2)
 
 void CMFCApplication1Dlg::OnClose()
 {
+    // If triggered by language-switch restart, exit directly without tray minimize
+    if (m_bExiting)
+    {
+        if (m_pStickyNoteDlg && ::IsWindow(m_pStickyNoteDlg->m_hWnd))
+        {
+            m_pStickyNoteDlg->SaveIfNeeded();
+        }
+        if (m_bTrayVisible)
+        {
+            Shell_NotifyIcon(NIM_DELETE, &m_nid);
+            m_bTrayVisible = false;
+        }
+        ::RemoveClipboardFormatListener(m_hWnd);
+        if (m_hCaptureWnd && IsValidWindow(m_hCaptureWnd))
+        {
+            ::DestroyWindow(m_hCaptureWnd);
+            m_hCaptureWnd = NULL;
+        }
+        if (m_bPreventLockScreen)
+        {
+            SetThreadExecutionState(ES_CONTINUOUS);
+            m_bPreventLockScreen = false;
+        }
+        CDialogEx::OnClose();
+        return;
+    }
+
     // Save sticky note before closing (minimize to tray or exit)
     if (m_pStickyNoteDlg && ::IsWindow(m_pStickyNoteDlg->m_hWnd))
     {

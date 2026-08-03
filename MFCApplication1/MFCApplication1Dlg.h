@@ -145,12 +145,12 @@ protected:
 
 	NOTIFYICONDATA m_nid{};
 	bool m_bTrayVisible{false};
-    bool m_bExiting{false};
     bool m_bMinimizeOnClose{true};
 	static constexpr UINT WM_TRAYICON = WM_APP + 1;
 
 	DECLARE_MESSAGE_MAP()
 public:
+    bool m_bExiting{false};
     afx_msg void OnStnClickedStaticPath();
 	afx_msg void OnBnClickedCheck2();
   // volume controls
