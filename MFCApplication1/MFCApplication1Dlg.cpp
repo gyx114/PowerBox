@@ -334,6 +334,7 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_BN_CLICKED(IDC_BUTTON25, &CMFCApplication1Dlg::OnBnClickedButton25)
     ON_BN_CLICKED(IDC_BUTTON26, &CMFCApplication1Dlg::OnBnClickedButton26)
     ON_MESSAGE(CMFCApplication1Dlg::WM_VOLUME_UPDATED, &CMFCApplication1Dlg::OnVolumeUpdated)
+    ON_MESSAGE(CMFCApplication1Dlg::WM_HOTKEYS_CHANGED, &CMFCApplication1Dlg::OnHotkeysChanged)
     ON_BN_CLICKED(IDC_CHECK6, &CMFCApplication1Dlg::OnBnClickedCheck6)
     ON_BN_CLICKED(IDC_BUTTON27, &CMFCApplication1Dlg::OnBnClickedButton27)
     ON_BN_CLICKED(IDC_BUTTON28, &CMFCApplication1Dlg::OnBnClickedButton28)
@@ -596,7 +597,7 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 	GetWindowText(strTitle);
 	strTitle += CLocalizationManager::GetInstance().GetString(_T("MainDlg"), _T("WindowTitleSuffix"));
 	SetWindowText(strTitle);
-	RegisterHotKey(m_hWnd, 1001, MOD_CONTROL | MOD_ALT, VK_SPACE);
+	RegisterHotkeys();
 
 	// Volume slider
 	CSliderCtrl* pSlider = static_cast<CSliderCtrl*>(GetDlgItem(IDC_SLIDER1));
@@ -786,7 +787,7 @@ void CMFCApplication1Dlg::OnDestroy()
         m_pStickyNoteDlg->SaveIfNeeded();
     }
 
-    UnregisterHotKey(m_hWnd, 1001);
+    UnregisterHotkeys();
 
     if (m_bTrayVisible)
     {

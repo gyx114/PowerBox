@@ -426,13 +426,28 @@
 #define ID_QL_RCLICK_UP_SEL            32852
 #define ID_QL_RCLICK_DOWN_SEL          32853
 
+// Hotkey capture dialog
+#define IDD_HOTKEY_CAPTURE_DLG          157
+#define IDC_HOTKEY_PROMPT               1374
+#define IDC_HOTKEY_DISPLAY              1375
+#define IDC_HOTKEY_CLEAR                1376
+
+// Settings dialog hotkey controls
+#define IDC_STATIC_HOTKEY_GROUP         1377
+#define IDC_STATIC_HOTKEY_SHOWHIDE      1378
+#define IDC_EDIT_HOTKEY_SHOWHIDE        1379
+#define IDC_BTN_HOTKEY_SHOWHIDE         1380
+#define IDC_STATIC_HOTKEY_LOCATE        1381
+#define IDC_EDIT_HOTKEY_LOCATE          1382
+#define IDC_BTN_HOTKEY_LOCATE           1383
+
 // Next default values for new objects
 //
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        157
+#define _APS_NEXT_RESOURCE_VALUE        158
 #define _APS_NEXT_COMMAND_VALUE         32854
-#define _APS_NEXT_CONTROL_VALUE         1374
+#define _APS_NEXT_CONTROL_VALUE         1384
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

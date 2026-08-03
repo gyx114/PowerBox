@@ -241,6 +241,7 @@ xcopy /y /e /i "$(ProjectDir)lang" "$(OutDir)lang"</Command>
     <ClInclude Include="FileLockDlg.h" />
     <ClInclude Include="GitCmdResultDlg.h" />
     <ClInclude Include="LocalizationManager.h" />
+    <ClInclude Include="HotkeyCaptureDlg.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
@@ -291,6 +292,7 @@ xcopy /y /e /i "$(ProjectDir)lang" "$(OutDir)lang"</Command>
     <ClCompile Include="GitCmdResultDlg.cpp" />
     <ClCompile Include="LocalizationManager.cpp" />
     <ClCompile Include="QuickLaunchDlg.cpp" />
+    <ClCompile Include="HotkeyCaptureDlg.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="MFCApplication1.rc" />

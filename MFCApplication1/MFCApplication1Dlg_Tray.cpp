@@ -123,12 +123,88 @@ void CMFCApplication1Dlg::OnHotKey(UINT nHotKeyId, UINT nKey1, UINT nKey2)
         }
 
         // Force-release modifier keys to prevent stuck keys from external SendInput simulation
-        // (e.g. desktop pet simulating Ctrl+Alt+Space — the system may eat key-up events)
+        // (e.g. desktop pet simulating Ctrl+Alt+Space \xe2\x80\x94 the system may eat key-up events)
         ForceReleaseModifierKeys();
 
         return;
     }
+    else if (nHotKeyId == 1002)
+    {
+        // Locate window hotkey
+        OnWindowLocate();
+        return;
+    }
     CDialogEx::OnHotKey(nHotKeyId, nKey1, nKey2);
+}
+
+void CMFCApplication1Dlg::RegisterHotkeys()
+{
+    UnregisterHotkeys();
+
+    // Read hotkey configs from config.ini
+    HotkeyInfo showHide = HotkeyInfo::FromConfigString(
+        AfxGetApp()->GetProfileString(_T("Hotkeys"), _T("ShowHide"), _T("3|32")));
+    HotkeyInfo locate = HotkeyInfo::FromConfigString(
+        AfxGetApp()->GetProfileString(_T("Hotkeys"), _T("Locate"), _T("3|68")));
+
+    // Register ShowHide (ID 1001)
+    if (!showHide.IsEmpty())
+        RegisterHotKey(m_hWnd, 1001, showHide.modifier, showHide.vk);
+
+    // Register Locate (ID 1002)
+    if (!locate.IsEmpty())
+        RegisterHotKey(m_hWnd, 1002, locate.modifier, locate.vk);
+
+    UpdateShortcutMenuText();
+}
+
+void CMFCApplication1Dlg::UnregisterHotkeys()
+{
+    UnregisterHotKey(m_hWnd, 1001);
+    UnregisterHotKey(m_hWnd, 1002);
+}
+
+LRESULT CMFCApplication1Dlg::OnHotkeysChanged(WPARAM, LPARAM)
+{
+    // Re-read config and re-register hotkeys when settings change
+    RegisterHotkeys();
+    return 0;
+}
+
+void CMFCApplication1Dlg::UpdateShortcutMenuText()
+{
+    // Build dynamic shortcut text from current hotkey config
+    HotkeyInfo showHide = HotkeyInfo::FromConfigString(
+        AfxGetApp()->GetProfileString(_T("Hotkeys"), _T("ShowHide"), _T("3|32")));
+    HotkeyInfo locate = HotkeyInfo::FromConfigString(
+        AfxGetApp()->GetProfileString(_T("Hotkeys"), _T("Locate"), _T("3|68")));
+
+    auto& loc = CLocalizationManager::GetInstance();
+    CString fmt = loc.GetString(_T("Shortcut"), _T("ShortcutList"));
+    CString result;
+
+    // Replace the first line with dynamic hotkey text
+    CString showHideText = showHide.IsEmpty()
+        ? loc.GetString(_T("Hotkey"), _T("None"))
+        : showHide.ToDisplay();
+    CString locateText = locate.IsEmpty()
+        ? loc.GetString(_T("Hotkey"), _T("None"))
+        : locate.ToDisplay();
+
+    result.Format(_T("%s   - %s\n%s   - %s\n%s"),
+        (LPCTSTR)showHideText,
+        (LPCTSTR)loc.GetString(_T("MainDlg"), _T("WindowTitleSuffix")),
+        (LPCTSTR)locateText,
+        (LPCTSTR)loc.GetString(_T("WindowTab"), _T("LocateBtn")),
+        (LPCTSTR)(fmt.Mid(fmt.Find(_T('\n')) + 1)));
+
+    // Update the stored shortcut text (OnHelpShortcuts reads from ini, so we update ini dynamically)
+    // We'll store the updated text in a temporary way — OnHelpShortcuts shows the ShortcutList
+    // which is static. We need to override the shortcut display.
+    // Instead, we'll store the modified text in an internal map and use it in OnHelpShortcuts.
+    // Actually, the simplest approach: just update the ini content in memory isn't possible.
+    // Let's use a different approach: store the formatted text as a member.
+    m_strShortcutText = result;
 }
 
 void CMFCApplication1Dlg::OnClose()

@@ -15,6 +15,7 @@
 #include "AutoClickerSpeedDlg.h"
 #include "AIApiClient.h"
 #include "ConversationHistoryDlg.h"
+#include "HotkeyCaptureDlg.h"
 
 // Forward declarations for menu-launched dialogs
 class CQRCodeGenDlg;
@@ -135,6 +136,10 @@ protected:
 	afx_msg void OnTrayShowWindow();
 	afx_msg void OnTrayExit();
 	afx_msg void OnHotKey(UINT nHotKeyId, UINT nKey1, UINT nKey2);
+    afx_msg LRESULT OnHotkeysChanged(WPARAM wParam, LPARAM lParam);
+    void RegisterHotkeys();
+    void UnregisterHotkeys();
+    void UpdateShortcutMenuText();
 
 	NOTIFYICONDATA m_nid{};
 	bool m_bTrayVisible{false};
@@ -170,6 +175,7 @@ public:
 	static constexpr UINT WM_REFRESH_STARTUPS_DONE = WM_APP + 3;
 	// custom message for async volume update
 	static constexpr UINT WM_VOLUME_UPDATED = WM_APP + 5;
+    static constexpr UINT WM_HOTKEYS_CHANGED = WM_APP + 12;
 
     struct ProcInfo { CString name; DWORD pid; CString path; SIZE_T memKB; double cpuPercent{0.0}; };
 	struct StartupInfo { CString name; CString cmd; };
@@ -370,6 +376,7 @@ public:
     void OnQuickLaunchItem(int index);
     afx_msg void OnQuickLaunchManage();
     CQuickLaunchDlg* m_pQuickLaunchDlg{nullptr};
+    CString m_strShortcutText; // Dynamic shortcut text for Help > Shortcuts menu
     afx_msg void OnQuickLaunchBtn0();
     afx_msg void OnQuickLaunchBtn1();
     afx_msg void OnQuickLaunchBtn2();

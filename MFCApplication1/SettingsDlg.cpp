@@ -18,6 +18,8 @@ BEGIN_MESSAGE_MAP(CSettingsDlg, CDialogEx)
     ON_BN_CLICKED(IDC_BUTTON_AI_KEY_SHOW, &CSettingsDlg::OnBnClickedAiKeyShow)
     ON_CBN_SELCHANGE(IDC_COMBO_AI_VENDOR_CFG, &CSettingsDlg::OnCbnSelchangeAiVendor)
     ON_CBN_SELCHANGE(IDC_COMBO_LANGUAGE, &CSettingsDlg::OnCbnSelchangeLanguage)
+    ON_BN_CLICKED(IDC_BTN_HOTKEY_SHOWHIDE, &CSettingsDlg::OnBnClickedHotkeyShowHide)
+    ON_BN_CLICKED(IDC_BTN_HOTKEY_LOCATE, &CSettingsDlg::OnBnClickedHotkeyLocate)
     ON_WM_CLOSE()
 END_MESSAGE_MAP()
 
@@ -145,6 +147,22 @@ BOOL CSettingsDlg::OnInitDialog()
         }
     }
 
+    // Hotkey group translation
+    SetChildTextByCurrentText(this, _T("快捷键"), loc.GetString(_T("Settings"), _T("GroupHotkey")));
+    SetChildTextByCurrentText(this, _T("显示/隐藏主窗口:"), loc.GetString(_T("Settings"), _T("LabelHotkeyShowHide")));
+    SetChildTextByCurrentText(this, _T("窗口定位:"), loc.GetString(_T("Settings"), _T("LabelHotkeyLocate")));
+    SetDlgItemText(IDC_BTN_HOTKEY_SHOWHIDE, loc.GetString(_T("Settings"), _T("BtnHotkeyCapture")));
+    SetDlgItemText(IDC_BTN_HOTKEY_LOCATE, loc.GetString(_T("Settings"), _T("BtnHotkeyCapture")));
+
+    // Load hotkey configs
+    m_hotkeyShowHide = HotkeyInfo::FromConfigString(
+        AfxGetApp()->GetProfileString(_T("Hotkeys"), _T("ShowHide"), _T("3|32"))); // Ctrl+Alt+Space
+    m_hotkeyLocate = HotkeyInfo::FromConfigString(
+        AfxGetApp()->GetProfileString(_T("Hotkeys"), _T("Locate"), _T("3|68")));   // Ctrl+Alt+D
+
+    SetDlgItemText(IDC_EDIT_HOTKEY_SHOWHIDE, m_hotkeyShowHide.ToDisplay());
+    SetDlgItemText(IDC_EDIT_HOTKEY_LOCATE, m_hotkeyLocate.ToDisplay());
+
     return TRUE;
 }
 
@@ -211,6 +229,19 @@ void CSettingsDlg::OnOK()
             m_strCurrentLang = reinterpret_cast<LPCTSTR>(pLangCombo->GetItemData(sel));
         AfxGetApp()->WriteProfileString(_T("Settings"), _T("Language"), m_strCurrentLang);
     }
+
+    // Check for duplicate hotkeys (non-empty only)
+    if (!m_hotkeyShowHide.IsEmpty() && !m_hotkeyLocate.IsEmpty() && m_hotkeyShowHide == m_hotkeyLocate)
+    {
+        auto& loc = CLocalizationManager::GetInstance();
+        MessageBox(loc.GetString(_T("Settings"), _T("MsgHotkeyDuplicate")),
+            loc.GetString(_T("Msg"), _T("Warning")), MB_OK | MB_ICONWARNING);
+        return;
+    }
+
+    // Save hotkey configs
+    AfxGetApp()->WriteProfileString(_T("Hotkeys"), _T("ShowHide"), m_hotkeyShowHide.ToConfigString());
+    AfxGetApp()->WriteProfileString(_T("Hotkeys"), _T("Locate"), m_hotkeyLocate.ToConfigString());
 
     bool bRestart = (strOldLang != m_strCurrentLang);
 
@@ -338,4 +369,24 @@ void CSettingsDlg::SaveVendorKey(const CString& vendor)
     CString key;
     GetDlgItemText(IDC_EDIT_AI_KEY_CFG, key);
     AfxGetApp()->WriteProfileString(_T("AI"), keyName, key);
+}
+
+void CSettingsDlg::OnBnClickedHotkeyShowHide()
+{
+    CHotkeyCaptureDlg dlg(this, m_hotkeyShowHide);
+    if (dlg.DoModal() == IDOK)
+    {
+        m_hotkeyShowHide = dlg.m_result;
+        SetDlgItemText(IDC_EDIT_HOTKEY_SHOWHIDE, m_hotkeyShowHide.ToDisplay());
+    }
+}
+
+void CSettingsDlg::OnBnClickedHotkeyLocate()
+{
+    CHotkeyCaptureDlg dlg(this, m_hotkeyLocate);
+    if (dlg.DoModal() == IDOK)
+    {
+        m_hotkeyLocate = dlg.m_result;
+        SetDlgItemText(IDC_EDIT_HOTKEY_LOCATE, m_hotkeyLocate.ToDisplay());
+    }
 }

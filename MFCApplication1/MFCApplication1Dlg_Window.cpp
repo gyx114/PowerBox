@@ -392,10 +392,11 @@ void CMFCApplication1Dlg::OnNMDblclkList2(NMHDR* pNMHDR, LRESULT* pResult)
 
 void CMFCApplication1Dlg::OnHelpShortcuts()
 {
-	auto& loc = CLocalizationManager::GetInstance();
-	MessageBox(
-		loc.GetString(_T("Shortcut"), _T("ShortcutList")),
-		loc.GetString(_T("Shortcut"), _T("ShortcutListTitle")), MB_OK | MB_ICONINFORMATION);
+    auto& loc = CLocalizationManager::GetInstance();
+    CString text = m_strShortcutText.IsEmpty()
+        ? loc.GetString(_T("Shortcut"), _T("ShortcutList"))
+        : m_strShortcutText;
+    MessageBox(text, loc.GetString(_T("Shortcut"), _T("ShortcutListTitle")), MB_OK | MB_ICONINFORMATION);
 }
 
 void CMFCApplication1Dlg::OnHelpGithub()
