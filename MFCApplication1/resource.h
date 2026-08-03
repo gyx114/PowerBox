@@ -398,20 +398,41 @@
 #define IDC_QL_LABEL_NAME              1352
 #define IDC_QL_LABEL_TYPE              1353
 #define IDC_QL_LABEL_PATH              1354
+#define IDC_QL_DROP_HINT               1355
+#define IDC_QL_BTN16                   1356
+#define IDC_QL_BTN17                   1357
+#define IDC_QL_BTN18                   1358
+#define IDC_QL_BTN19                   1359
+#define IDC_QL_BTN20                   1360
+#define IDC_QL_BTN21                   1361
+#define IDC_QL_BTN22                   1362
+#define IDC_QL_BTN23                   1363
+#define IDC_QL_BTN24                   1364
+#define IDC_QL_BTN25                   1365
+#define IDC_QL_BTN26                   1366
+#define IDC_QL_BTN27                   1367
+#define IDC_QL_BTN28                   1368
+#define IDC_QL_BTN29                   1369
+#define IDC_QL_BTN30                   1370
+#define IDC_QL_BTN31                   1371
+#define IDC_QL_DELETE_SELECTED         1372
+#define IDC_QL_STATIC_COUNT            1373
 #define ID_QL_RCLICK_ADD               32846
 #define ID_QL_RCLICK_EDIT              32847
 #define ID_QL_RCLICK_DELETE            32848
 #define ID_QL_RCLICK_UP                32849
 #define ID_QL_RCLICK_DOWN              32850
-#define IDC_QL_DROP_HINT                1355
+#define ID_QL_RCLICK_DELETE_SEL        32851
+#define ID_QL_RCLICK_UP_SEL            32852
+#define ID_QL_RCLICK_DOWN_SEL          32853
 
 // Next default values for new objects
 //
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        157
-#define _APS_NEXT_COMMAND_VALUE         32851
-#define _APS_NEXT_CONTROL_VALUE         1356
+#define _APS_NEXT_COMMAND_VALUE         32854
+#define _APS_NEXT_CONTROL_VALUE         1374
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

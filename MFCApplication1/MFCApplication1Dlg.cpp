@@ -363,6 +363,22 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_BN_CLICKED(IDC_QL_BTN13, &CMFCApplication1Dlg::OnQuickLaunchBtn13)
     ON_BN_CLICKED(IDC_QL_BTN14, &CMFCApplication1Dlg::OnQuickLaunchBtn14)
     ON_BN_CLICKED(IDC_QL_BTN15, &CMFCApplication1Dlg::OnQuickLaunchBtn15)
+    ON_BN_CLICKED(IDC_QL_BTN16, &CMFCApplication1Dlg::OnQuickLaunchBtn16)
+    ON_BN_CLICKED(IDC_QL_BTN17, &CMFCApplication1Dlg::OnQuickLaunchBtn17)
+    ON_BN_CLICKED(IDC_QL_BTN18, &CMFCApplication1Dlg::OnQuickLaunchBtn18)
+    ON_BN_CLICKED(IDC_QL_BTN19, &CMFCApplication1Dlg::OnQuickLaunchBtn19)
+    ON_BN_CLICKED(IDC_QL_BTN20, &CMFCApplication1Dlg::OnQuickLaunchBtn20)
+    ON_BN_CLICKED(IDC_QL_BTN21, &CMFCApplication1Dlg::OnQuickLaunchBtn21)
+    ON_BN_CLICKED(IDC_QL_BTN22, &CMFCApplication1Dlg::OnQuickLaunchBtn22)
+    ON_BN_CLICKED(IDC_QL_BTN23, &CMFCApplication1Dlg::OnQuickLaunchBtn23)
+    ON_BN_CLICKED(IDC_QL_BTN24, &CMFCApplication1Dlg::OnQuickLaunchBtn24)
+    ON_BN_CLICKED(IDC_QL_BTN25, &CMFCApplication1Dlg::OnQuickLaunchBtn25)
+    ON_BN_CLICKED(IDC_QL_BTN26, &CMFCApplication1Dlg::OnQuickLaunchBtn26)
+    ON_BN_CLICKED(IDC_QL_BTN27, &CMFCApplication1Dlg::OnQuickLaunchBtn27)
+    ON_BN_CLICKED(IDC_QL_BTN28, &CMFCApplication1Dlg::OnQuickLaunchBtn28)
+    ON_BN_CLICKED(IDC_QL_BTN29, &CMFCApplication1Dlg::OnQuickLaunchBtn29)
+    ON_BN_CLICKED(IDC_QL_BTN30, &CMFCApplication1Dlg::OnQuickLaunchBtn30)
+    ON_BN_CLICKED(IDC_QL_BTN31, &CMFCApplication1Dlg::OnQuickLaunchBtn31)
     ON_NOTIFY(NM_DBLCLK, IDC_LIST4, &CMFCApplication1Dlg::OnNMDblclkList4)
     ON_NOTIFY(NM_RCLICK, IDC_LIST4, &CMFCApplication1Dlg::OnNMRclickList4)
     ON_NOTIFY(NM_DBLCLK, IDC_LIST5, &CMFCApplication1Dlg::OnNMDblclkList5)
@@ -636,7 +652,11 @@ void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
         IDC_QL_BTN4, IDC_QL_BTN5, IDC_QL_BTN6, IDC_QL_BTN7,
         IDC_QL_BTN8, IDC_QL_BTN9, IDC_QL_BTN10, IDC_QL_BTN11,
         IDC_QL_BTN12, IDC_QL_BTN13, IDC_QL_BTN14, IDC_QL_BTN15,
-        IDC_QL_BTN_MANAGE
+        IDC_QL_BTN16, IDC_QL_BTN17, IDC_QL_BTN18, IDC_QL_BTN19,
+        IDC_QL_BTN20, IDC_QL_BTN21, IDC_QL_BTN22, IDC_QL_BTN23,
+        IDC_QL_BTN24, IDC_QL_BTN25, IDC_QL_BTN26, IDC_QL_BTN27,
+        IDC_QL_BTN28, IDC_QL_BTN29, IDC_QL_BTN30, IDC_QL_BTN31,
+        IDC_QL_BTN_MANAGE, IDC_QL_STATIC_COUNT
     };
     static const int kSystemIds[] = {
         IDC_STATIC_QUICK_SHUTDOWN, IDC_COMBO1, IDC_BUTTON1, IDC_BUTTON2,
@@ -695,6 +715,7 @@ void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
     // Quick Launch buttons (tab 1)
     if (nTab == 1)
     {
+        auto& loc = CLocalizationManager::GetInstance();
         // Show buttons that have items, hide empty ones
         for (int i = 0; i < MAX_QL_BUTTONS; ++i)
         {
@@ -705,6 +726,16 @@ void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
         // Always show manage button
         CWnd* pManage = GetDlgItem(IDC_QL_BTN_MANAGE);
         if (pManage) pManage->ShowWindow(SW_SHOW);
+
+        // Update count label
+        CWnd* pCount = GetDlgItem(IDC_QL_STATIC_COUNT);
+        if (pCount)
+        {
+            CString countText;
+            countText.Format(loc.GetString(_T("QuickLaunch"), _T("BtnCount")), (int)m_qlItems.size(), MAX_QL_BUTTONS);
+            pCount->SetWindowText(countText);
+            pCount->ShowWindow(SW_SHOW);
+        }
     }
     else
     {

@@ -208,8 +208,12 @@ BEGIN_MESSAGE_MAP(CQuickLaunchDlg, CDialogEx)
     ON_BN_CLICKED(IDC_QL_DOWN, &CQuickLaunchDlg::OnBnClickedQlDown)
     ON_NOTIFY(NM_DBLCLK, IDC_QL_LIST, &CQuickLaunchDlg::OnNMDblclkQlList)
     ON_NOTIFY(NM_RCLICK, IDC_QL_LIST, &CQuickLaunchDlg::OnNMRclickQlList)
+    ON_NOTIFY(LVN_BEGINDRAG, IDC_QL_LIST, &CQuickLaunchDlg::OnLvnBeginDrag)
+    ON_NOTIFY(NM_CUSTOMDRAW, IDC_QL_LIST, &CQuickLaunchDlg::OnCustomDrawList)
     ON_WM_DROPFILES()
     ON_WM_CLOSE()
+    ON_WM_MOUSEMOVE()
+    ON_WM_LBUTTONUP()
 END_MESSAGE_MAP()
 
 BOOL CQuickLaunchDlg::OnInitDialog()
@@ -326,6 +330,15 @@ bool CQuickLaunchDlg::EditItem(QLItem& item, bool bNew)
 
 void CQuickLaunchDlg::OnAdd()
 {
+    auto& loc = CLocalizationManager::GetInstance();
+    if ((int)m_items.size() >= MAX_QL_ITEMS)
+    {
+        CString msg;
+        msg.Format(loc.GetString(_T("QuickLaunch"), _T("MaxItemsReached")), MAX_QL_ITEMS);
+        MessageBox(msg, loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
+        return;
+    }
+
     QLItem item;
     if (EditItem(item, true))
     {
@@ -349,24 +362,59 @@ void CQuickLaunchDlg::OnEdit()
     if (EditItem(m_items[sel], false))
     {
         pList->SetItemText(sel, 0, m_items[sel].name);
-        pList->SetItemText(sel, 1, m_items[sel].path);
+        pList->SetItemText(sel, 1, CQLItemEditDlg::TypeLabel(m_items[sel].type));
+        pList->SetItemText(sel, 2, m_items[sel].path);
         NotifyParent();
     }
+}
+
+std::vector<int> CQuickLaunchDlg::GetSelectedIndices()
+{
+    std::vector<int> indices;
+    CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_QL_LIST);
+    if (!pList) return indices;
+
+    POSITION pos = pList->GetFirstSelectedItemPosition();
+    while (pos)
+    {
+        int idx = pList->GetNextSelectedItem(pos);
+        indices.push_back(idx);
+    }
+    std::sort(indices.begin(), indices.end());
+    return indices;
 }
 
 void CQuickLaunchDlg::OnDelete()
 {
     CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_QL_LIST);
     if (!pList) return;
-    int sel = pList->GetSelectionMark();
-    if (sel < 0 || sel >= (int)m_items.size()) return;
+    auto sel = GetSelectedIndices();
+    if (sel.empty())
+    {
+        auto& loc = CLocalizationManager::GetInstance();
+        MessageBox(loc.GetString(_T("QuickLaunch"), _T("NoSelection")), loc.GetString(_T("Msg"), _T("Info")), MB_ICONINFORMATION);
+        return;
+    }
 
     auto& loc = CLocalizationManager::GetInstance();
     CString msg;
-    msg.Format(loc.GetString(_T("QuickLaunch"), _T("ConfirmDelete")), m_items[sel].name.GetString());
+    if (sel.size() == 1)
+    {
+        msg.Format(loc.GetString(_T("QuickLaunch"), _T("ConfirmDelete")), m_items[sel[0]].name.GetString());
+    }
+    else
+    {
+        msg.Format(loc.GetString(_T("QuickLaunch"), _T("ConfirmDeleteMultiple")), (int)sel.size());
+    }
     if (MessageBox(msg, loc.GetString(_T("QuickLaunch"), _T("ConfirmDeleteTitle")), MB_YESNO | MB_ICONQUESTION) == IDYES)
     {
-        m_items.erase(m_items.begin() + sel);
+        // Sort in reverse to avoid index shifting
+        for (auto it = sel.rbegin(); it != sel.rend(); ++it)
+        {
+            int idx = *it;
+            if (idx >= 0 && idx < (int)m_items.size())
+                m_items.erase(m_items.begin() + idx);
+        }
         RefreshList();
         NotifyParent();
     }
@@ -398,6 +446,126 @@ void CQuickLaunchDlg::OnMoveDown()
     NotifyParent();
 }
 
+void CQuickLaunchDlg::OnMoveUpSelected()
+{
+    CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_QL_LIST);
+    if (!pList) return;
+    auto sel = GetSelectedIndices();
+    if (sel.empty()) return;
+
+    // Move each selected item up by one slot. Process from top so each
+    // swap only affects adjacent pairs.
+    for (int idx : sel)
+    {
+        if (idx <= 0) continue;
+        if (idx >= (int)m_items.size()) continue;
+        std::swap(m_items[idx], m_items[idx - 1]);
+    }
+
+    RefreshList();
+
+    // Re-select items at their new positions (each moved up by 1)
+    pList->SetItemState(-1, 0, LVIS_SELECTED);
+    for (int idx : sel)
+    {
+        int newPos = (idx > 0) ? idx - 1 : 0;
+        pList->SetItemState(newPos, LVIS_SELECTED, LVIS_SELECTED);
+    }
+    if (!sel.empty())
+    {
+        int focusPos = (sel[0] > 0) ? sel[0] - 1 : 0;
+        pList->SetSelectionMark(focusPos);
+        pList->SetItemState(focusPos, LVIS_FOCUSED, LVIS_FOCUSED);
+    }
+    NotifyParent();
+}
+
+void CQuickLaunchDlg::OnMoveDownSelected()
+{
+    CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_QL_LIST);
+    if (!pList) return;
+    auto sel = GetSelectedIndices();
+    if (sel.empty()) return;
+    int nCount = (int)m_items.size();
+
+    // Process from bottom to top so adjacent swaps don't interfere
+    for (auto it = sel.rbegin(); it != sel.rend(); ++it)
+    {
+        int idx = *it;
+        if (idx < 0 || idx >= nCount - 1) continue;
+        std::swap(m_items[idx], m_items[idx + 1]);
+    }
+
+    RefreshList();
+
+    // Re-select items at their new positions (each moved down by 1)
+    pList->SetItemState(-1, 0, LVIS_SELECTED);
+    for (int idx : sel)
+    {
+        int newPos = (idx < nCount - 1) ? idx + 1 : nCount - 1;
+        pList->SetItemState(newPos, LVIS_SELECTED, LVIS_SELECTED);
+    }
+    if (!sel.empty())
+    {
+        int lastIdx = sel.back();
+        int focusPos = (lastIdx < nCount - 1) ? lastIdx + 1 : nCount - 1;
+        pList->SetSelectionMark(focusPos);
+        pList->SetItemState(focusPos, LVIS_FOCUSED, LVIS_FOCUSED);
+    }
+    NotifyParent();
+}
+
+void CQuickLaunchDlg::MoveSelectedItemsTo(int nTargetIndex)
+{
+    CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_QL_LIST);
+    if (!pList) return;
+    auto sel = GetSelectedIndices();
+    if (sel.empty()) return;
+
+    int nCount = (int)m_items.size();
+    if (nTargetIndex < 0 || nTargetIndex > nCount) return;
+
+    // Collect selected entries
+    std::vector<QLItem> picked;
+    for (int idx : sel)
+    {
+        if (idx >= 0 && idx < (int)m_items.size())
+            picked.push_back(m_items[idx]);
+    }
+
+    // Remove them from the vector (back-to-front)
+    for (auto it = sel.rbegin(); it != sel.rend(); ++it)
+    {
+        int idx = *it;
+        if (idx >= 0 && idx < (int)m_items.size())
+            m_items.erase(m_items.begin() + idx);
+    }
+
+    // Adjust target index: if target was after removed block, decrement
+    int adjusted = nTargetIndex;
+    for (int idx : sel)
+    {
+        if (idx < nTargetIndex) adjusted--;
+    }
+    if (adjusted < 0) adjusted = 0;
+    if (adjusted > (int)m_items.size()) adjusted = (int)m_items.size();
+
+    m_items.insert(m_items.begin() + adjusted, picked.begin(), picked.end());
+
+    RefreshList();
+
+    // Re-select the moved items
+    pList->SetItemState(-1, 0, LVIS_SELECTED);
+    for (size_t i = 0; i < picked.size(); i++)
+    {
+        int newPos = adjusted + (int)i;
+        pList->SetItemState(newPos, LVIS_SELECTED, LVIS_SELECTED);
+    }
+    pList->SetSelectionMark(adjusted);
+    pList->SetItemState(adjusted, LVIS_FOCUSED, LVIS_FOCUSED);
+    NotifyParent();
+}
+
 void CQuickLaunchDlg::OnBnClickedQlAdd() { OnAdd(); }
 void CQuickLaunchDlg::OnBnClickedQlEdit() { OnEdit(); }
 void CQuickLaunchDlg::OnBnClickedQlDelete() { OnDelete(); }
@@ -420,12 +588,22 @@ void CQuickLaunchDlg::OnNMRclickQlList(NMHDR* pNMHDR, LRESULT* pResult)
     CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_QL_LIST);
     if (!pList) return;
 
-    // Select the item under cursor if any
+    int nSelCount = pList->GetSelectedCount();
     int sel = pItem->iItem;
+
+    // If right-clicking on an unselected item, select it (preserve multi-select if Ctrl/Shift held)
+    // For simplicity, if clicking on a non-selected item, select only that item
     if (sel >= 0)
     {
-        pList->SetSelectionMark(sel);
-        pList->SetItemState(sel, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
+        // Check if the clicked item is already selected
+        bool bAlreadySelected = (pList->GetItemState(sel, LVIS_SELECTED) & LVIS_SELECTED) != 0;
+        if (!bAlreadySelected || nSelCount == 0)
+        {
+            pList->SetItemState(-1, 0, LVIS_SELECTED);
+            pList->SetSelectionMark(sel);
+            pList->SetItemState(sel, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
+            nSelCount = 1;
+        }
     }
 
     CMenu menu;
@@ -435,10 +613,26 @@ void CQuickLaunchDlg::OnNMRclickQlList(NMHDR* pNMHDR, LRESULT* pResult)
     if (sel >= 0)
     {
         menu.AppendMenu(MF_STRING, ID_QL_RCLICK_EDIT, loc.GetString(_T("QuickLaunch"), _T("RClickEdit")));
-        menu.AppendMenu(MF_STRING, ID_QL_RCLICK_DELETE, loc.GetString(_T("QuickLaunch"), _T("RClickDelete")));
-        menu.AppendMenu(MF_SEPARATOR, 0, _T(""));
-        menu.AppendMenu(MF_STRING, ID_QL_RCLICK_UP, loc.GetString(_T("QuickLaunch"), _T("RClickUp")));
-        menu.AppendMenu(MF_STRING, ID_QL_RCLICK_DOWN, loc.GetString(_T("QuickLaunch"), _T("RClickDown")));
+        if (nSelCount > 1)
+        {
+            // Multi-select: show batch operations
+            CString strDeleteSel, strUpSel, strDownSel;
+            strDeleteSel.Format(loc.GetString(_T("QuickLaunch"), _T("RClickDeleteSelected")), nSelCount);
+            strUpSel.Format(loc.GetString(_T("QuickLaunch"), _T("RClickUpSelected")), nSelCount);
+            strDownSel.Format(loc.GetString(_T("QuickLaunch"), _T("RClickDownSelected")), nSelCount);
+            menu.AppendMenu(MF_STRING, ID_QL_RCLICK_DELETE_SEL, strDeleteSel);
+            menu.AppendMenu(MF_SEPARATOR, 0, _T(""));
+            menu.AppendMenu(MF_STRING, ID_QL_RCLICK_UP_SEL, strUpSel);
+            menu.AppendMenu(MF_STRING, ID_QL_RCLICK_DOWN_SEL, strDownSel);
+        }
+        else
+        {
+            // Single item: show individual operations
+            menu.AppendMenu(MF_STRING, ID_QL_RCLICK_DELETE, loc.GetString(_T("QuickLaunch"), _T("RClickDelete")));
+            menu.AppendMenu(MF_SEPARATOR, 0, _T(""));
+            menu.AppendMenu(MF_STRING, ID_QL_RCLICK_UP, loc.GetString(_T("QuickLaunch"), _T("RClickUp")));
+            menu.AppendMenu(MF_STRING, ID_QL_RCLICK_DOWN, loc.GetString(_T("QuickLaunch"), _T("RClickDown")));
+        }
     }
 
     CPoint pt;
@@ -450,30 +644,16 @@ void CQuickLaunchDlg::OnNMRclickQlList(NMHDR* pNMHDR, LRESULT* pResult)
 BOOL CQuickLaunchDlg::OnCommand(WPARAM wParam, LPARAM lParam)
 {
     UINT id = LOWORD(wParam);
-    if (id == ID_QL_RCLICK_ADD)
+    switch (id)
     {
-        OnAdd();
-        return TRUE;
-    }
-    else if (id == ID_QL_RCLICK_EDIT)
-    {
-        OnEdit();
-        return TRUE;
-    }
-    else if (id == ID_QL_RCLICK_DELETE)
-    {
-        OnDelete();
-        return TRUE;
-    }
-    else if (id == ID_QL_RCLICK_UP)
-    {
-        OnMoveUp();
-        return TRUE;
-    }
-    else if (id == ID_QL_RCLICK_DOWN)
-    {
-        OnMoveDown();
-        return TRUE;
+    case ID_QL_RCLICK_ADD:         OnAdd(); return TRUE;
+    case ID_QL_RCLICK_EDIT:        OnEdit(); return TRUE;
+    case ID_QL_RCLICK_DELETE:      OnDelete(); return TRUE;
+    case ID_QL_RCLICK_UP:          OnMoveUp(); return TRUE;
+    case ID_QL_RCLICK_DOWN:        OnMoveDown(); return TRUE;
+    case ID_QL_RCLICK_DELETE_SEL:  OnDelete(); return TRUE;
+    case ID_QL_RCLICK_UP_SEL:      OnMoveUpSelected(); return TRUE;
+    case ID_QL_RCLICK_DOWN_SEL:    OnMoveDownSelected(); return TRUE;
     }
     return CDialogEx::OnCommand(wParam, lParam);
 }
@@ -521,11 +701,20 @@ bool CQuickLaunchDlg::ResolveShortcut(const CString& path, CString& outTarget, i
 // ============================================================================
 void CQuickLaunchDlg::OnDropFiles(HDROP hDropInfo)
 {
+    auto& loc = CLocalizationManager::GetInstance();
     TCHAR buf[MAX_PATH] = {};
     UINT count = DragQueryFile(hDropInfo, 0xFFFFFFFF, NULL, 0);
 
     for (UINT i = 0; i < count; ++i)
     {
+        if ((int)m_items.size() >= MAX_QL_ITEMS)
+        {
+            CString msg;
+            msg.Format(loc.GetString(_T("QuickLaunch"), _T("MaxItemsReached")), MAX_QL_ITEMS);
+            MessageBox(msg, loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
+            break;
+        }
+
         DragQueryFile(hDropInfo, i, buf, MAX_PATH);
         CString path(buf);
 
@@ -552,7 +741,6 @@ void CQuickLaunchDlg::OnDropFiles(HDROP hDropInfo)
         int dot = name.ReverseFind(_T('.'));
         if (dot != -1) name = name.Left(dot);
 
-        // Open edit dialog with pre-filled info
         QLItem item;
         item.name = name;
         item.path = path;
@@ -566,4 +754,149 @@ void CQuickLaunchDlg::OnDropFiles(HDROP hDropInfo)
 
     RefreshList();
     DragFinish(hDropInfo);
+}
+
+// ============================================================================
+// Drag-and-drop reordering (list item drag)
+// ============================================================================
+void CQuickLaunchDlg::OnLvnBeginDrag(NMHDR* pNMHDR, LRESULT* pResult)
+{
+    LPNMLISTVIEW pNMLV = reinterpret_cast<LPNMLISTVIEW>(pNMHDR);
+    CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_QL_LIST);
+    if (!pList) return;
+
+    int nSel = pList->GetSelectedCount();
+    if (nSel == 0) { *pResult = 0; return; }
+
+    m_nDragSourceIndex = pNMLV->iItem;
+    m_nDropTargetIndex = -1;
+    m_nDropLineY = -1;
+    m_bDragging = true;
+
+    pList->SetFocus();
+    SetCapture();
+    *pResult = 1;
+}
+
+void CQuickLaunchDlg::OnMouseMove(UINT nFlags, CPoint point)
+{
+    if (m_bDragging)
+    {
+        CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_QL_LIST);
+        if (pList)
+        {
+            CPoint ptList = point;
+            ClientToScreen(&ptList);
+            pList->ScreenToClient(&ptList);
+
+            int nHover = pList->HitTest(ptList);
+            int nItemCount = pList->GetItemCount();
+            int nNewLineY = -1;
+            int nNewTarget = -1;
+
+            if (nHover >= 0)
+            {
+                CRect rcItem;
+                pList->GetItemRect(nHover, &rcItem, LVIR_BOUNDS);
+                if (ptList.y < rcItem.CenterPoint().y)
+                {
+                    nNewLineY = rcItem.top;
+                    nNewTarget = nHover;
+                }
+                else
+                {
+                    nNewLineY = rcItem.bottom;
+                    nNewTarget = nHover + 1;
+                }
+            }
+            else if (nItemCount > 0)
+            {
+                CRect rcLast;
+                pList->GetItemRect(nItemCount - 1, &rcLast, LVIR_BOUNDS);
+                if (ptList.y >= rcLast.bottom)
+                {
+                    nNewLineY = rcLast.bottom;
+                    nNewTarget = nItemCount;
+                }
+            }
+
+            int nNewLineScreenY = -1;
+            if (nNewLineY >= 0)
+            {
+                CPoint ptLine(0, nNewLineY);
+                pList->ClientToScreen(&ptLine);
+                nNewLineScreenY = ptLine.y;
+            }
+
+            if (nNewLineScreenY != m_nDropLineY)
+            {
+                m_nDropLineY = nNewLineScreenY;
+                m_nDropTargetIndex = nNewTarget;
+                pList->Invalidate();
+            }
+        }
+    }
+    CDialogEx::OnMouseMove(nFlags, point);
+}
+
+void CQuickLaunchDlg::OnLButtonUp(UINT nFlags, CPoint point)
+{
+    if (m_bDragging)
+    {
+        ReleaseCapture();
+
+        CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_QL_LIST);
+        if (pList && m_nDropTargetIndex >= 0)
+        {
+            MoveSelectedItemsTo(m_nDropTargetIndex);
+        }
+
+        m_bDragging = false;
+        m_nDragSourceIndex = -1;
+        m_nDropTargetIndex = -1;
+        m_nDropLineY = -1;
+        if (pList) pList->Invalidate();
+    }
+    CDialogEx::OnLButtonUp(nFlags, point);
+}
+
+void CQuickLaunchDlg::OnCustomDrawList(NMHDR* pNMHDR, LRESULT* pResult)
+{
+    LPNMLVCUSTOMDRAW pCD = reinterpret_cast<LPNMLVCUSTOMDRAW>(pNMHDR);
+    *pResult = CDRF_DODEFAULT;
+
+    if (pCD->nmcd.dwDrawStage == CDDS_PREPAINT)
+    {
+        *pResult = CDRF_NOTIFYPOSTPAINT;
+        return;
+    }
+
+    if (pCD->nmcd.dwDrawStage == CDDS_POSTPAINT)
+    {
+        if (!m_bDragging || m_nDropLineY < 0) return;
+
+        CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_QL_LIST);
+        if (!pList) return;
+
+        CDC dc;
+        dc.Attach(pCD->nmcd.hdc);
+
+        // Convert screen-space Y back to list-client space
+        CPoint ptLine(0, m_nDropLineY);
+        pList->ScreenToClient(&ptLine);
+        int nY = ptLine.y;
+
+        // Draw a 2-pixel-high blue line at the insertion position
+        CRect rcClient;
+        pList->GetClientRect(&rcClient);
+        CPen pen(PS_SOLID, 2, RGB(0, 100, 255));
+        CPen* pOldPen = dc.SelectObject(&pen);
+        dc.MoveTo(rcClient.left, nY);
+        dc.LineTo(rcClient.right, nY);
+        dc.SelectObject(pOldPen);
+        pen.DeleteObject();
+
+        dc.Detach();
+        return;
+    }
 }

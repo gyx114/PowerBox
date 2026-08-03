@@ -16,6 +16,9 @@ struct QLItem
     int type = Executable;
 };
 
+// Maximum number of quick launch items
+static constexpr int MAX_QL_ITEMS = 32;
+
 class CQuickLaunchDlg : public CDialogEx
 {
     DECLARE_DYNAMIC(CQuickLaunchDlg)
@@ -46,8 +49,18 @@ private:
     void OnDelete();
     void OnMoveUp();
     void OnMoveDown();
+    void OnMoveUpSelected();
+    void OnMoveDownSelected();
+    void MoveSelectedItemsTo(int nTargetIndex);
     bool EditItem(QLItem& item, bool bNew);
     void NotifyParent();
+    std::vector<int> GetSelectedIndices();
+
+    // Drag-and-drop reordering state
+    bool m_bDragging{false};
+    int m_nDragSourceIndex{-1};
+    int m_nDropTargetIndex{-1};
+    int m_nDropLineY{-1};  // screen-space Y of insertion line, -1 = none
 
     afx_msg void OnBnClickedQlAdd();
     afx_msg void OnBnClickedQlEdit();
@@ -60,4 +73,8 @@ private:
     afx_msg void OnClose();
     virtual void OnCancel();
     virtual BOOL OnCommand(WPARAM wParam, LPARAM lParam);
+    afx_msg void OnLvnBeginDrag(NMHDR* pNMHDR, LRESULT* pResult);
+    afx_msg void OnMouseMove(UINT nFlags, CPoint point);
+    afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
+    afx_msg void OnCustomDrawList(NMHDR* pNMHDR, LRESULT* pResult);
 };
