@@ -1,6 +1,7 @@
 // QuickLaunchDlg.h: Quick launch configuration dialog
 #pragma once
 #include "afxdialogex.h"
+#include "HotkeyCaptureDlg.h"
 #include <vector>
 
 // Registered message: sent from CQuickLaunchDlg to parent when items change
@@ -10,10 +11,11 @@ extern const UINT WM_QL_CLOSED;
 
 struct QLItem
 {
-    enum Type { Executable = 0, Folder, Url, OtherFile };
+    enum Type { Executable = 0, Folder, Url, OtherFile, HotkeyOnly };
     CString name;
     CString path;
     int type = Executable;
+    HotkeyInfo hotkey; // wake hotkey (only valid for Executable/HotkeyOnly)
 };
 
 // Maximum number of quick launch items

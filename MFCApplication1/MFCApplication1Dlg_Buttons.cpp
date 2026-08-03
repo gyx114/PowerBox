@@ -955,7 +955,17 @@ void CMFCApplication1Dlg::LoadQuickLaunchItems()
             if (sep2 != -1)
             {
                 item.path = rest.Left(sep2);
-                item.type = _ttoi(rest.Mid(sep2 + 1));
+                CString typeStr = rest.Mid(sep2 + 1);
+                int sep3 = typeStr.Find(_T('|'));
+                if (sep3 != -1)
+                {
+                    item.type = _ttoi(typeStr.Left(sep3));
+                    item.hotkey = HotkeyInfo::FromConfigString(typeStr.Mid(sep3 + 1));
+                }
+                else
+                {
+                    item.type = _ttoi(typeStr);
+                }
             }
             else
             {
@@ -989,7 +999,7 @@ void CMFCApplication1Dlg::SaveQuickLaunchItems()
     {
         CString key, val;
         key.Format(_T("Item%d"), (int)i);
-        val.Format(_T("%s|%s|%d"), m_qlItems[i].name.GetString(), m_qlItems[i].path.GetString(), m_qlItems[i].type);
+        val.Format(_T("%s|%s|%d|%s"), m_qlItems[i].name.GetString(), m_qlItems[i].path.GetString(), m_qlItems[i].type, m_qlItems[i].hotkey.ToConfigString().GetString());
         WritePrivateProfileString(_T("QuickLaunch"), key, val, configPath);
     }
 }
@@ -1014,32 +1024,124 @@ void CMFCApplication1Dlg::UpdateQuickLaunchButtons()
     }
 }
 
+// Helper: check if a process with the given executable path is running
+static bool IsProcessRunning(const CString& exePath)
+{
+    if (exePath.IsEmpty()) return false;
+    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (hSnapshot == INVALID_HANDLE_VALUE) return false;
+
+    PROCESSENTRY32 pe = { sizeof(pe) };
+    bool found = false;
+    CString targetLower = exePath;
+    targetLower.MakeLower();
+
+    if (Process32First(hSnapshot, &pe))
+    {
+        do
+        {
+            HANDLE hProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pe.th32ProcessID);
+            if (hProc)
+            {
+                TCHAR buf[MAX_PATH] = {};
+                DWORD sz = MAX_PATH;
+                if (QueryFullProcessImageName(hProc, 0, buf, &sz))
+                {
+                    CString procPath(buf);
+                    procPath.MakeLower();
+                    if (procPath == targetLower)
+                    {
+                        found = true;
+                        CloseHandle(hProc);
+                        break;
+                    }
+                }
+                CloseHandle(hProc);
+            }
+        } while (Process32Next(hSnapshot, &pe));
+    }
+    CloseHandle(hSnapshot);
+    return found;
+}
+
+// Helper: send a hotkey combination via SendInput
+static void SendHotkey(const HotkeyInfo& hotkey)
+{
+    if (hotkey.IsEmpty()) return;
+
+    // Build inputs: press modifiers, keydown, keyup, release modifiers
+    std::vector<INPUT> inputs;
+    inputs.reserve(8);
+    auto pushKey = [&](WORD vkCode, DWORD flags) {
+        INPUT in = {};
+        in.type = INPUT_KEYBOARD;
+        in.ki.wVk = vkCode;
+        in.ki.dwFlags = flags;
+        inputs.push_back(in);
+    };
+
+    // Press modifiers
+    if (hotkey.modifier & MOD_CONTROL) pushKey(VK_CONTROL, 0);
+    if (hotkey.modifier & MOD_ALT)     pushKey(VK_MENU, 0);
+    if (hotkey.modifier & MOD_SHIFT)   pushKey(VK_SHIFT, 0);
+    if (hotkey.modifier & MOD_WIN)     pushKey(VK_LWIN, 0);
+
+    // Key down + up
+    pushKey((WORD)hotkey.vk, 0);
+    pushKey((WORD)hotkey.vk, KEYEVENTF_KEYUP);
+
+    // Release modifiers in reverse order
+    if (hotkey.modifier & MOD_WIN)     pushKey(VK_LWIN, KEYEVENTF_KEYUP);
+    if (hotkey.modifier & MOD_SHIFT)   pushKey(VK_SHIFT, KEYEVENTF_KEYUP);
+    if (hotkey.modifier & MOD_ALT)     pushKey(VK_MENU, KEYEVENTF_KEYUP);
+    if (hotkey.modifier & MOD_CONTROL) pushKey(VK_CONTROL, KEYEVENTF_KEYUP);
+
+    if (!inputs.empty())
+        SendInput((UINT)inputs.size(), inputs.data(), sizeof(INPUT));
+}
+
 void CMFCApplication1Dlg::OnQuickLaunchItem(int index)
 {
     if (index < 0 || index >= (int)m_qlItems.size())
         return;
 
     const QLItem& item = m_qlItems[index];
-    const CString& path = item.path;
-    if (path.IsEmpty()) return;
 
     switch (item.type)
     {
+    case QLItem::HotkeyOnly:
+        // Hotkey-only: simulate the hotkey
+        if (!item.hotkey.IsEmpty())
+            SendHotkey(item.hotkey);
+        break;
+
+    case QLItem::Executable:
+        // Executable with hotkey: check if process is running
+        if (!item.hotkey.IsEmpty() && IsProcessRunning(item.path))
+        {
+            // Process exists: send hotkey to activate it
+            SendHotkey(item.hotkey);
+            break;
+        }
+        // No hotkey or process not running: fall through to launch
+        ::ShellExecute(m_hWnd, _T("open"), item.path, NULL, NULL, SW_SHOWNORMAL);
+        break;
+
     case QLItem::Url:
         // URL: open in default browser
-        ::ShellExecute(m_hWnd, _T("open"), path, NULL, NULL, SW_SHOWNORMAL);
+        ::ShellExecute(m_hWnd, _T("open"), item.path, NULL, NULL, SW_SHOWNORMAL);
         break;
 
     case QLItem::Folder:
         // Directory: open in Explorer
-        ::ShellExecute(m_hWnd, _T("open"), path, NULL, NULL, SW_SHOWNORMAL);
+        ::ShellExecute(m_hWnd, _T("open"), item.path, NULL, NULL, SW_SHOWNORMAL);
         break;
 
-    case QLItem::Executable:
     case QLItem::OtherFile:
     default:
         // File: execute with ShellExecute
-        ::ShellExecute(m_hWnd, _T("open"), path, NULL, NULL, SW_SHOWNORMAL);
+        if (!item.path.IsEmpty())
+            ::ShellExecute(m_hWnd, _T("open"), item.path, NULL, NULL, SW_SHOWNORMAL);
         break;
     }
 }

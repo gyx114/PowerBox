@@ -30,6 +30,7 @@ public:
     CString m_path;
     CString m_title;
     int m_type = QLItem::Executable;
+    HotkeyInfo m_hotkey;
 
     CQLItemEditDlg(CWnd* pParent = nullptr)
         : CDialog(IDD_QL_ITEM_DLG, pParent) {}
@@ -42,6 +43,7 @@ public:
             case QLItem::Folder:     return loc.GetString(_T("QuickLaunch"), _T("TypeFolder"));
             case QLItem::Url:        return loc.GetString(_T("QuickLaunch"), _T("TypeUrl"));
             case QLItem::OtherFile:  return loc.GetString(_T("QuickLaunch"), _T("TypeOtherFile"));
+            case QLItem::HotkeyOnly: return loc.GetString(_T("QuickLaunch"), _T("TypeHotkeyOnly"));
             default: return _T("");
         }
     }
@@ -58,6 +60,10 @@ protected:
         SetDlgItemText(IDC_QL_LABEL_PATH, loc.GetString(_T("QuickLaunch"), _T("LabelPath")));
         SetDlgItemText(IDC_QL_DROP_HINT, loc.GetString(_T("QuickLaunch"), _T("DropHintAdd")));
 
+        // Localize hotkey controls
+        SetDlgItemText(IDC_QL_LABEL_HOTKEY, loc.GetString(_T("QuickLaunch"), _T("LabelHotkey")));
+        SetDlgItemText(IDC_QL_BTN_HOTKEY, loc.GetString(_T("QuickLaunch"), _T("BtnHotkey")));
+
         SetDlgItemText(IDC_QL_EDIT_NAME, m_name);
 
         // Init type combo
@@ -68,8 +74,12 @@ protected:
             pType->AddString(TypeLabel(QLItem::Folder));
             pType->AddString(TypeLabel(QLItem::Url));
             pType->AddString(TypeLabel(QLItem::OtherFile));
+            pType->AddString(TypeLabel(QLItem::HotkeyOnly));
             pType->SetCurSel(m_type);
         }
+
+        // Init hotkey display
+        SetDlgItemText(IDC_QL_EDIT_HOTKEY, m_hotkey.ToDisplay());
 
         // Localize buttons
         SetDlgItemText(IDC_QL_BROWSE, loc.GetString(_T("QuickLaunch"), _T("BtnBrowse")));
@@ -77,6 +87,9 @@ protected:
         SetDlgItemText(IDCANCEL, loc.GetString(_T("QuickLaunch"), _T("BtnCancel")));
 
         SetDlgItemText(IDC_QL_EDIT_PATH, m_path);
+
+        // Enable/disable path controls based on type
+        UpdatePathControls(m_type);
 
         // Accept drag-drop
         DragAcceptFiles(TRUE);
@@ -90,12 +103,16 @@ protected:
         GetDlgItemText(IDC_QL_EDIT_PATH, m_path);
         m_name.Trim();
         m_path.Trim();
-        if (m_name.IsEmpty() || m_path.IsEmpty())
+        if (m_name.IsEmpty()) return;
+        // HotkeyOnly type: path can be empty
+        if (m_type != QLItem::HotkeyOnly && m_path.IsEmpty())
             return;
 
         CComboBox* pType = (CComboBox*)GetDlgItem(IDC_QL_COMBO_TYPE);
         if (pType) m_type = pType->GetCurSel();
         if (m_type < 0) m_type = QLItem::Executable;
+
+        // Save hotkey (m_hotkey already set via capture dialog)
 
         CDialog::OnOK();
     }
@@ -132,6 +149,35 @@ protected:
             if (dlg.DoModal() == IDOK)
                 SetDlgItemText(IDC_QL_EDIT_PATH, dlg.GetPathName());
         }
+    }
+
+    // Hotkey capture button
+    afx_msg void OnBnClickedQlBtnHotkey()
+    {
+        CHotkeyCaptureDlg dlg(this, m_hotkey);
+        if (dlg.DoModal() == IDOK)
+        {
+            m_hotkey = dlg.m_result;
+            SetDlgItemText(IDC_QL_EDIT_HOTKEY, m_hotkey.ToDisplay());
+        }
+    }
+
+    // Type combo change: enable/disable path controls
+    afx_msg void OnCbnSelchangeQlComboType()
+    {
+        CComboBox* pType = (CComboBox*)GetDlgItem(IDC_QL_COMBO_TYPE);
+        int type = pType ? pType->GetCurSel() : QLItem::Executable;
+        UpdatePathControls(type);
+    }
+
+    // Enable/disable path edit and browse button based on type
+    void UpdatePathControls(int type)
+    {
+        BOOL enable = (type != QLItem::HotkeyOnly);
+        GetDlgItem(IDC_QL_LABEL_PATH)->EnableWindow(enable);
+        GetDlgItem(IDC_QL_EDIT_PATH)->EnableWindow(enable);
+        GetDlgItem(IDC_QL_BROWSE)->EnableWindow(enable);
+        GetDlgItem(IDC_QL_DROP_HINT)->EnableWindow(enable);
     }
 
     afx_msg void OnDropFiles(HDROP hDropInfo)
@@ -177,6 +223,8 @@ protected:
 
 BEGIN_MESSAGE_MAP(CQLItemEditDlg, CDialog)
     ON_BN_CLICKED(IDC_QL_BROWSE, &CQLItemEditDlg::OnBnClickedQlBrowse)
+    ON_BN_CLICKED(IDC_QL_BTN_HOTKEY, &CQLItemEditDlg::OnBnClickedQlBtnHotkey)
+    ON_CBN_SELCHANGE(IDC_QL_COMBO_TYPE, &CQLItemEditDlg::OnCbnSelchangeQlComboType)
     ON_WM_DROPFILES()
 END_MESSAGE_MAP()
 
@@ -235,10 +283,11 @@ BOOL CQuickLaunchDlg::OnInitDialog()
         CRect rcList;
         pList->GetClientRect(&rcList);
         int totalWidth = rcList.Width();
-        // RC width is 260, distribute proportionally: name 30%, type 20%, path 50%
-        pList->InsertColumn(0, loc.GetString(_T("QuickLaunch"), _T("ColName")), LVCFMT_LEFT, totalWidth * 30 / 100);
+        // RC width is 260, distribute proportionally: name 25%, type 20%, path 40%, hotkey 15%
+        pList->InsertColumn(0, loc.GetString(_T("QuickLaunch"), _T("ColName")), LVCFMT_LEFT, totalWidth * 25 / 100);
         pList->InsertColumn(1, loc.GetString(_T("QuickLaunch"), _T("ColType")), LVCFMT_LEFT, totalWidth * 20 / 100);
-        pList->InsertColumn(2, loc.GetString(_T("QuickLaunch"), _T("ColPath")), LVCFMT_LEFT, totalWidth * 50 / 100);
+        pList->InsertColumn(2, loc.GetString(_T("QuickLaunch"), _T("ColPath")), LVCFMT_LEFT, totalWidth * 40 / 100);
+        pList->InsertColumn(3, loc.GetString(_T("QuickLaunch"), _T("ColHotkey")), LVCFMT_LEFT, totalWidth * 15 / 100);
     }
 
     // Translate buttons
@@ -304,6 +353,7 @@ void CQuickLaunchDlg::RefreshList()
         int idx = pList->InsertItem((int)i, m_items[i].name);
         pList->SetItemText(idx, 1, CQLItemEditDlg::TypeLabel(m_items[i].type));
         pList->SetItemText(idx, 2, m_items[i].path);
+        pList->SetItemText(idx, 3, m_items[i].hotkey.ToDisplay());
     }
 }
 
@@ -315,6 +365,7 @@ bool CQuickLaunchDlg::EditItem(QLItem& item, bool bNew)
     dlg.m_name = item.name;
     dlg.m_path = item.path;
     dlg.m_type = item.type;
+    dlg.m_hotkey = item.hotkey;
     dlg.m_title = bNew ? loc.GetString(_T("QuickLaunch"), _T("AddTitle"))
                        : loc.GetString(_T("QuickLaunch"), _T("EditTitle"));
 
@@ -323,6 +374,7 @@ bool CQuickLaunchDlg::EditItem(QLItem& item, bool bNew)
         item.name = dlg.m_name;
         item.path = dlg.m_path;
         item.type = dlg.m_type;
+        item.hotkey = dlg.m_hotkey;
         return true;
     }
     return false;
