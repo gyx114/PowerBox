@@ -12,7 +12,7 @@
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License">
   <img src="https://img.shields.io/badge/C%2B%2B-20-%2300599C?logo=c%2B%2B" alt="C++20">
   <img src="https://img.shields.io/badge/framework-MFC-%230078D6?logo=microsoft" alt="MFC">
-  <img src="https://img.shields.io/badge/release-v1.0.0-brightgreen" alt="v1.0.0">
+  <img src="https://img.shields.io/badge/release-v1.1.0-brightgreen" alt="v1.1.0">
   <img src="https://img.shields.io/badge/platform-Windows-%230078D6?logo=windows" alt="Windows">
 </p>
 
@@ -41,6 +41,9 @@
 | 进程 AI 分析 | 右键进程 → AI 分析，获取安全等级与操作建议 |
 | 进程 AI 扫描 | 一键扫描所有进程，AI 识别可疑/无用进程，支持批量结束 |
 | AI 批量重命名 | 自然语言描述需求，AI 自动生成文件名映射 |
+
+### 🌐 多语言界面
+支持中文/英文切换，语言文件位于 `lang/` 目录，可自由扩展更多语言。参见[功能详解](https://github.com/gyx114/PowerBox/wiki/功能详解)中的"多语言界面"章节。
 
 ### 📋 核心工具
 
@@ -111,7 +114,7 @@
 ## 📥 安装
 
 ### 下载 Releases
-前往 [Releases 页面](https://github.com/gyx114/PowerBox/releases) 下载最新版 `PowerBox.exe`，直接运行即可（绿色软件，无需安装）。
+前往 [Releases 页面](https://github.com/gyx114/PowerBox/releases) 下载最新版 `PowerBox.exe` 和 `lang.zip` 语言包。将 `PowerBox.exe` 与解压后的 `lang/` 文件夹放在同一目录下，直接运行即可（绿色软件，无需安装）。
 
 ### 自行编译
 需要 Visual Studio 2022（或更高版本）以及 C++ 桌面开发工作负载（含 MFC 组件）。
@@ -122,7 +125,7 @@ cd PowerBox
 msbuild MFCApplication1/MFCApplication1.vcxproj /p:Configuration=Release /p:Platform=x64
 ```
 
-编译产物位于 `x64/Release/PowerBox.exe`。
+编译产物位于 `x64/Release/PowerBox.exe`。编译后需将源码中的 `MFCApplication1/lang/` 文件夹复制到 exe 所在目录，否则程序将使用内置中文界面，无法切换语言。
 
 ---
 
@@ -136,6 +139,7 @@ msbuild MFCApplication1/MFCApplication1.vcxproj /p:Configuration=Release /p:Plat
 | 二维码生成 | Nayuki QR Code Generator |
 | OCR 识别 | Windows OCR API (Windows.Media.Ocr) |
 | Markdown 渲染 | WebBrowser 控件 + marked.js（GitHub 风格 CSS） |
+| 多语言 | INI 文件 + 内置默认值，支持中文/英文切换，语言文件位于 `lang/` 目录 |
 | 构建工具 | Visual Studio 2022 + MSBuild |
 
 ---
