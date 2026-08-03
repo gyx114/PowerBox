@@ -1,4 +1,4 @@
-<p align="center">
+﻿<p align="center">
   <img src="docs/screenshots/main.png" alt="PowerBox" width="720">
 </p>
 
@@ -114,7 +114,7 @@
 ## 📥 安装
 
 ### 下载 Releases
-前往 [Releases 页面](https://github.com/gyx114/PowerBox/releases) 下载最新版 `PowerBox.exe` 和 `lang.zip` 语言包。将 `PowerBox.exe` 与解压后的 `lang/` 文件夹放在同一目录下，直接运行即可（绿色软件，无需安装）。
+前往 [Releases 页面](https://github.com/gyx114/PowerBox/releases) 下载最新版 `PowerBox.zip`，解压即可使用（绿色软件，无需安装）。压缩包内含 `PowerBox.exe` 和 `lang/` 语言文件夹，开箱即用。
 
 ### 自行编译
 需要 Visual Studio 2022（或更高版本）以及 C++ 桌面开发工作负载（含 MFC 组件）。
