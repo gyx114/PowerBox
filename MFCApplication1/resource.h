@@ -395,14 +395,22 @@
 #define IDC_QL_BTN15                   1349
 #define IDC_QL_BTN_MANAGE              1350
 #define IDC_QL_COMBO_TYPE              1351
+#define IDC_QL_LABEL_NAME              1352
+#define IDC_QL_LABEL_TYPE              1353
+#define IDC_QL_LABEL_PATH              1354
+#define ID_QL_RCLICK_ADD               32846
+#define ID_QL_RCLICK_EDIT              32847
+#define ID_QL_RCLICK_DELETE            32848
+#define ID_QL_RCLICK_UP                32849
+#define ID_QL_RCLICK_DOWN              32850
 
 // Next default values for new objects
 //
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        157
-#define _APS_NEXT_COMMAND_VALUE         32846
-#define _APS_NEXT_CONTROL_VALUE         1352
+#define _APS_NEXT_COMMAND_VALUE         32851
+#define _APS_NEXT_CONTROL_VALUE         1355
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

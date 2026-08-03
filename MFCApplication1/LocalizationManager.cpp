@@ -1031,12 +1031,13 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("Msg"), _T("EnterCommand"))] = _T("请输入命令。");
     m_defaults[MakeKey(_T("Msg"), _T("ExecCmdFailed"))] = _T("执行命令失败：%s");
     m_defaults[MakeKey(_T("Msg"), _T("PreventLockFailed"))] = _T("设置防锁屏失败。");
-    m_defaults[MakeKey(_T("Msg"), _T("PowerShellConfirm"))] = _T("确定要启动 PowerShell 吗？");
-    m_defaults[MakeKey(_T("Msg"), _T("PowerShellTitle"))] = _T("启动 PowerShell");
+    m_defaults[MakeKey(_T("Msg"), _T("PowerShellConfirm"))] = _T("请选择 PowerShell 打开方式：\n是(Y) - 以管理员身份运行\n否(N) - 普通模式");
+    m_defaults[MakeKey(_T("Msg"), _T("PowerShellTitle"))] = _T("打开 PowerShell");
     m_defaults[MakeKey(_T("Msg"), _T("PowerShellNonAdminFailed"))] = _T("启动 PowerShell 失败：%s");
     m_defaults[MakeKey(_T("Msg"), _T("PowerShellAdminFailed"))] = _T("以管理员权限启动 PowerShell 失败：%s");
     m_defaults[MakeKey(_T("Msg"), _T("WslLaunchFailed"))] = _T("启动 WSL 失败。");
     m_defaults[MakeKey(_T("Msg"), _T("OpenLinkFailed"))] = _T("无法打开链接。");
+    m_defaults[MakeKey(_T("Msg"), _T("GitNoPathError"))] = _T("请先设置Git工作目录。");
     m_defaults[MakeKey(_T("Msg"), _T("GitBashNotFound"))] = _T("未找到 Git Bash，请检查设置。");
     
     m_defaults[MakeKey(_T("Msg"), _T("PleaseSelectProcess"))] = _T("请先选择进程。");

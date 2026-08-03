@@ -45,6 +45,12 @@ protected:
     {
         CDialog::OnInitDialog();
         SetWindowText(m_title);
+
+        auto& loc = CLocalizationManager::GetInstance();
+        SetDlgItemText(IDC_QL_LABEL_NAME, loc.GetString(_T("QuickLaunch"), _T("LabelName")));
+        SetDlgItemText(IDC_QL_LABEL_TYPE, loc.GetString(_T("QuickLaunch"), _T("LabelType")));
+        SetDlgItemText(IDC_QL_LABEL_PATH, loc.GetString(_T("QuickLaunch"), _T("LabelPath")));
+
         SetDlgItemText(IDC_QL_EDIT_NAME, m_name);
 
         // Init type combo
@@ -57,6 +63,11 @@ protected:
             pType->AddString(TypeLabel(QLItem::OtherFile));
             pType->SetCurSel(m_type);
         }
+
+        // Localize buttons
+        SetDlgItemText(IDC_QL_BROWSE, loc.GetString(_T("QuickLaunch"), _T("BtnBrowse")));
+        SetDlgItemText(IDOK, loc.GetString(_T("QuickLaunch"), _T("BtnOK")));
+        SetDlgItemText(IDCANCEL, loc.GetString(_T("QuickLaunch"), _T("BtnCancel")));
 
         SetDlgItemText(IDC_QL_EDIT_PATH, m_path);
         return TRUE;
@@ -146,6 +157,7 @@ BEGIN_MESSAGE_MAP(CQuickLaunchDlg, CDialogEx)
     ON_BN_CLICKED(IDC_QL_UP, &CQuickLaunchDlg::OnBnClickedQlUp)
     ON_BN_CLICKED(IDC_QL_DOWN, &CQuickLaunchDlg::OnBnClickedQlDown)
     ON_NOTIFY(NM_DBLCLK, IDC_QL_LIST, &CQuickLaunchDlg::OnNMDblclkQlList)
+    ON_NOTIFY(NM_RCLICK, IDC_QL_LIST, &CQuickLaunchDlg::OnNMRclickQlList)
 END_MESSAGE_MAP()
 
 BOOL CQuickLaunchDlg::OnInitDialog()
@@ -155,14 +167,19 @@ BOOL CQuickLaunchDlg::OnInitDialog()
     auto& loc = CLocalizationManager::GetInstance();
     SetWindowText(loc.GetString(_T("QuickLaunch"), _T("DlgTitle")));
 
-    // Initialize list control
+    // Initialize list control with proportional column widths
     CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_QL_LIST);
     if (pList)
     {
         pList->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
-        pList->InsertColumn(0, loc.GetString(_T("QuickLaunch"), _T("ColName")), LVCFMT_LEFT, 120);
-        pList->InsertColumn(1, loc.GetString(_T("QuickLaunch"), _T("ColType")), LVCFMT_LEFT, 70);
-        pList->InsertColumn(2, loc.GetString(_T("QuickLaunch"), _T("ColPath")), LVCFMT_LEFT, 200);
+        // Get actual client width from the control (RC defines width=260 at 7,7,260,200)
+        CRect rcList;
+        pList->GetClientRect(&rcList);
+        int totalWidth = rcList.Width();
+        // RC width is 260, distribute proportionally: name 30%, type 20%, path 50%
+        pList->InsertColumn(0, loc.GetString(_T("QuickLaunch"), _T("ColName")), LVCFMT_LEFT, totalWidth * 30 / 100);
+        pList->InsertColumn(1, loc.GetString(_T("QuickLaunch"), _T("ColType")), LVCFMT_LEFT, totalWidth * 20 / 100);
+        pList->InsertColumn(2, loc.GetString(_T("QuickLaunch"), _T("ColPath")), LVCFMT_LEFT, totalWidth * 50 / 100);
     }
 
     // Translate buttons
@@ -293,4 +310,70 @@ void CQuickLaunchDlg::OnNMDblclkQlList(NMHDR* pNMHDR, LRESULT* pResult)
     if (pItem->iItem >= 0)
         OnEdit();
     *pResult = 0;
+}
+
+void CQuickLaunchDlg::OnNMRclickQlList(NMHDR* pNMHDR, LRESULT* pResult)
+{
+    LPNMITEMACTIVATE pItem = (LPNMITEMACTIVATE)pNMHDR;
+    auto& loc = CLocalizationManager::GetInstance();
+
+    CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_QL_LIST);
+    if (!pList) return;
+
+    // Select the item under cursor if any
+    int sel = pItem->iItem;
+    if (sel >= 0)
+    {
+        pList->SetSelectionMark(sel);
+        pList->SetItemState(sel, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
+    }
+
+    CMenu menu;
+    menu.CreatePopupMenu();
+
+    menu.AppendMenu(MF_STRING, ID_QL_RCLICK_ADD, loc.GetString(_T("QuickLaunch"), _T("RClickAdd")));
+    if (sel >= 0)
+    {
+        menu.AppendMenu(MF_STRING, ID_QL_RCLICK_EDIT, loc.GetString(_T("QuickLaunch"), _T("RClickEdit")));
+        menu.AppendMenu(MF_STRING, ID_QL_RCLICK_DELETE, loc.GetString(_T("QuickLaunch"), _T("RClickDelete")));
+        menu.AppendMenu(MF_SEPARATOR, 0, _T(""));
+        menu.AppendMenu(MF_STRING, ID_QL_RCLICK_UP, loc.GetString(_T("QuickLaunch"), _T("RClickUp")));
+        menu.AppendMenu(MF_STRING, ID_QL_RCLICK_DOWN, loc.GetString(_T("QuickLaunch"), _T("RClickDown")));
+    }
+
+    CPoint pt;
+    GetCursorPos(&pt);
+    menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, this);
+    *pResult = 0;
+}
+
+BOOL CQuickLaunchDlg::OnCommand(WPARAM wParam, LPARAM lParam)
+{
+    UINT id = LOWORD(wParam);
+    if (id == ID_QL_RCLICK_ADD)
+    {
+        OnAdd();
+        return TRUE;
+    }
+    else if (id == ID_QL_RCLICK_EDIT)
+    {
+        OnEdit();
+        return TRUE;
+    }
+    else if (id == ID_QL_RCLICK_DELETE)
+    {
+        OnDelete();
+        return TRUE;
+    }
+    else if (id == ID_QL_RCLICK_UP)
+    {
+        OnMoveUp();
+        return TRUE;
+    }
+    else if (id == ID_QL_RCLICK_DOWN)
+    {
+        OnMoveDown();
+        return TRUE;
+    }
+    return CDialogEx::OnCommand(wParam, lParam);
 }

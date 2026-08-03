@@ -616,6 +616,11 @@ void CMFCApplication1Dlg::OnBnClickedGitCmdWindow()
 {
     auto& loc = CLocalizationManager::GetInstance();
     CString workDir = GetGitWorkDir();
+    if (workDir.IsEmpty())
+    {
+        MessageBox(loc.GetString(_T("Msg"), _T("GitNoPathError")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
+        return;
+    }
     auto* pDlg = new CGitCmdResultDlg(workDir, nullptr);
     if (!pDlg->Create(IDD_GIT_CMD_RESULT_DLG, nullptr))
     {
@@ -998,15 +1003,13 @@ void CMFCApplication1Dlg::UpdateQuickLaunchButtons()
 
         if (i < (int)m_qlItems.size())
         {
-            // Item exists: show button with the item's name
+            // Item exists: set button text (visibility managed by UpdateQuickTab)
             pBtn->SetWindowText(m_qlItems[i].name);
-            pBtn->ShowWindow(SW_SHOW);
         }
         else
         {
-            // No item: hide button
+            // No item: clear button text (visibility managed by UpdateQuickTab)
             pBtn->SetWindowText(_T(""));
-            pBtn->ShowWindow(SW_HIDE);
         }
     }
 }
@@ -1054,6 +1057,9 @@ void CMFCApplication1Dlg::OnQuickLaunchManage()
         // Save and update buttons
         SaveQuickLaunchItems();
         UpdateQuickLaunchButtons();
+        // Refresh visibility for current tab (hide empty buttons)
+        CTabCtrl* pTab = (CTabCtrl*)GetDlgItem(IDC_TAB_QUICK);
+        if (pTab) UpdateQuickTab(pTab->GetCurSel());
     }
 }
 

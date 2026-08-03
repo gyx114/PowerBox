@@ -46,4 +46,6 @@ private:
     afx_msg void OnBnClickedQlUp();
     afx_msg void OnBnClickedQlDown();
     afx_msg void OnNMDblclkQlList(NMHDR* pNMHDR, LRESULT* pResult);
+    afx_msg void OnNMRclickQlList(NMHDR* pNMHDR, LRESULT* pResult);
+    virtual BOOL OnCommand(WPARAM wParam, LPARAM lParam);
 };

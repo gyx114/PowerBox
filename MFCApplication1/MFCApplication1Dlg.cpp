@@ -691,7 +691,23 @@ void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
     }
 
     // Quick Launch buttons (tab 1)
-    showGroup(kCommonIds, _countof(kCommonIds), nTab == 1);
+    if (nTab == 1)
+    {
+        // Show buttons that have items, hide empty ones
+        for (int i = 0; i < MAX_QL_BUTTONS; ++i)
+        {
+            CWnd* pBtn = GetDlgItem(QL_BTN_IDS[i]);
+            if (pBtn)
+                pBtn->ShowWindow(i < (int)m_qlItems.size() ? SW_SHOW : SW_HIDE);
+        }
+        // Always show manage button
+        CWnd* pManage = GetDlgItem(IDC_QL_BTN_MANAGE);
+        if (pManage) pManage->ShowWindow(SW_SHOW);
+    }
+    else
+    {
+        showGroup(kCommonIds, _countof(kCommonIds), false);
+    }
 
     // System tools (tab 2)
     showGroup(kSystemIds, _countof(kSystemIds), nTab == 2);
