@@ -26,6 +26,7 @@
 #include "GitCmdResultDlg.h"
 #include "ProcessScanDlg.h"
 #include "ConversationHistoryDlg.h"
+#include "QuickLaunchDlg.h"
 #include "LocalizationManager.h"
 #include "json.hpp"
 #include <TlHelp32.h>
@@ -270,7 +271,6 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_WM_DROPFILES()
     ON_WM_COPYDATA()
     ON_BN_CLICKED(IDC_BUTTON3, &CMFCApplication1Dlg::OnBnClickedButton3)
-    ON_BN_CLICKED(IDC_BUTTON4, &CMFCApplication1Dlg::OnBnClickedButton4)
     ON_BN_CLICKED(IDC_CHECK1, &CMFCApplication1Dlg::OnBnClickedCheck1)
     ON_MESSAGE(WM_TRAYICON, &CMFCApplication1Dlg::OnTrayNotification)
     ON_WM_SIZE()
@@ -280,13 +280,6 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_COMMAND(2002, &CMFCApplication1Dlg::OnTrayExit)
     ON_STN_CLICKED(IDC_STATIC_PATH, &CMFCApplication1Dlg::OnStnClickedStaticPath)
     ON_BN_CLICKED(IDC_CHECK2, &CMFCApplication1Dlg::OnBnClickedCheck2)
-    ON_BN_CLICKED(IDC_BUTTON5, &CMFCApplication1Dlg::OnBnClickedButton5)
-    ON_BN_CLICKED(IDC_BUTTON6, &CMFCApplication1Dlg::OnBnClickedButton6)
-    ON_BN_CLICKED(IDC_BUTTON7, &CMFCApplication1Dlg::OnBnClickedButton7)
-    ON_BN_CLICKED(IDC_BUTTON8, &CMFCApplication1Dlg::OnBnClickedButton8)
-    ON_BN_CLICKED(IDC_BUTTON9, &CMFCApplication1Dlg::OnBnClickedButton9)
-    ON_BN_CLICKED(IDC_BUTTON10, &CMFCApplication1Dlg::OnBnClickedButton10)
-    ON_BN_CLICKED(IDC_BUTTON11, &CMFCApplication1Dlg::OnBnClickedButton11)
     ON_BN_CLICKED(IDC_BUTTON20, &CMFCApplication1Dlg::OnBnClickedButton20)
     ON_BN_CLICKED(IDC_BUTTON12, &CMFCApplication1Dlg::OnBnClickedButton12)
     ON_BN_CLICKED(IDC_BUTTON13, &CMFCApplication1Dlg::OnBnClickedButton13)
@@ -318,13 +311,6 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_COMMAND(ID_VIEW_WINDOW,      &CMFCApplication1Dlg::OnViewWindow)
     ON_COMMAND(ID_VIEW_FILE,        &CMFCApplication1Dlg::OnViewFile)
     ON_COMMAND(ID_VIEW_GIT,         &CMFCApplication1Dlg::OnViewGit)
-    ON_COMMAND(ID_TOOLS_WECHAT,     &CMFCApplication1Dlg::OnBnClickedButton4)
-    ON_COMMAND(ID_TOOLS_QQ,         &CMFCApplication1Dlg::OnBnClickedButton5)
-    ON_COMMAND(ID_TOOLS_VSCODE,     &CMFCApplication1Dlg::OnBnClickedButton6)
-    ON_COMMAND(ID_TOOLS_VS,         &CMFCApplication1Dlg::OnBnClickedButton7)
-    ON_COMMAND(ID_TOOLS_BILIBILI,   &CMFCApplication1Dlg::OnBnClickedButton8)
-    ON_COMMAND(ID_TOOLS_STUDY,      &CMFCApplication1Dlg::OnBnClickedButton9)
-    ON_COMMAND(ID_TOOLS_DOWNLOAD,   &CMFCApplication1Dlg::OnBnClickedButton21)
     ON_COMMAND(ID_TOOLS_POWERSHELL, &CMFCApplication1Dlg::OnBnClickedButton27)
     ON_COMMAND(ID_TOOLS_WSL,        &CMFCApplication1Dlg::OnBnClickedButton28)
     ON_COMMAND(ID_TOOLS_GITBASH,    &CMFCApplication1Dlg::OnBnClickedButton31)
@@ -343,8 +329,6 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_COMMAND(ID_HELP_SHORTCUTS,   &CMFCApplication1Dlg::OnHelpShortcuts)
     ON_COMMAND(ID_HELP_GITHUB,      &CMFCApplication1Dlg::OnHelpGithub)
     ON_COMMAND(ID_HELP_REGEX_GUIDE, &CMFCApplication1Dlg::OnHelpRegexGuide)
-    ON_BN_CLICKED(IDC_BUTTON21, &CMFCApplication1Dlg::OnBnClickedButton21)
-    ON_BN_CLICKED(IDC_BUTTON22, &CMFCApplication1Dlg::OnBnClickedButton22)
     ON_BN_CLICKED(IDC_BUTTON23, &CMFCApplication1Dlg::OnBnClickedButton23)
     ON_BN_CLICKED(IDC_BUTTON24, &CMFCApplication1Dlg::OnBnClickedButton24)
     ON_BN_CLICKED(IDC_BUTTON25, &CMFCApplication1Dlg::OnBnClickedButton25)
@@ -353,7 +337,6 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_BN_CLICKED(IDC_CHECK6, &CMFCApplication1Dlg::OnBnClickedCheck6)
     ON_BN_CLICKED(IDC_BUTTON27, &CMFCApplication1Dlg::OnBnClickedButton27)
     ON_BN_CLICKED(IDC_BUTTON28, &CMFCApplication1Dlg::OnBnClickedButton28)
-    ON_BN_CLICKED(IDC_BUTTON29, &CMFCApplication1Dlg::OnBnClickedButton29)
     ON_BN_CLICKED(IDC_BUTTON30, &CMFCApplication1Dlg::OnBnClickedButton30)
     ON_BN_CLICKED(IDC_BUTTON31, &CMFCApplication1Dlg::OnBnClickedButton31)
     ON_BN_CLICKED(IDC_BUTTON32, &CMFCApplication1Dlg::OnBnClickedButton32)
@@ -362,6 +345,24 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_BN_CLICKED(IDC_BUTTON33, &CMFCApplication1Dlg::OnBiliNext)
 #endif
     ON_COMMAND(41001, &CMFCApplication1Dlg::OnBiliNext)
+    // Quick Launch management and dynamic buttons
+    ON_BN_CLICKED(IDC_QL_BTN_MANAGE, &CMFCApplication1Dlg::OnQuickLaunchManage)
+    ON_BN_CLICKED(IDC_QL_BTN0, &CMFCApplication1Dlg::OnQuickLaunchBtn0)
+    ON_BN_CLICKED(IDC_QL_BTN1, &CMFCApplication1Dlg::OnQuickLaunchBtn1)
+    ON_BN_CLICKED(IDC_QL_BTN2, &CMFCApplication1Dlg::OnQuickLaunchBtn2)
+    ON_BN_CLICKED(IDC_QL_BTN3, &CMFCApplication1Dlg::OnQuickLaunchBtn3)
+    ON_BN_CLICKED(IDC_QL_BTN4, &CMFCApplication1Dlg::OnQuickLaunchBtn4)
+    ON_BN_CLICKED(IDC_QL_BTN5, &CMFCApplication1Dlg::OnQuickLaunchBtn5)
+    ON_BN_CLICKED(IDC_QL_BTN6, &CMFCApplication1Dlg::OnQuickLaunchBtn6)
+    ON_BN_CLICKED(IDC_QL_BTN7, &CMFCApplication1Dlg::OnQuickLaunchBtn7)
+    ON_BN_CLICKED(IDC_QL_BTN8, &CMFCApplication1Dlg::OnQuickLaunchBtn8)
+    ON_BN_CLICKED(IDC_QL_BTN9, &CMFCApplication1Dlg::OnQuickLaunchBtn9)
+    ON_BN_CLICKED(IDC_QL_BTN10, &CMFCApplication1Dlg::OnQuickLaunchBtn10)
+    ON_BN_CLICKED(IDC_QL_BTN11, &CMFCApplication1Dlg::OnQuickLaunchBtn11)
+    ON_BN_CLICKED(IDC_QL_BTN12, &CMFCApplication1Dlg::OnQuickLaunchBtn12)
+    ON_BN_CLICKED(IDC_QL_BTN13, &CMFCApplication1Dlg::OnQuickLaunchBtn13)
+    ON_BN_CLICKED(IDC_QL_BTN14, &CMFCApplication1Dlg::OnQuickLaunchBtn14)
+    ON_BN_CLICKED(IDC_QL_BTN15, &CMFCApplication1Dlg::OnQuickLaunchBtn15)
     ON_NOTIFY(NM_DBLCLK, IDC_LIST4, &CMFCApplication1Dlg::OnNMDblclkList4)
     ON_NOTIFY(NM_RCLICK, IDC_LIST4, &CMFCApplication1Dlg::OnNMRclickList4)
     ON_NOTIFY(NM_DBLCLK, IDC_LIST5, &CMFCApplication1Dlg::OnNMDblclkList5)
@@ -451,6 +452,10 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 	if (pTab) nCur = pTab->GetCurSel();
 	UpdateTabVisibility(nCur);
 	UpdateQuickTab(0);
+
+	// Load Quick Launch items
+	LoadQuickLaunchItems();
+	UpdateQuickLaunchButtons();
 
 	// Load initial data
 	if (nCur == 0)
@@ -614,9 +619,10 @@ void CMFCApplication1Dlg::InitQuickTab()
     if (!pTab) return;
 
     auto& loc = CLocalizationManager::GetInstance();
-    pTab->InsertItem(0, loc.GetString(_T("MainDlg"), _T("QuickTab1")));
-    pTab->InsertItem(1, loc.GetString(_T("MainDlg"), _T("QuickTab2")));
-    pTab->InsertItem(2, loc.GetString(_T("MainDlg"), _T("QuickTab3")));
+    pTab->InsertItem(0, loc.GetString(_T("MainDlg"), _T("QuickTab1")));  // AI助手
+    pTab->InsertItem(1, loc.GetString(_T("MainDlg"), _T("QuickTabLaunch"))); // 快捷打开
+    pTab->InsertItem(2, loc.GetString(_T("MainDlg"), _T("QuickTab2")));  // 系统
+    pTab->InsertItem(3, loc.GetString(_T("MainDlg"), _T("QuickTab3")));  // 工具
 
     pTab->SetCurSel(0);
 }
@@ -624,8 +630,11 @@ void CMFCApplication1Dlg::InitQuickTab()
 void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
 {
     static const int kCommonIds[] = {
-        IDC_BUTTON4, IDC_BUTTON5, IDC_BUTTON8, IDC_BUTTON22, IDC_BUTTON7, IDC_BUTTON6,
-        IDC_BUTTON9, IDC_BUTTON11, IDC_BUTTON21, IDC_BUTTON10, IDC_BUTTON29
+        IDC_QL_BTN0, IDC_QL_BTN1, IDC_QL_BTN2, IDC_QL_BTN3,
+        IDC_QL_BTN4, IDC_QL_BTN5, IDC_QL_BTN6, IDC_QL_BTN7,
+        IDC_QL_BTN8, IDC_QL_BTN9, IDC_QL_BTN10, IDC_QL_BTN11,
+        IDC_QL_BTN12, IDC_QL_BTN13, IDC_QL_BTN14, IDC_QL_BTN15,
+        IDC_QL_BTN_MANAGE
     };
     static const int kSystemIds[] = {
         IDC_STATIC_QUICK_SHUTDOWN, IDC_COMBO1, IDC_BUTTON1, IDC_BUTTON2,
@@ -651,14 +660,9 @@ void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
         }
     };
 
-    showGroup(kCommonIds, _countof(kCommonIds), nTab == 0);
-    showGroup(kSystemIds, _countof(kSystemIds), nTab == 1);
-    showGroup(kToolIds, _countof(kToolIds), nTab == 2);
-
-    // AI Assistant controls (right tab 0: Common)
-    // WebBrowser is handled separately to avoid internal state loss on hide/show
+    // AI Assistant controls (tab 0)
     static const int kAiIds[] = {
-        IDC_STATIC_AI_SEP, IDC_STATIC_AI_LABEL, IDC_COMBO_AI_VENDOR,
+        IDC_STATIC_AI_LABEL, IDC_COMBO_AI_VENDOR,
         IDC_EDIT_AI_INPUT, IDC_BUTTON_AI_SEND, IDC_BUTTON_AI_STOP, IDC_BUTTON_AI_CLEAR,
         IDC_BUTTON_AI_HISTORY
     };
@@ -685,6 +689,15 @@ void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
                 SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSENDCHANGING);
         }
     }
+
+    // Quick Launch buttons (tab 1)
+    showGroup(kCommonIds, _countof(kCommonIds), nTab == 1);
+
+    // System tools (tab 2)
+    showGroup(kSystemIds, _countof(kSystemIds), nTab == 2);
+
+    // Tool utilities (tab 3)
+    showGroup(kToolIds, _countof(kToolIds), nTab == 3);
 }
 
 void CMFCApplication1Dlg::OnTcnSelchangeQuickTab(NMHDR* pNMHDR, LRESULT* pResult)
@@ -1548,13 +1561,7 @@ static void TranslateMenuItemsOnly(CMenu* pMenu, const CLocalizationManager& loc
         {ID_VIEW_WINDOW, _T("ViewWindow")},
         {ID_VIEW_FILE, _T("ViewFile")},
         {ID_VIEW_GIT, _T("ViewGit")},
-        {ID_TOOLS_WECHAT, _T("OpenWeChat")},
-        {ID_TOOLS_QQ, _T("OpenQQ")},
-        {ID_TOOLS_VSCODE, _T("OpenVSCode")},
-        {ID_TOOLS_VS, _T("OpenVS")},
-        {ID_TOOLS_BILIBILI, _T("OpenBilibili")},
-        {ID_TOOLS_STUDY, _T("OpenStudy")},
-        {ID_TOOLS_DOWNLOAD, _T("OpenDownload")},
+        
         {ID_TOOLS_POWERSHELL, _T("OpenPowerShell")},
         {ID_TOOLS_WSL, _T("OpenWSL")},
         {ID_TOOLS_GITBASH, _T("OpenGitBash")},
@@ -1698,17 +1705,6 @@ void CMFCApplication1Dlg::TranslateUI()
     SetDlgItemText(IDC_BTN_GIT_LOCATE, loc.GetString(_T("GitTab"), _T("Locate")));
 
     // ===== Quick tab 1 - Favorites =====
-    SetDlgItemText(IDC_BUTTON4, loc.GetString(_T("MainCtrl"), _T("BtnWeChat")));
-    SetDlgItemText(IDC_BUTTON5, loc.GetString(_T("MainCtrl"), _T("BtnQQ")));
-    SetDlgItemText(IDC_BUTTON8, loc.GetString(_T("MainCtrl"), _T("BtnBilibili")));
-    SetDlgItemText(IDC_BUTTON22, loc.GetString(_T("MainCtrl"), _T("BtnYuanbao")));
-    SetDlgItemText(IDC_BUTTON7, loc.GetString(_T("MainCtrl"), _T("BtnVS")));
-    SetDlgItemText(IDC_BUTTON6, loc.GetString(_T("MainCtrl"), _T("BtnVSCode")));
-    SetDlgItemText(IDC_BUTTON9, loc.GetString(_T("MainCtrl"), _T("BtnStudy")));
-    SetDlgItemText(IDC_BUTTON11, loc.GetString(_T("MainCtrl"), _T("BtnMOOC")));
-    SetDlgItemText(IDC_BUTTON21, loc.GetString(_T("MainCtrl"), _T("BtnDownloads")));
-    SetDlgItemText(IDC_BUTTON10, loc.GetString(_T("MainCtrl"), _T("BtnSDUCS")));
-    SetDlgItemText(IDC_BUTTON29, loc.GetString(_T("MainCtrl"), _T("BtnLeetCode")));
     SetDlgItemText(IDC_BUTTON33, loc.GetString(_T("MainCtrl"), _T("BtnNextTrack")));
 
     // ===== Quick tab 2 - System =====
@@ -1723,6 +1719,10 @@ void CMFCApplication1Dlg::TranslateUI()
     SetDlgItemText(IDC_BUTTON13, loc.GetString(_T("MainCtrl"), _T("BtnMute")));
     SetDlgItemText(IDC_STATIC_QUICK_SYSMGMT, loc.GetString(_T("MainCtrl"), _T("LabelSystem")));
     SetDlgItemText(IDC_BUTTON20, loc.GetString(_T("MainCtrl"), _T("BtnTaskManager")));
+
+    // ===== Quick Launch buttons =====
+    SetDlgItemText(IDC_QL_BTN_MANAGE, loc.GetString(_T("QuickLaunch"), _T("BtnManage")));
+    UpdateQuickLaunchButtons();
 
     // ===== Quick tab 3 - Tools =====
     SetDlgItemText(IDC_STATIC_QUICK_CMDLINE, loc.GetString(_T("MainCtrl"), _T("LabelCmdLine")));
@@ -1816,10 +1816,8 @@ CString CMFCApplication1Dlg::BuildSystemPrompt()
         _T("=== Right-Side Quick Actions (3 sub-tabs: Favorites / System / Tools) ===\n\n")
 
         _T("\"Favorites\" tab:\n")
-        _T("   - Quick launch buttons: WeChat, QQ, Bilibili, Yuanbao, VS, VSCode\n")
-        _T("   - Open folders: Study, Downloads\n")
-        _T("   - Open URLs: MOOC, SDUCS, LeetCode, GitHub\n")
-        _T("   - \"Next Track\" button: sends ']' key to Bilibili player window, or global media next track\n\n")
+        _T("   - User-configurable quick launch buttons (type: executable, folder, URL, or other file)\n")
+        _T("   - Click \"Manage\" to add, edit, delete, or reorder quick launch items\n\n")
 
         _T("\"System\" tab:\n")
         _T("   - Shutdown/Restart: dropdown with \"Restart in 1 Minute\", \"Shutdown in 3 Minutes\", \"Shutdown at Set Time\" (set hours/min/sec)\n")
@@ -1944,8 +1942,7 @@ CString CMFCApplication1Dlg::BuildSystemPrompt()
         _T("   - Enter: apply in volume input box or execute in command input box\n\n")
 
         _T("=== Configuration ===\n\n")
-        _T("   - File > Settings: configure all application paths (Bilibili, WeChat, QQ, VSCode, VS, Git Bash, Yuanbao), ")
-        _T("folder paths (Study, Downloads, Screenshot, Sticky Note), URLs (MOOC, SDUCS), ")
+        _T("   - File > Settings: configure folder paths (Screenshot, Sticky Note), URLs (MOOC, SDUCS), ")
         _T("auto-clicker interval and start/stop keys, AI vendor and API key\n")
         _T("   - Config file: config.ini in the executable directory\n")
         _T("   - AI vendor and API key can be configured in Settings > \"AI Assistant\" section\n\n")
@@ -2054,10 +2051,8 @@ CString CMFCApplication1Dlg::BuildSystemPrompt()
         _T("=== 右侧快捷操作（3 个子标签页：常用 / 系统 / 工具） ===\n\n")
 
         _T("「常用」标签页：\n")
-        _T("   - 快速启动按钮：微信、QQ、B站、元宝、VS、VSCode\n")
-        _T("   - 打开文件夹：学习、下载\n")
-        _T("   - 打开网址：MOOC、SDUCS、LeetCode、GitHub\n")
-        _T("   - \"下一首\"按钮：向B站播放器窗口发送 ']' 键，或全局媒体下一曲\n\n")
+        _T("   - 用户可配置的快捷打开按钮（支持可执行文件、文件夹、网址、其他文件类型）\n")
+        _T("   - 点击\"管理\"按钮添加、编辑、删除或排序快捷打开项\n\n")
 
         _T("「系统」标签页：\n")
         _T("   - 关机/重启：下拉菜单包含\"1分钟后重启\"、\"3分钟后关机\"、\"自定义时间关机\"（可设置时/分/秒）\n")
@@ -2182,8 +2177,7 @@ CString CMFCApplication1Dlg::BuildSystemPrompt()
         _T("   - 回车：在音量输入框或命令输入框中应用/执行\n\n")
 
         _T("=== 配置 ===\n\n")
-        _T("   - 文件 > 设置：配置所有应用路径（B站、微信、QQ、VSCode、VS、Git Bash、元宝），")
-        _T("文件夹路径（学习、下载、截图、便签），网址（MOOC、SDUCS），")
+        _T("   - 文件 > 设置：配置文件夹路径（截图、便签），网址（MOOC、SDUCS），")
         _T("连点器间隔和开始/停止键，AI 供应商和 API 密钥\n")
         _T("   - 配置文件：可执行文件所在目录下的 config.ini\n")
         _T("   - AI 供应商和 API 密钥可在设置 > \"AI 助手\"区域配置\n\n")

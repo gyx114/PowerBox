@@ -149,7 +149,8 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("MainDlg"), _T("Tab6"))] = _T("git工具箱");
 
     // Quick tabs
-    m_defaults[MakeKey(_T("MainDlg"), _T("QuickTab1"))] = _T("常用");
+    m_defaults[MakeKey(_T("MainDlg"), _T("QuickTab1"))] = _T("AI助手");
+    m_defaults[MakeKey(_T("MainDlg"), _T("QuickTabLaunch"))] = _T("快捷打开");
     m_defaults[MakeKey(_T("MainDlg"), _T("QuickTab2"))] = _T("系统");
     m_defaults[MakeKey(_T("MainDlg"), _T("QuickTab3"))] = _T("工具");
 
@@ -294,14 +295,7 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("Msg"), _T("MsgEndProcessTitle"))] = _T("结束进程");
     m_defaults[MakeKey(_T("Msg"), _T("MsgPleaseEnterCommand"))] = _T("请输入要运行的命令。");
     m_defaults[MakeKey(_T("Msg"), _T("MsgRunCmdFailed"))] = _T("运行命令失败");
-    m_defaults[MakeKey(_T("Msg"), _T("MsgBiliNotFound"))] = _T("未找到或未设置Bilibili可执行文件，请先设置路径。");
-    m_defaults[MakeKey(_T("Msg"), _T("MsgWeChatNotFound"))] = _T("未找到微信可执行文件，请检查路径。");
-    m_defaults[MakeKey(_T("Msg"), _T("MsgQQNotFound"))] = _T("未找到QQ可执行文件，请检查路径。");
-    m_defaults[MakeKey(_T("Msg"), _T("MsgVSCodeNotFound"))] = _T("未找到VS Code可执行文件，请检查路径。");
-    m_defaults[MakeKey(_T("Msg"), _T("MsgVSNotFound"))] = _T("未找到Visual Studio可执行文件，请检查路径。");
-    m_defaults[MakeKey(_T("Msg"), _T("MsgStudyNotFound"))] = _T("未找到学习文件夹，请检查路径。");
-    m_defaults[MakeKey(_T("Msg"), _T("MsgDownloadNotFound"))] = _T("未找到下载文件夹，请检查路径。");
-    m_defaults[MakeKey(_T("Msg"), _T("MsgYuanbaoNotFound"))] = _T("未找到或未设置元宝可执行文件，请先设置路径。");
+    
     m_defaults[MakeKey(_T("Msg"), _T("MsgPreventLockFail"))] = _T("设置防锁屏失败。");
     m_defaults[MakeKey(_T("Msg"), _T("MsgPowerShellFail"))] = _T("启动PowerShell失败");
     m_defaults[MakeKey(_T("Msg"), _T("MsgPowerShellAdminFail"))] = _T("以管理员权限启动PowerShell失败");
@@ -394,17 +388,6 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("MainCtrl"), _T("BtnRegex"))] = _T("正则");
     m_defaults[MakeKey(_T("MainCtrl"), _T("BtnAiScan"))] = _T("AI扫描");
     m_defaults[MakeKey(_T("MainCtrl"), _T("BtnRegexHelp"))] = _T("帮助");
-    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnWeChat"))] = _T("微信");
-    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnQQ"))] = _T("QQ");
-    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnBilibili"))] = _T("B站");
-    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnYuanbao"))] = _T("元宝");
-    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnVS"))] = _T("VS");
-    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnVSCode"))] = _T("VSCode");
-    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnStudy"))] = _T("学习");
-    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnMOOC"))] = _T("MOOC");
-    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnDownloads"))] = _T("下载");
-    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnSDUCS"))] = _T("SDUCS");
-    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnLeetCode"))] = _T("LeetCode");
     m_defaults[MakeKey(_T("MainCtrl"), _T("BtnNextTrack"))] = _T("下一首");
     m_defaults[MakeKey(_T("MainCtrl"), _T("LabelShutdown"))] = _T("关机");
     m_defaults[MakeKey(_T("MainCtrl"), _T("BtnExecute"))] = _T("执行");
@@ -477,8 +460,6 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("Settings"), _T("GroupFileNaming"))] = _T("文件命名");
     m_defaults[MakeKey(_T("Settings"), _T("LabelDefaultName"))] = _T("默认文件名:");
     m_defaults[MakeKey(_T("Settings"), _T("GroupPathSettings"))] = _T("路径设置");
-    m_defaults[MakeKey(_T("Settings"), _T("LabelStudy"))] = _T("学习文件夹:");
-    m_defaults[MakeKey(_T("Settings"), _T("LabelDownload"))] = _T("下载文件夹:");
     m_defaults[MakeKey(_T("Settings"), _T("LabelScreenshot"))] = _T("截图保存目录:");
     m_defaults[MakeKey(_T("Settings"), _T("LabelStickyDir"))] = _T("便签保存目录:");
     m_defaults[MakeKey(_T("Settings"), _T("LabelClickInterval"))] = _T("连点器间隔(ms):");
@@ -496,15 +477,6 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("Settings"), _T("BtnOK"))] = _T("确定");
     m_defaults[MakeKey(_T("Settings"), _T("BtnCancel"))] = _T("取消");
     m_defaults[MakeKey(_T("Settings"), _T("GroupAutoClicker"))] = _T("连点器");
-    m_defaults[MakeKey(_T("Settings"), _T("DlgTitleBili"))] = _T("选择Bilibili可执行文件");
-    m_defaults[MakeKey(_T("Settings"), _T("DlgTitleWeChat"))] = _T("选择微信可执行文件");
-    m_defaults[MakeKey(_T("Settings"), _T("DlgTitleQQ"))] = _T("选择QQ可执行文件");
-    m_defaults[MakeKey(_T("Settings"), _T("DlgTitleVSCode"))] = _T("选择VS Code可执行文件");
-    m_defaults[MakeKey(_T("Settings"), _T("DlgTitleVS"))] = _T("选择Visual Studio可执行文件");
-    m_defaults[MakeKey(_T("Settings"), _T("DlgTitleGitBash"))] = _T("选择Git Bash可执行文件");
-    m_defaults[MakeKey(_T("Settings"), _T("DlgTitleYuanbao"))] = _T("选择元宝可执行文件");
-    m_defaults[MakeKey(_T("Settings"), _T("DlgTitleStudy"))] = _T("选择学习文件夹");
-    m_defaults[MakeKey(_T("Settings"), _T("DlgTitleDownload"))] = _T("选择下载文件夹");
     m_defaults[MakeKey(_T("Settings"), _T("DlgTitleScreenshot"))] = _T("选择截图保存目录");
     m_defaults[MakeKey(_T("Settings"), _T("DlgTitleSticky"))] = _T("选择便签保存目录");
     m_defaults[MakeKey(_T("Settings"), _T("MsgKeySame"))] = _T("开始键和停止键不能相同，请重新设置。");
@@ -684,6 +656,11 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("Markdown"), _T("BtnOpen"))] = _T("打开");
     m_defaults[MakeKey(_T("Markdown"), _T("ExecuteBtn"))] = _T("执行");
     m_defaults[MakeKey(_T("Markdown"), _T("StatusReady"))] = _T("就绪");
+    m_defaults[MakeKey(_T("Markdown"), _T("PurposeLabel"))] = _T("用途：");
+    m_defaults[MakeKey(_T("Markdown"), _T("RiskLevelLabel"))] = _T("风险等级：");
+    m_defaults[MakeKey(_T("Markdown"), _T("RiskLow"))] = _T("低");
+    m_defaults[MakeKey(_T("Markdown"), _T("RiskMedium"))] = _T("中");
+    m_defaults[MakeKey(_T("Markdown"), _T("RiskHigh"))] = _T("高");
 
     // ===== Encoding Converter =====
     m_defaults[MakeKey(_T("Encoding"), _T("BtnOpen"))] = _T("打开");
@@ -755,7 +732,6 @@ void CLocalizationManager::LoadBuiltinDefaults()
     // ===== WSL/PowerShell =====
     m_defaults[MakeKey(_T("ToolLaunch"), _T("PowerShell"))] = _T("PowerShell");
     m_defaults[MakeKey(_T("ToolLaunch"), _T("WSL"))] = _T("WSL");
-    m_defaults[MakeKey(_T("ToolLaunch"), _T("LeetCode"))] = _T("LeetCode");
     m_defaults[MakeKey(_T("ToolLaunch"), _T("GitHub"))] = _T("GitHub");
 
     // ===== Filter controls =====
@@ -777,13 +753,8 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("Menu"), _T("ViewFile"))] = _T("文件管理(&F)");
     m_defaults[MakeKey(_T("Menu"), _T("ViewGit"))] = _T("git工具箱(&G)");
     m_defaults[MakeKey(_T("Menu"), _T("Open"))] = _T("打开(&O)");
-    m_defaults[MakeKey(_T("Menu"), _T("OpenWeChat"))] = _T("微信(&W)");
-    m_defaults[MakeKey(_T("Menu"), _T("OpenQQ"))] = _T("QQ(&Q)");
-    m_defaults[MakeKey(_T("Menu"), _T("OpenVSCode"))] = _T("VS Code(&C)");
-    m_defaults[MakeKey(_T("Menu"), _T("OpenVS"))] = _T("Visual Studio(&V)");
-    m_defaults[MakeKey(_T("Menu"), _T("OpenBilibili"))] = _T("哔哩哔哩(&B)");
-    m_defaults[MakeKey(_T("Menu"), _T("OpenStudy"))] = _T("学习文件夹(&L)");
-    m_defaults[MakeKey(_T("Menu"), _T("OpenDownload"))] = _T("下载文件夹(&D)");
+    
+    
     m_defaults[MakeKey(_T("Menu"), _T("OpenPowerShell"))] = _T("PowerShell(&P)");
     m_defaults[MakeKey(_T("Menu"), _T("OpenWSL"))] = _T("WSL(&S)");
     m_defaults[MakeKey(_T("Menu"), _T("OpenGitBash"))] = _T("Git Bash(&G)");
@@ -1067,10 +1038,7 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("Msg"), _T("WslLaunchFailed"))] = _T("启动 WSL 失败。");
     m_defaults[MakeKey(_T("Msg"), _T("OpenLinkFailed"))] = _T("无法打开链接。");
     m_defaults[MakeKey(_T("Msg"), _T("GitBashNotFound"))] = _T("未找到 Git Bash，请检查设置。");
-    m_defaults[MakeKey(_T("Msg"), _T("StudyFolderNotFound"))] = _T("未找到学习文件夹。");
-    m_defaults[MakeKey(_T("Msg"), _T("DownloadFolderNotFound"))] = _T("未找到下载文件夹。");
-    m_defaults[MakeKey(_T("Msg"), _T("DlgTitleStudyFolder"))] = _T("选择学习文件夹");
-    m_defaults[MakeKey(_T("Msg"), _T("DlgTitleDownloadFolder"))] = _T("选择下载文件夹");
+    
     m_defaults[MakeKey(_T("Msg"), _T("PleaseSelectProcess"))] = _T("请先选择进程。");
     m_defaults[MakeKey(_T("Msg"), _T("ConfirmEndProcesses"))] = _T("确定要结束选中的 %zu 个进程吗？");
     m_defaults[MakeKey(_T("Msg"), _T("EndMoreHint"))] = _T("\n（仅显示前 10 个，共 %zu 个进程）");
@@ -1235,4 +1203,28 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("EnvVar"), _T("PathSelectFolder"))] = _T("选择要添加的文件夹路径");
     m_defaults[MakeKey(_T("EnvVar"), _T("PathSelectNewFolder"))] = _T("选择新的文件夹路径");
     m_defaults[MakeKey(_T("EnvVar"), _T("ExportFilter"))] = _T("文本文件 (*.txt)|*.txt|所有文件 (*.*)|*.*||");
+
+    // ===== Quick Launch =====
+    m_defaults[MakeKey(_T("QuickLaunch"), _T("DlgTitle"))] = _T("管理快速打开");
+    m_defaults[MakeKey(_T("QuickLaunch"), _T("ColName"))] = _T("名称");
+    m_defaults[MakeKey(_T("QuickLaunch"), _T("ColType"))] = _T("类型");
+    m_defaults[MakeKey(_T("QuickLaunch"), _T("ColPath"))] = _T("路径");
+    m_defaults[MakeKey(_T("QuickLaunch"), _T("BtnAdd"))] = _T("添加");
+    m_defaults[MakeKey(_T("QuickLaunch"), _T("BtnEdit"))] = _T("编辑");
+    m_defaults[MakeKey(_T("QuickLaunch"), _T("BtnDelete"))] = _T("删除");
+    m_defaults[MakeKey(_T("QuickLaunch"), _T("BtnUp"))] = _T("上移");
+    m_defaults[MakeKey(_T("QuickLaunch"), _T("BtnDown"))] = _T("下移");
+    m_defaults[MakeKey(_T("QuickLaunch"), _T("BtnOK"))] = _T("确定");
+    m_defaults[MakeKey(_T("QuickLaunch"), _T("AddTitle"))] = _T("添加快速打开项目");
+    m_defaults[MakeKey(_T("QuickLaunch"), _T("EditTitle"))] = _T("编辑快速打开项目");
+    m_defaults[MakeKey(_T("QuickLaunch"), _T("NoSelection"))] = _T("请先选择一个项目");
+    m_defaults[MakeKey(_T("QuickLaunch"), _T("ConfirmDelete"))] = _T("确定要删除 \"%s\" 吗？");
+    m_defaults[MakeKey(_T("QuickLaunch"), _T("ConfirmDeleteTitle"))] = _T("确认删除");
+    m_defaults[MakeKey(_T("QuickLaunch"), _T("ItemNotFound"))] = _T("找不到项目路径：%s");
+    m_defaults[MakeKey(_T("QuickLaunch"), _T("BtnManage"))] = _T("管理");
+    m_defaults[MakeKey(_T("QuickLaunch"), _T("BrowseFolder"))] = _T("选择文件夹");
+    m_defaults[MakeKey(_T("QuickLaunch"), _T("TypeExecutable"))] = _T("可执行文件");
+    m_defaults[MakeKey(_T("QuickLaunch"), _T("TypeFolder"))] = _T("文件夹");
+    m_defaults[MakeKey(_T("QuickLaunch"), _T("TypeUrl"))] = _T("网址");
+    m_defaults[MakeKey(_T("QuickLaunch"), _T("TypeOtherFile"))] = _T("其他文件");
 }

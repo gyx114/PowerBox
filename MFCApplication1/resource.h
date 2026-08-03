@@ -39,14 +39,7 @@
 #define IDC_STATIC_PATH                 1011
 #define IDC_CHECK1                      1014
 #define IDC_CHECK2                      1015
-#define IDC_BUTTON4                     1016
-#define IDC_BUTTON5                     1017
-#define IDC_BUTTON6                     1018
-#define IDC_BUTTON7                     1019
-#define IDC_BUTTON8                     1020
-#define IDC_BUTTON9                     1021
-#define IDC_BUTTON10                    1022
-#define IDC_BUTTON11                    1023
+
 #define IDC_SLIDER1                     1024
 #define IDC_EDIT5                       1025
 #define IDC_BUTTON12                    1026
@@ -61,8 +54,7 @@
 #define IDC_BUTTON19                    1037
 #define IDC_SPLIT1                      1038
 #define IDC_BUTTON20                    1039
-#define IDC_BUTTON21                    1040
-#define IDC_BUTTON22                    1041
+
 #define IDC_STATIC7                     1042
 #define IDC_STATIC13                    1043
 #define IDC_EDIT7                       1044
@@ -77,7 +69,7 @@
 #define IDC_STATIC14                    1061
 #define IDC_BUTTON27                    1066
 #define IDC_BUTTON28                    1067
-#define IDC_BUTTON29                    1068
+
 #define IDC_LIST4                       1069
 #define IDC_BUTTON30                    1070
 #define IDC_BUTTON31                    1071
@@ -85,24 +77,7 @@
 #define IDC_LIST5                       1076
 #define IDC_BUTTON33                    1077
 #define IDC_EDIT_DEFAULT_NAME           1078
-#define IDC_EDIT_BILI_PATH              1079
-#define IDC_BROWSE_BILI                 1080
-#define IDC_EDIT_WECHAT_PATH            1081
-#define IDC_BROWSE_WECHAT               1082
-#define IDC_EDIT_QQ_PATH                1083
-#define IDC_BROWSE_QQ                   1084
-#define IDC_EDIT_VSCODE_PATH            1085
-#define IDC_BROWSE_VSCODE               1086
-#define IDC_EDIT_VS_PATH                1087
-#define IDC_BROWSE_VS                   1088
-#define IDC_EDIT_GITBASH_PATH           1089
-#define IDC_BROWSE_GITBASH              1090
-#define IDC_EDIT_YUANBAO_PATH           1091
-#define IDC_BROWSE_YUANBAO              1092
-#define IDC_EDIT_STUDY_PATH             1093
-#define IDC_BROWSE_STUDY                1094
-#define IDC_EDIT_DOWNLOAD_PATH          1095
-#define IDC_BROWSE_DOWNLOAD             1096
+
 #define IDC_EDIT_MOOC_URL               1097
 #define IDC_EDIT_SDUCS_URL              1098
 #define IDC_SLIDER2                     1099
@@ -267,7 +242,6 @@
 #define IDC_STATIC_QUICK_SEP4           1256
 #define IDC_BTN_FILELOCK_REFRESH2       1244
 // AI Assistant controls
-#define IDC_STATIC_AI_SEP               1259
 #define IDC_STATIC_AI_LABEL             1260
 #define IDC_COMBO_AI_VENDOR             1261
 #define IDC_EDIT_AI_HISTORY             1262
@@ -290,13 +264,7 @@
 #define ID_VIEW_WINDOW                  32781
 #define ID_VIEW_FILE                    32782
 #define ID_VIEW_GIT                     32783
-#define ID_TOOLS_WECHAT                 32784
-#define ID_TOOLS_QQ                     32785
-#define ID_TOOLS_VSCODE                 32786
-#define ID_TOOLS_VS                     32787
-#define ID_TOOLS_BILIBILI               32788
-#define ID_TOOLS_STUDY                  32789
-#define ID_TOOLS_DOWNLOAD               32790
+
 #define ID_TOOLS_POWERSHELL             32791
 #define ID_TOOLS_WSL                    32792
 #define ID_TOOLS_GITBASH                32793
@@ -397,13 +365,44 @@
 #define IDC_STATIC_LANGUAGE            1323
 #define IDC_COMBO_LANGUAGE             1324
 
+// Quick Launch dialog
+#define IDD_QUICK_LAUNCH_DLG           155
+#define IDD_QL_ITEM_DLG                156
+#define IDC_QL_LIST                    1325
+#define IDC_QL_ADD                     1326
+#define IDC_QL_EDIT                    1327
+#define IDC_QL_DELETE                  1328
+#define IDC_QL_UP                      1329
+#define IDC_QL_DOWN                    1330
+#define IDC_QL_EDIT_NAME               1331
+#define IDC_QL_EDIT_PATH               1332
+#define IDC_QL_BROWSE                  1333
+#define IDC_QL_BTN0                    1334
+#define IDC_QL_BTN1                    1335
+#define IDC_QL_BTN2                    1336
+#define IDC_QL_BTN3                    1337
+#define IDC_QL_BTN4                    1338
+#define IDC_QL_BTN5                    1339
+#define IDC_QL_BTN6                    1340
+#define IDC_QL_BTN7                    1341
+#define IDC_QL_BTN8                    1342
+#define IDC_QL_BTN9                    1343
+#define IDC_QL_BTN10                   1344
+#define IDC_QL_BTN11                   1345
+#define IDC_QL_BTN12                   1346
+#define IDC_QL_BTN13                   1347
+#define IDC_QL_BTN14                   1348
+#define IDC_QL_BTN15                   1349
+#define IDC_QL_BTN_MANAGE              1350
+#define IDC_QL_COMBO_TYPE              1351
+
 // Next default values for new objects
 //
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        155
+#define _APS_NEXT_RESOURCE_VALUE        157
 #define _APS_NEXT_COMMAND_VALUE         32846
-#define _APS_NEXT_CONTROL_VALUE         1325
+#define _APS_NEXT_CONTROL_VALUE         1352
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

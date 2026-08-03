@@ -11,15 +11,6 @@ public:
     virtual void PostNcDestroy() override;
     afx_msg void OnClose();
     afx_msg void OnCbnSelchangeLanguage();
-    void OnBrowseBili();
-    void OnBrowseWeChat();
-    void OnBrowseQQ();
-    void OnBrowseVSCode();
-    void OnBrowseVS();
-    void OnBrowseGitBash();
-    void OnBrowseYuanbao();
-    void OnBrowseStudy();
-    void OnBrowseDownload();
     void OnBrowseScreenshot();
     void OnBrowseStickyDir();
     afx_msg void OnBnClickedAiKeyShow();

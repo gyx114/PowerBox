@@ -9,28 +9,10 @@
 
 CSettingsDlg::CSettingsDlg(CWnd* pParent /*= nullptr*/) : CDialogEx(IDD_SETTINGS_DIALOG, pParent) {}
 
-void CSettingsDlg::OnBrowseBili() { BrowseFile(IDC_EDIT_BILI_PATH, CLocalizationManager::GetInstance().GetString(_T("Settings"), _T("DlgTitleBili"))); }
-void CSettingsDlg::OnBrowseWeChat() { BrowseFile(IDC_EDIT_WECHAT_PATH, CLocalizationManager::GetInstance().GetString(_T("Settings"), _T("DlgTitleWeChat"))); }
-void CSettingsDlg::OnBrowseQQ() { BrowseFile(IDC_EDIT_QQ_PATH, CLocalizationManager::GetInstance().GetString(_T("Settings"), _T("DlgTitleQQ"))); }
-void CSettingsDlg::OnBrowseVSCode() { BrowseFile(IDC_EDIT_VSCODE_PATH, CLocalizationManager::GetInstance().GetString(_T("Settings"), _T("DlgTitleVSCode"))); }
-void CSettingsDlg::OnBrowseVS() { BrowseFile(IDC_EDIT_VS_PATH, CLocalizationManager::GetInstance().GetString(_T("Settings"), _T("DlgTitleVS"))); }
-void CSettingsDlg::OnBrowseGitBash() { BrowseFile(IDC_EDIT_GITBASH_PATH, CLocalizationManager::GetInstance().GetString(_T("Settings"), _T("DlgTitleGitBash"))); }
-void CSettingsDlg::OnBrowseYuanbao() { BrowseFile(IDC_EDIT_YUANBAO_PATH, CLocalizationManager::GetInstance().GetString(_T("Settings"), _T("DlgTitleYuanbao"))); }
-void CSettingsDlg::OnBrowseStudy() { BrowseFolder(IDC_EDIT_STUDY_PATH, CLocalizationManager::GetInstance().GetString(_T("Settings"), _T("DlgTitleStudy"))); }
-void CSettingsDlg::OnBrowseDownload() { BrowseFolder(IDC_EDIT_DOWNLOAD_PATH, CLocalizationManager::GetInstance().GetString(_T("Settings"), _T("DlgTitleDownload"))); }
 void CSettingsDlg::OnBrowseScreenshot() { BrowseFolder(IDC_EDIT_SCREENSHOT_DIR, CLocalizationManager::GetInstance().GetString(_T("Settings"), _T("DlgTitleScreenshot"))); }
 void CSettingsDlg::OnBrowseStickyDir() { BrowseFolder(IDC_EDIT_STICKY_DIR, CLocalizationManager::GetInstance().GetString(_T("Settings"), _T("DlgTitleSticky"))); }
 
 BEGIN_MESSAGE_MAP(CSettingsDlg, CDialogEx)
-    ON_BN_CLICKED(IDC_BROWSE_BILI, &CSettingsDlg::OnBrowseBili)
-    ON_BN_CLICKED(IDC_BROWSE_WECHAT, &CSettingsDlg::OnBrowseWeChat)
-    ON_BN_CLICKED(IDC_BROWSE_QQ, &CSettingsDlg::OnBrowseQQ)
-    ON_BN_CLICKED(IDC_BROWSE_VSCODE, &CSettingsDlg::OnBrowseVSCode)
-    ON_BN_CLICKED(IDC_BROWSE_VS, &CSettingsDlg::OnBrowseVS)
-    ON_BN_CLICKED(IDC_BROWSE_GITBASH, &CSettingsDlg::OnBrowseGitBash)
-    ON_BN_CLICKED(IDC_BROWSE_YUANBAO, &CSettingsDlg::OnBrowseYuanbao)
-    ON_BN_CLICKED(IDC_BROWSE_STUDY, &CSettingsDlg::OnBrowseStudy)
-    ON_BN_CLICKED(IDC_BROWSE_DOWNLOAD, &CSettingsDlg::OnBrowseDownload)
     ON_BN_CLICKED(IDC_BROWSE_SCREENSHOT, &CSettingsDlg::OnBrowseScreenshot)
     ON_BN_CLICKED(IDC_BROWSE_STICKY_DIR, &CSettingsDlg::OnBrowseStickyDir)
     ON_BN_CLICKED(IDC_BUTTON_AI_KEY_SHOW, &CSettingsDlg::OnBnClickedAiKeyShow)
@@ -73,8 +55,6 @@ BOOL CSettingsDlg::OnInitDialog()
 
     // Static labels (find by current text)
     SetChildTextByCurrentText(this, _T("默认文件名:"), loc.GetString(_T("Settings"), _T("LabelDefaultName")));
-    SetChildTextByCurrentText(this, _T("学习文件夹:"), loc.GetString(_T("Settings"), _T("LabelStudy")));
-    SetChildTextByCurrentText(this, _T("下载文件夹:"), loc.GetString(_T("Settings"), _T("LabelDownload")));
     SetChildTextByCurrentText(this, _T("截图保存目录:"), loc.GetString(_T("Settings"), _T("LabelScreenshot")));
     SetChildTextByCurrentText(this, _T("便签保存目录:"), loc.GetString(_T("Settings"), _T("LabelStickyDir")));
     SetChildTextByCurrentText(this, _T("连点器间隔(ms):"), loc.GetString(_T("Settings"), _T("LabelClickInterval")));
@@ -83,15 +63,6 @@ BOOL CSettingsDlg::OnInitDialog()
     SetChildTextByCurrentText(this, _T("切换语言后应用将自动重启。"), loc.GetString(_T("Settings"), _T("LanguageRestartHint")));
 
     // Browse buttons (unique IDs)
-    SetDlgItemText(IDC_BROWSE_BILI, loc.GetString(_T("Settings"), _T("BtnBrowse")));
-    SetDlgItemText(IDC_BROWSE_WECHAT, loc.GetString(_T("Settings"), _T("BtnBrowse")));
-    SetDlgItemText(IDC_BROWSE_QQ, loc.GetString(_T("Settings"), _T("BtnBrowse")));
-    SetDlgItemText(IDC_BROWSE_VSCODE, loc.GetString(_T("Settings"), _T("BtnBrowse")));
-    SetDlgItemText(IDC_BROWSE_VS, loc.GetString(_T("Settings"), _T("BtnBrowse")));
-    SetDlgItemText(IDC_BROWSE_GITBASH, loc.GetString(_T("Settings"), _T("BtnBrowse")));
-    SetDlgItemText(IDC_BROWSE_YUANBAO, loc.GetString(_T("Settings"), _T("BtnBrowse")));
-    SetDlgItemText(IDC_BROWSE_STUDY, loc.GetString(_T("Settings"), _T("BtnBrowse")));
-    SetDlgItemText(IDC_BROWSE_DOWNLOAD, loc.GetString(_T("Settings"), _T("BtnBrowse")));
     SetDlgItemText(IDC_BROWSE_SCREENSHOT, loc.GetString(_T("Settings"), _T("BtnBrowse")));
     SetDlgItemText(IDC_BROWSE_STICKY_DIR, loc.GetString(_T("Settings"), _T("BtnBrowse")));
 
@@ -108,15 +79,6 @@ BOOL CSettingsDlg::OnInitDialog()
     SetDlgItemText(IDCANCEL, loc.GetString(_T("Settings"), _T("BtnCancel")));
 
     SetDlgItemText(IDC_EDIT_DEFAULT_NAME, AfxGetApp()->GetProfileString(_T("Template"), _T("DefaultReportName"), _T("")));
-    SetDlgItemText(IDC_EDIT_BILI_PATH, AfxGetApp()->GetProfileString(_T("Paths"), _T("BiliPath"), _T("")));
-    SetDlgItemText(IDC_EDIT_WECHAT_PATH, AfxGetApp()->GetProfileString(_T("Paths"), _T("WeChatPath"), _T("")));
-    SetDlgItemText(IDC_EDIT_QQ_PATH, AfxGetApp()->GetProfileString(_T("Paths"), _T("QQPath"), _T("")));
-    SetDlgItemText(IDC_EDIT_VSCODE_PATH, AfxGetApp()->GetProfileString(_T("Paths"), _T("VSCodePath"), _T("")));
-    SetDlgItemText(IDC_EDIT_VS_PATH, AfxGetApp()->GetProfileString(_T("Paths"), _T("VSPath"), _T("")));
-    SetDlgItemText(IDC_EDIT_GITBASH_PATH, AfxGetApp()->GetProfileString(_T("Paths"), _T("GitBashPath"), _T("")));
-    SetDlgItemText(IDC_EDIT_YUANBAO_PATH, AfxGetApp()->GetProfileString(_T("Paths"), _T("YuanbaoPath"), _T("")));
-    SetDlgItemText(IDC_EDIT_STUDY_PATH, AfxGetApp()->GetProfileString(_T("Paths"), _T("StudyFolder"), _T("")));
-    SetDlgItemText(IDC_EDIT_DOWNLOAD_PATH, AfxGetApp()->GetProfileString(_T("Paths"), _T("DownloadFolder"), _T("")));
     SetDlgItemText(IDC_EDIT_MOOC_URL, AfxGetApp()->GetProfileString(_T("Sites"), _T("MoocUrl"), _T("")));
     SetDlgItemText(IDC_EDIT_SDUCS_URL, AfxGetApp()->GetProfileString(_T("Sites"), _T("Sducs"), _T("")));
 
@@ -208,15 +170,6 @@ void CSettingsDlg::OnOK()
 {
     CString v;
     GetDlgItemText(IDC_EDIT_DEFAULT_NAME, v); AfxGetApp()->WriteProfileString(_T("Template"), _T("DefaultReportName"), v);
-    GetDlgItemText(IDC_EDIT_BILI_PATH, v); AfxGetApp()->WriteProfileString(_T("Paths"), _T("BiliPath"), v);
-    GetDlgItemText(IDC_EDIT_WECHAT_PATH, v); AfxGetApp()->WriteProfileString(_T("Paths"), _T("WeChatPath"), v);
-    GetDlgItemText(IDC_EDIT_QQ_PATH, v); AfxGetApp()->WriteProfileString(_T("Paths"), _T("QQPath"), v);
-    GetDlgItemText(IDC_EDIT_VSCODE_PATH, v); AfxGetApp()->WriteProfileString(_T("Paths"), _T("VSCodePath"), v);
-    GetDlgItemText(IDC_EDIT_VS_PATH, v); AfxGetApp()->WriteProfileString(_T("Paths"), _T("VSPath"), v);
-    GetDlgItemText(IDC_EDIT_GITBASH_PATH, v); AfxGetApp()->WriteProfileString(_T("Paths"), _T("GitBashPath"), v);
-    GetDlgItemText(IDC_EDIT_YUANBAO_PATH, v); AfxGetApp()->WriteProfileString(_T("Paths"), _T("YuanbaoPath"), v);
-    GetDlgItemText(IDC_EDIT_STUDY_PATH, v); AfxGetApp()->WriteProfileString(_T("Paths"), _T("StudyFolder"), v);
-    GetDlgItemText(IDC_EDIT_DOWNLOAD_PATH, v); AfxGetApp()->WriteProfileString(_T("Paths"), _T("DownloadFolder"), v);
     GetDlgItemText(IDC_EDIT_SCREENSHOT_DIR, v); AfxGetApp()->WriteProfileString(_T("Paths"), _T("ScreenshotDir"), v);
     GetDlgItemText(IDC_EDIT_STICKY_DIR, v); AfxGetApp()->WriteProfileString(_T("StickyNote"), _T("SaveFolder"), v);
     GetDlgItemText(IDC_EDIT_MOOC_URL, v); AfxGetApp()->WriteProfileString(_T("Sites"), _T("MoocUrl"), v);

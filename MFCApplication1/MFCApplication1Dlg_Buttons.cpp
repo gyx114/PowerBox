@@ -8,6 +8,7 @@
 #include "GitCmdResultDlg.h"
 #include "AIApiClient.h"
 #include "LocalizationManager.h"
+#include "QuickLaunchDlg.h"
 #include <TlHelp32.h>
 #include <Shellapi.h>
 #include <Psapi.h>
@@ -165,12 +166,6 @@ void CMFCApplication1Dlg::OnBiliNext()
     SendInput(2, inputs, sizeof(INPUT));
 }
 
-void CMFCApplication1Dlg::OnBnClickedButton10()
-{
-    CString url = AfxGetApp()->GetProfileString(_T("Sites"), _T("Sducs"), _T(""));
-    ::ShellExecute(NULL, _T("open"), url, NULL, NULL, SW_SHOWNORMAL);
-}
-
 void CMFCApplication1Dlg::OnBnClickedButton1()
 {
     // Execute: determine selection
@@ -195,21 +190,6 @@ void CMFCApplication1Dlg::OnBnClickedButton1()
         CString cmd;
         cmd.Format(_T("/s /t %d"), seconds);
         ::ShellExecute(NULL, _T("open"), _T("shutdown.exe"), cmd, NULL, SW_HIDE);
-    }
-}
-
-void CMFCApplication1Dlg::OnBnClickedButton8()
-{
-    auto& loc = CLocalizationManager::GetInstance();
-    CString strPath = GetOrAskPath(this, _T("BiliPath"), loc.GetString(_T("Settings"), _T("DlgTitleBili")), false);
-
-    if (!strPath.IsEmpty() && GetFileAttributes(strPath) != INVALID_FILE_ATTRIBUTES)
-    {
-        ::ShellExecute(NULL, _T("open"), strPath, NULL, NULL, SW_SHOWNORMAL);
-    }
-    else
-    {
-        MessageBox(loc.GetString(_T("Msg"), _T("BiliNotFound")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
     }
 }
 
@@ -255,173 +235,6 @@ void CMFCApplication1Dlg::OnCbnSelchangeCombo1()
         pE3->SetReadOnly(!enable);
         pE3->EnableWindow(enable);
     }
-}
-
-void CMFCApplication1Dlg::OnBnClickedButton4()
-{
-    auto& loc = CLocalizationManager::GetInstance();
-    // 1. Check if WeChat is running by enumerating processes
-    bool bIsWeChatRunning = false;
-    HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (hProcessSnap != INVALID_HANDLE_VALUE)
-    {
-        PROCESSENTRY32 pe32;
-        pe32.dwSize = sizeof(PROCESSENTRY32);
-
-        if (Process32First(hProcessSnap, &pe32))
-        {
-            do
-            {
-                CString strExeFile = pe32.szExeFile;
-                strExeFile.MakeLower();
-                if (strExeFile == _T("wechat.exe") || strExeFile == _T("weixin.exe"))
-                {
-                    bIsWeChatRunning = true;
-                    break;
-                }
-            } while (Process32Next(hProcessSnap, &pe32));
-        }
-        CloseHandle(hProcessSnap);
-    }
-
-    if (bIsWeChatRunning)
-    {
-        // WeChat is running, simulate its default global hotkey Ctrl + Alt + W
-        INPUT inputs[6] = { 0 };
-
-        inputs[0].type = INPUT_KEYBOARD;
-        inputs[0].ki.wVk = VK_CONTROL;
-
-        inputs[1].type = INPUT_KEYBOARD;
-        inputs[1].ki.wVk = VK_MENU;
-
-        inputs[2].type = INPUT_KEYBOARD;
-        inputs[2].ki.wVk = 'W';
-
-        inputs[3].type = INPUT_KEYBOARD;
-        inputs[3].ki.wVk = 'W';
-        inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
-
-        inputs[4].type = INPUT_KEYBOARD;
-        inputs[4].ki.wVk = VK_MENU;
-        inputs[4].ki.dwFlags = KEYEVENTF_KEYUP;
-
-        inputs[5].type = INPUT_KEYBOARD;
-        inputs[5].ki.wVk = VK_CONTROL;
-        inputs[5].ki.dwFlags = KEYEVENTF_KEYUP;
-
-        SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
-    }
-    else
-    {
-        CString path = GetOrAskPath(this, _T("WeChatPath"), loc.GetString(_T("Settings"), _T("DlgTitleWeChat")), false);
-        if (!path.IsEmpty()) ::ShellExecute(NULL, _T("open"), path, NULL, NULL, SW_SHOWNORMAL);
-        else MessageBox(loc.GetString(_T("Msg"), _T("WeChatNotFound")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
-    }
-}
-
-void CMFCApplication1Dlg::OnBnClickedButton5()
-{
-    auto& loc = CLocalizationManager::GetInstance();
-    // 1. Check if QQ is running by enumerating processes
-    bool bIsQQRunning = false;
-    HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (hProcessSnap != INVALID_HANDLE_VALUE)
-    {
-        PROCESSENTRY32 pe32;
-        pe32.dwSize = sizeof(PROCESSENTRY32);
-
-        if (Process32First(hProcessSnap, &pe32))
-        {
-            do
-            {
-                CString strExeFile = pe32.szExeFile;
-                strExeFile.MakeLower(); // Convert to lowercase for matching
-                if (strExeFile == _T("qq.exe"))
-                {
-                    bIsQQRunning = true;
-                    break;
-                }
-            } while (Process32Next(hProcessSnap, &pe32));
-        }
-        CloseHandle(hProcessSnap);
-    }
-
-    if (bIsQQRunning)
-    {
-        // QQ is running, simulate hotkey Ctrl + Alt + X
-        INPUT inputs[6] = { 0 };
-
-        // 1. Press Ctrl
-        inputs[0].type = INPUT_KEYBOARD;
-        inputs[0].ki.wVk = VK_CONTROL;
-
-        // 2. Press Alt
-        inputs[1].type = INPUT_KEYBOARD;
-        inputs[1].ki.wVk = VK_MENU;
-
-        // 3. Press X
-        inputs[2].type = INPUT_KEYBOARD;
-        inputs[2].ki.wVk = 'X';
-
-        // 4. Release X
-        inputs[3].type = INPUT_KEYBOARD;
-        inputs[3].ki.wVk = 'X';
-        inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
-
-        // 5. Release Alt
-        inputs[4].type = INPUT_KEYBOARD;
-        inputs[4].ki.wVk = VK_MENU;
-        inputs[4].ki.dwFlags = KEYEVENTF_KEYUP;
-
-        // 6. Release Ctrl
-        inputs[5].type = INPUT_KEYBOARD;
-        inputs[5].ki.wVk = VK_CONTROL;
-        inputs[5].ki.dwFlags = KEYEVENTF_KEYUP;
-
-        // Send input
-        SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
-    }
-    else
-    {
-        CString path = GetOrAskPath(this, _T("QQPath"), loc.GetString(_T("Settings"), _T("DlgTitleQQ")), false);
-        if (!path.IsEmpty()) ::ShellExecute(NULL, _T("open"), path, NULL, NULL, SW_SHOWNORMAL);
-        else MessageBox(loc.GetString(_T("Msg"), _T("QQNotFound")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
-    }
-}
-
-void CMFCApplication1Dlg::OnBnClickedButton6()
-{
-    auto& loc = CLocalizationManager::GetInstance();
-    CString strPath = GetOrAskPath(this, _T("VSCodePath"), loc.GetString(_T("Settings"), _T("DlgTitleVSCode")), false);
-    if (!strPath.IsEmpty() && GetFileAttributes(strPath) != INVALID_FILE_ATTRIBUTES)
-        ::ShellExecute(NULL, _T("open"), strPath, NULL, NULL, SW_SHOWNORMAL);
-    else
-        MessageBox(loc.GetString(_T("Msg"), _T("VSCodeNotFound")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
-}
-
-void CMFCApplication1Dlg::OnBnClickedButton7()
-{
-    auto& loc = CLocalizationManager::GetInstance();
-    CString strPath = GetOrAskPath(this, _T("VSPath"), loc.GetString(_T("Settings"), _T("DlgTitleVS")), false);
-    if (!strPath.IsEmpty() && GetFileAttributes(strPath) != INVALID_FILE_ATTRIBUTES)
-        ::ShellExecute(NULL, _T("open"), strPath, NULL, NULL, SW_SHOWNORMAL);
-    else
-        MessageBox(loc.GetString(_T("Msg"), _T("VSNotFound")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
-}
-
-void CMFCApplication1Dlg::OnBnClickedButton9()
-{
-    auto& loc = CLocalizationManager::GetInstance();
-    CString path = GetOrAskPath(this, _T("StudyFolder"), loc.GetString(_T("Settings"), _T("DlgTitleStudyFolder")), true);
-    if (!path.IsEmpty()) ::ShellExecute(NULL, _T("open"), path, NULL, NULL, SW_SHOWNORMAL);
-    else MessageBox(loc.GetString(_T("Msg"), _T("StudyFolderNotFound")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
-}
-
-void CMFCApplication1Dlg::OnBnClickedButton11()
-{
-    CString url = AfxGetApp()->GetProfileString(_T("Sites"), _T("MoocUrl"), _T("https://www.icourse163.org/home.htm?userId=1595641987#/home/course"));
-    ::ShellExecute(NULL, _T("open"), url, NULL, NULL, SW_SHOWNORMAL);
 }
 
 void CMFCApplication1Dlg::OnBnClickedButton12()
@@ -561,29 +374,6 @@ void CMFCApplication1Dlg::OnBnClickedButton18()
     SetDlgItemText(IDC_EDIT6, _T(""));
 }
 
-void CMFCApplication1Dlg::OnBnClickedButton21()
-{
-    auto& loc = CLocalizationManager::GetInstance();
-    CString path = GetOrAskPath(this, _T("DownloadFolder"), loc.GetString(_T("Settings"), _T("DlgTitleDownloadFolder")), true);
-    if (!path.IsEmpty()) ::ShellExecute(NULL, _T("open"), path, NULL, NULL, SW_SHOWNORMAL);
-    else MessageBox(loc.GetString(_T("Msg"), _T("DownloadFolderNotFound")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
-}
-
-void CMFCApplication1Dlg::OnBnClickedButton22()
-{
-    auto& loc = CLocalizationManager::GetInstance();
-    CString strPath = GetOrAskPath(this, _T("YuanbaoPath"), loc.GetString(_T("Settings"), _T("DlgTitleYuanbao")), false);
-
-    if (!strPath.IsEmpty() && GetFileAttributes(strPath) != INVALID_FILE_ATTRIBUTES)
-    {
-        ::ShellExecute(NULL, _T("open"), strPath, NULL, NULL, SW_SHOWNORMAL);
-    }
-    else
-    {
-        MessageBox(loc.GetString(_T("Msg"), _T("YuanbaoNotFound")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
-    }
-}
-
 // Handler for IDC_CHECK5: prevent automatic lock/screen-off while checked
 void CMFCApplication1Dlg::OnBnClickedCheck5()
 {
@@ -681,18 +471,6 @@ void CMFCApplication1Dlg::OnBnClickedButton28()
         {
             MessageBox(loc.GetString(_T("Msg"), _T("WslLaunchFailed")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         }
-    }
-}
-
-void CMFCApplication1Dlg::OnBnClickedButton29()
-{
-    auto& loc = CLocalizationManager::GetInstance();
-    // Open LeetCode CN problemset in default browser
-    CString url = _T("https://leetcode.cn/problemset/");
-    HINSTANCE h = ::ShellExecute(m_hWnd, _T("open"), url, NULL, NULL, SW_SHOWNORMAL);
-    if ((INT_PTR)h <= 32)
-    {
-        MessageBox(loc.GetString(_T("Msg"), _T("OpenLinkFailed")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
     }
 }
 
@@ -1141,6 +919,158 @@ void CMFCApplication1Dlg::OnNMRclickList4(NMHDR* pNMHDR, LRESULT* pResult)
     }
 }
 
-// ========== AI command generation ==========
-// Note: AI command generation is now handled by CGitCmdResultDlg::OnBnClickedAiAsk
-// The old OnBnClickedGitAiGen function has been removed (AI input moved to result dialog)
+// ========== Quick Launch: user-configurable buttons ==========
+
+void CMFCApplication1Dlg::LoadQuickLaunchItems()
+{
+    m_qlItems.clear();
+    TCHAR exePath[MAX_PATH] = { 0 };
+    GetModuleFileName(NULL, exePath, MAX_PATH);
+    CString configPath = exePath;
+    int p = configPath.ReverseFind(_T('\\'));
+    if (p != -1) configPath = configPath.Left(p) + _T("\\config.ini");
+    else configPath = _T("config.ini");
+
+    for (int i = 0; i < 99; ++i)
+    {
+        CString key;
+        key.Format(_T("Item%d"), i);
+        TCHAR buf[4096] = {};
+        GetPrivateProfileString(_T("QuickLaunch"), key, _T(""), buf, 4096, configPath);
+        if (buf[0] == _T('\0')) break;
+
+        CString entry(buf);
+        int sep1 = entry.Find(_T('|'));
+        if (sep1 != -1)
+        {
+            QLItem item;
+            item.name = entry.Left(sep1);
+            CString rest = entry.Mid(sep1 + 1);
+            int sep2 = rest.Find(_T('|'));
+            if (sep2 != -1)
+            {
+                item.path = rest.Left(sep2);
+                item.type = _ttoi(rest.Mid(sep2 + 1));
+            }
+            else
+            {
+                item.path = rest;
+                item.type = QLItem::Executable;
+            }
+            m_qlItems.push_back(item);
+        }
+    }
+}
+
+void CMFCApplication1Dlg::SaveQuickLaunchItems()
+{
+    TCHAR exePath[MAX_PATH] = { 0 };
+    GetModuleFileName(NULL, exePath, MAX_PATH);
+    CString configPath = exePath;
+    int p = configPath.ReverseFind(_T('\\'));
+    if (p != -1) configPath = configPath.Left(p) + _T("\\config.ini");
+    else configPath = _T("config.ini");
+
+    // Clear existing entries
+    for (int i = 0; i < 99; ++i)
+    {
+        CString key;
+        key.Format(_T("Item%d"), i);
+        WritePrivateProfileString(_T("QuickLaunch"), key, NULL, configPath);
+    }
+
+    // Write current items
+    for (size_t i = 0; i < m_qlItems.size(); ++i)
+    {
+        CString key, val;
+        key.Format(_T("Item%d"), (int)i);
+        val.Format(_T("%s|%s|%d"), m_qlItems[i].name.GetString(), m_qlItems[i].path.GetString(), m_qlItems[i].type);
+        WritePrivateProfileString(_T("QuickLaunch"), key, val, configPath);
+    }
+}
+
+void CMFCApplication1Dlg::UpdateQuickLaunchButtons()
+{
+    for (int i = 0; i < MAX_QL_BUTTONS; ++i)
+    {
+        CWnd* pBtn = GetDlgItem(QL_BTN_IDS[i]);
+        if (!pBtn) continue;
+
+        if (i < (int)m_qlItems.size())
+        {
+            // Item exists: show button with the item's name
+            pBtn->SetWindowText(m_qlItems[i].name);
+            pBtn->ShowWindow(SW_SHOW);
+        }
+        else
+        {
+            // No item: hide button
+            pBtn->SetWindowText(_T(""));
+            pBtn->ShowWindow(SW_HIDE);
+        }
+    }
+}
+
+void CMFCApplication1Dlg::OnQuickLaunchItem(int index)
+{
+    if (index < 0 || index >= (int)m_qlItems.size())
+        return;
+
+    const QLItem& item = m_qlItems[index];
+    const CString& path = item.path;
+    if (path.IsEmpty()) return;
+
+    switch (item.type)
+    {
+    case QLItem::Url:
+        // URL: open in default browser
+        ::ShellExecute(m_hWnd, _T("open"), path, NULL, NULL, SW_SHOWNORMAL);
+        break;
+
+    case QLItem::Folder:
+        // Directory: open in Explorer
+        ::ShellExecute(m_hWnd, _T("open"), path, NULL, NULL, SW_SHOWNORMAL);
+        break;
+
+    case QLItem::Executable:
+    case QLItem::OtherFile:
+    default:
+        // File: execute with ShellExecute
+        ::ShellExecute(m_hWnd, _T("open"), path, NULL, NULL, SW_SHOWNORMAL);
+        break;
+    }
+}
+
+void CMFCApplication1Dlg::OnQuickLaunchManage()
+{
+    auto& loc = CLocalizationManager::GetInstance();
+
+    // Load current items before opening dialog
+    LoadQuickLaunchItems();
+
+    CQuickLaunchDlg dlg(m_qlItems, this);
+    if (dlg.DoModal() == IDOK)
+    {
+        // Save and update buttons
+        SaveQuickLaunchItems();
+        UpdateQuickLaunchButtons();
+    }
+}
+
+// Individual button handlers
+void CMFCApplication1Dlg::OnQuickLaunchBtn0() { OnQuickLaunchItem(0); }
+void CMFCApplication1Dlg::OnQuickLaunchBtn1() { OnQuickLaunchItem(1); }
+void CMFCApplication1Dlg::OnQuickLaunchBtn2() { OnQuickLaunchItem(2); }
+void CMFCApplication1Dlg::OnQuickLaunchBtn3() { OnQuickLaunchItem(3); }
+void CMFCApplication1Dlg::OnQuickLaunchBtn4() { OnQuickLaunchItem(4); }
+void CMFCApplication1Dlg::OnQuickLaunchBtn5() { OnQuickLaunchItem(5); }
+void CMFCApplication1Dlg::OnQuickLaunchBtn6() { OnQuickLaunchItem(6); }
+void CMFCApplication1Dlg::OnQuickLaunchBtn7() { OnQuickLaunchItem(7); }
+void CMFCApplication1Dlg::OnQuickLaunchBtn8() { OnQuickLaunchItem(8); }
+void CMFCApplication1Dlg::OnQuickLaunchBtn9() { OnQuickLaunchItem(9); }
+void CMFCApplication1Dlg::OnQuickLaunchBtn10() { OnQuickLaunchItem(10); }
+void CMFCApplication1Dlg::OnQuickLaunchBtn11() { OnQuickLaunchItem(11); }
+void CMFCApplication1Dlg::OnQuickLaunchBtn12() { OnQuickLaunchItem(12); }
+void CMFCApplication1Dlg::OnQuickLaunchBtn13() { OnQuickLaunchItem(13); }
+void CMFCApplication1Dlg::OnQuickLaunchBtn14() { OnQuickLaunchItem(14); }
+void CMFCApplication1Dlg::OnQuickLaunchBtn15() { OnQuickLaunchItem(15); }

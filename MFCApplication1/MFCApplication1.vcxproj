@@ -290,6 +290,7 @@ xcopy /y /e /i "$(ProjectDir)lang" "$(OutDir)lang"</Command>
     <ClCompile Include="FileLockDlg.cpp" />
     <ClCompile Include="GitCmdResultDlg.cpp" />
     <ClCompile Include="LocalizationManager.cpp" />
+    <ClCompile Include="QuickLaunchDlg.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="MFCApplication1.rc" />

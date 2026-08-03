@@ -10,6 +10,7 @@
 #include <memory>
 #include <utility>
 #include <map>
+#include "resource.h"
 #include "AutoClicker.h"
 #include "AutoClickerSpeedDlg.h"
 #include "AIApiClient.h"
@@ -27,18 +28,13 @@ class CGitCmdResultDlg;
 // Forward declaration for WebBrowser event sink
 class CWebBrowserEventSink;
 
+// Forward declaration for Quick Launch dialog
+struct QLItem;
+
 // Semantic button aliases
 #define IDC_BTN_SHUTDOWN       IDC_BUTTON1   // Shutdown/Restart
 #define IDC_BTN_CANCEL_SHUTDOWN IDC_BUTTON2  // Cancel shutdown
 #define IDC_BTN_MAKE_COPY      IDC_BUTTON3   // Make copy
-#define IDC_BTN_WECHAT         IDC_BUTTON4   // Launch WeChat
-#define IDC_BTN_QQ             IDC_BUTTON5   // Launch QQ
-#define IDC_BTN_VSCODE         IDC_BUTTON6   // Launch VS Code
-#define IDC_BTN_VS             IDC_BUTTON7   // Launch Visual Studio
-#define IDC_BTN_BILIBILI       IDC_BUTTON8   // Launch Bilibili
-#define IDC_BTN_STUDY          IDC_BUTTON9   // Open study folder
-#define IDC_BTN_LOCAL_SERVER   IDC_BUTTON10  // Open local server
-#define IDC_BTN_MOOC           IDC_BUTTON11  // Open China University MOOC
 #define IDC_BTN_VOLUME_APPLY   IDC_BUTTON12  // Apply volume
 #define IDC_BTN_VOLUME_0       IDC_BUTTON13  // Set volume to 0
 #define IDC_BTN_VOLUME_10      IDC_BUTTON14  // Set volume to 10
@@ -46,15 +42,12 @@ class CWebBrowserEventSink;
 #define IDC_BTN_CLEAR_CMD      IDC_BUTTON18  // Clear command
 #define IDC_BTN_LOCATE         IDC_BUTTON19  // Window locate/topmost
 #define IDC_BTN_TASK_MGR       IDC_BUTTON20  // Open Task Manager
-#define IDC_BTN_DOWNLOAD       IDC_BUTTON21  // Open downloads folder
-#define IDC_BTN_YUANBAO        IDC_BUTTON22  // Launch Yuanbao
 #define IDC_BTN_RENAME_FILE    IDC_BUTTON23  // Rename file
 #define IDC_BTN_DELETE_FILE    IDC_BUTTON24  // Delete file
 #define IDC_BTN_OPEN_FOLDER    IDC_BUTTON25  // Open folder
 #define IDC_BTN_COPY_FILE      IDC_BUTTON26  // Copy file
 #define IDC_BTN_POWERSHELL     IDC_BUTTON27  // Launch PowerShell
 #define IDC_BTN_WSL            IDC_BUTTON28  // Launch WSL
-#define IDC_BTN_LEETCODE       IDC_BUTTON29  // Open LeetCode
 #define IDC_BTN_GITHUB         IDC_BUTTON30  // Open GitHub
 #define IDC_BTN_GIT_BASH       IDC_BUTTON31  // Launch Git Bash
 #define IDC_BTN_CLEAR_PATH     IDC_BUTTON32  // Clear drag-drop path
@@ -158,15 +151,7 @@ public:
 	afx_msg void OnBnClickedButton12(); // apply edit value
 	afx_msg void OnBnClickedButton13(); // set 0
 	afx_msg void OnBnClickedButton14(); // set 60
-	afx_msg void OnBnClickedButton4();
-	afx_msg void OnBnClickedButton5();
-	afx_msg void OnBnClickedButton6();
-	afx_msg void OnBnClickedButton7();
-    afx_msg void OnBnClickedButton9();
-	afx_msg void OnBnClickedButton8();
-	afx_msg void OnBnClickedButton10();
-
-	afx_msg void OnBnClickedButton11();
+	
  afx_msg void OnBnClickedButton20();
 	afx_msg void OnBnClickedButton17();
 	afx_msg void OnBnClickedButton18();
@@ -268,9 +253,7 @@ public:
 	void LoadWindowDetailToList5(HWND hWnd);
 
 	// background worker thread for volume retrieval; ensure joined on destroy
-	afx_msg void OnBnClickedButton21();
-	afx_msg void OnBnClickedButton22();
-    afx_msg void OnBnClickedButton23();
+	afx_msg void OnBnClickedButton23();
     afx_msg void OnBnClickedButton24();
     afx_msg void OnBnClickedButton25();
     afx_msg void OnBnClickedButton26();
@@ -278,8 +261,7 @@ public:
 	afx_msg void OnBnClickedCheck6();
 	afx_msg void OnBnClickedButton27();
 	afx_msg void OnBnClickedButton28();
-	afx_msg void OnBnClickedButton29();
-  afx_msg void OnBnClickedButton30();
+	afx_msg void OnBnClickedButton30();
 	afx_msg void OnBnClickedButton31();
     afx_msg void OnBnClickedButton32();
     afx_msg void OnBiliNext();
@@ -366,4 +348,35 @@ public:
     DWORD m_dwAiEventCookie{0};
     void ConnectAiBrowserEvents();
     void DisconnectAiBrowserEvents();
+
+    // Quick Launch: user-configurable buttons
+    static constexpr int MAX_QL_BUTTONS = 16;
+    static constexpr UINT QL_BTN_IDS[MAX_QL_BUTTONS] = {
+        IDC_QL_BTN0, IDC_QL_BTN1, IDC_QL_BTN2, IDC_QL_BTN3,
+        IDC_QL_BTN4, IDC_QL_BTN5, IDC_QL_BTN6, IDC_QL_BTN7,
+        IDC_QL_BTN8, IDC_QL_BTN9, IDC_QL_BTN10, IDC_QL_BTN11,
+        IDC_QL_BTN12, IDC_QL_BTN13, IDC_QL_BTN14, IDC_QL_BTN15
+    };
+    std::vector<QLItem> m_qlItems;
+    void LoadQuickLaunchItems();
+    void SaveQuickLaunchItems();
+    void UpdateQuickLaunchButtons();
+    void OnQuickLaunchItem(int index);
+    afx_msg void OnQuickLaunchManage();
+    afx_msg void OnQuickLaunchBtn0();
+    afx_msg void OnQuickLaunchBtn1();
+    afx_msg void OnQuickLaunchBtn2();
+    afx_msg void OnQuickLaunchBtn3();
+    afx_msg void OnQuickLaunchBtn4();
+    afx_msg void OnQuickLaunchBtn5();
+    afx_msg void OnQuickLaunchBtn6();
+    afx_msg void OnQuickLaunchBtn7();
+    afx_msg void OnQuickLaunchBtn8();
+    afx_msg void OnQuickLaunchBtn9();
+    afx_msg void OnQuickLaunchBtn10();
+    afx_msg void OnQuickLaunchBtn11();
+    afx_msg void OnQuickLaunchBtn12();
+    afx_msg void OnQuickLaunchBtn13();
+    afx_msg void OnQuickLaunchBtn14();
+    afx_msg void OnQuickLaunchBtn15();
 };
