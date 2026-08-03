@@ -51,7 +51,6 @@ BOOL CSettingsDlg::OnInitDialog()
     SetChildTextByCurrentText(this, _T("文件命名"), loc.GetString(_T("Settings"), _T("GroupFileNaming")));
     SetChildTextByCurrentText(this, _T("路径设置"), loc.GetString(_T("Settings"), _T("GroupPathSettings")));
     SetChildTextByCurrentText(this, _T("连点器"), loc.GetString(_T("Settings"), _T("GroupAutoClicker")));
-    SetChildTextByCurrentText(this, _T("网址"), loc.GetString(_T("Settings"), _T("GroupSites")));
     SetChildTextByCurrentText(this, _T("AI助手"), loc.GetString(_T("Settings"), _T("GroupAI")));
     SetChildTextByCurrentText(this, _T("语言"), loc.GetString(_T("Settings"), _T("GroupLanguage")));
 
@@ -81,8 +80,6 @@ BOOL CSettingsDlg::OnInitDialog()
     SetDlgItemText(IDCANCEL, loc.GetString(_T("Settings"), _T("BtnCancel")));
 
     SetDlgItemText(IDC_EDIT_DEFAULT_NAME, AfxGetApp()->GetProfileString(_T("Template"), _T("DefaultReportName"), _T("")));
-    SetDlgItemText(IDC_EDIT_MOOC_URL, AfxGetApp()->GetProfileString(_T("Sites"), _T("MoocUrl"), _T("")));
-    SetDlgItemText(IDC_EDIT_SDUCS_URL, AfxGetApp()->GetProfileString(_T("Sites"), _T("Sducs"), _T("")));
 
     // Screenshot save directory, default desktop
     CString strDefaultScreenshot;
@@ -190,8 +187,6 @@ void CSettingsDlg::OnOK()
     GetDlgItemText(IDC_EDIT_DEFAULT_NAME, v); AfxGetApp()->WriteProfileString(_T("Template"), _T("DefaultReportName"), v);
     GetDlgItemText(IDC_EDIT_SCREENSHOT_DIR, v); AfxGetApp()->WriteProfileString(_T("Paths"), _T("ScreenshotDir"), v);
     GetDlgItemText(IDC_EDIT_STICKY_DIR, v); AfxGetApp()->WriteProfileString(_T("StickyNote"), _T("SaveFolder"), v);
-    GetDlgItemText(IDC_EDIT_MOOC_URL, v); AfxGetApp()->WriteProfileString(_T("Sites"), _T("MoocUrl"), v);
-    GetDlgItemText(IDC_EDIT_SDUCS_URL, v); AfxGetApp()->WriteProfileString(_T("Sites"), _T("Sducs"), v);
     AfxGetApp()->WriteProfileInt(_T("AutoClicker"), _T("IntervalMs"), GetDlgItemInt(IDC_EDIT_CLICK_INTERVAL));
 
     // Auto-clicker trigger key validation: empty defaults to A/B, cannot be same

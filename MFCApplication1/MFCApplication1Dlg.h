@@ -140,6 +140,7 @@ protected:
     void RegisterHotkeys();
     void UnregisterHotkeys();
     void UpdateShortcutMenuText();
+    void UpdateTitleBar();
 
 	NOTIFYICONDATA m_nid{};
 	bool m_bTrayVisible{false};

@@ -150,20 +150,6 @@ BOOL CHotkeyCaptureDlg::PreTranslateMessage(MSG* pMsg)
             return TRUE;
         }
 
-        // Enter/Space: confirm (but only if we actually have a captured hotkey)
-        if (key == VK_RETURN || key == VK_SPACE)
-        {
-            // If no hotkey captured yet, let Enter/Space pass through to default button handling
-            if (m_current.IsEmpty() && key == VK_RETURN)
-            {
-                // Treat Enter as OK even with empty hotkey (user wants to confirm "none")
-                m_result = m_current;
-                CDialogEx::OnOK();
-                return TRUE;
-            }
-            return TRUE;
-        }
-
         // Backspace/Delete: clear the hotkey
         if (key == VK_BACK || key == VK_DELETE)
         {
@@ -172,12 +158,29 @@ BOOL CHotkeyCaptureDlg::PreTranslateMessage(MSG* pMsg)
             return TRUE;
         }
 
-        // Build modifier flags from current keyboard state
+        // Build modifier flags from current keyboard state (BEFORE Enter/Space check)
         UINT mod = 0;
         if (GetAsyncKeyState(VK_CONTROL) & 0x8000) mod |= MOD_CONTROL;
         if (GetAsyncKeyState(VK_MENU) & 0x8000)    mod |= MOD_ALT;
         if (GetAsyncKeyState(VK_SHIFT) & 0x8000)   mod |= MOD_SHIFT;
         if (GetAsyncKeyState(VK_LWIN) & 0x8000 || GetAsyncKeyState(VK_RWIN) & 0x8000) mod |= MOD_WIN;
+
+        // Enter: confirm current hotkey and close dialog (even if empty)
+        if (key == VK_RETURN)
+        {
+            m_result = m_current;
+            CDialogEx::OnOK();
+            return TRUE;
+        }
+
+        // Space is a capturable key (with or without modifiers)
+        if (key == VK_SPACE)
+        {
+            m_current.modifier = mod;
+            m_current.vk = key;
+            UpdateDisplay();
+            return TRUE;
+        }
 
         // Require at least one modifier unless it's a function key
         if (mod == 0 && (key < VK_F1 || key > VK_F12))

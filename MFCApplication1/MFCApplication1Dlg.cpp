@@ -593,11 +593,8 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 	}
 
 	// Global hotkey
-	CString strTitle;
-	GetWindowText(strTitle);
-	strTitle += CLocalizationManager::GetInstance().GetString(_T("MainDlg"), _T("WindowTitleSuffix"));
-	SetWindowText(strTitle);
 	RegisterHotkeys();
+	UpdateTitleBar();
 
 	// Volume slider
 	CSliderCtrl* pSlider = static_cast<CSliderCtrl*>(GetDlgItem(IDC_SLIDER1));

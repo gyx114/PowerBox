@@ -156,6 +156,7 @@ void CMFCApplication1Dlg::RegisterHotkeys()
         RegisterHotKey(m_hWnd, 1002, locate.modifier, locate.vk);
 
     UpdateShortcutMenuText();
+    UpdateTitleBar();
 }
 
 void CMFCApplication1Dlg::UnregisterHotkeys()
@@ -183,7 +184,6 @@ void CMFCApplication1Dlg::UpdateShortcutMenuText()
     CString fmt = loc.GetString(_T("Shortcut"), _T("ShortcutList"));
     CString result;
 
-    // Replace the first line with dynamic hotkey text
     CString showHideText = showHide.IsEmpty()
         ? loc.GetString(_T("Hotkey"), _T("None"))
         : showHide.ToDisplay();
@@ -191,20 +191,36 @@ void CMFCApplication1Dlg::UpdateShortcutMenuText()
         ? loc.GetString(_T("Hotkey"), _T("None"))
         : locate.ToDisplay();
 
-    result.Format(_T("%s   - %s\n%s   - %s\n%s"),
+    // Prepend dynamic hotkey lines to the static shortcut list
+    // (static list no longer contains these hotkey descriptions)
+    result.Format(_T("%s   - %s\n%s   - %s\n\n%s"),
         (LPCTSTR)showHideText,
-        (LPCTSTR)loc.GetString(_T("MainDlg"), _T("WindowTitleSuffix")),
+        (LPCTSTR)loc.GetString(_T("MainDlg"), _T("MainDlg")),
         (LPCTSTR)locateText,
         (LPCTSTR)loc.GetString(_T("WindowTab"), _T("LocateBtn")),
-        (LPCTSTR)(fmt.Mid(fmt.Find(_T('\n')) + 1)));
+        (LPCTSTR)fmt);
 
-    // Update the stored shortcut text (OnHelpShortcuts reads from ini, so we update ini dynamically)
-    // We'll store the updated text in a temporary way — OnHelpShortcuts shows the ShortcutList
-    // which is static. We need to override the shortcut display.
-    // Instead, we'll store the modified text in an internal map and use it in OnHelpShortcuts.
-    // Actually, the simplest approach: just update the ini content in memory isn't possible.
-    // Let's use a different approach: store the formatted text as a member.
     m_strShortcutText = result;
+}
+
+void CMFCApplication1Dlg::UpdateTitleBar()
+{
+    auto& loc = CLocalizationManager::GetInstance();
+    CString title = loc.GetString(_T("MainDlg"), _T("MainDlg"));
+
+    // Read current ShowHide hotkey config
+    HotkeyInfo showHide = HotkeyInfo::FromConfigString(
+        AfxGetApp()->GetProfileString(_T("Hotkeys"), _T("ShowHide"), _T("3|32")));
+
+    if (!showHide.IsEmpty())
+    {
+        CString hotkeyStr = showHide.ToDisplay();
+        CString suffix;
+        suffix.Format(_T(" (%s)"), (LPCTSTR)hotkeyStr);
+        title += suffix;
+    }
+
+    SetWindowText(title);
 }
 
 void CMFCApplication1Dlg::OnClose()
