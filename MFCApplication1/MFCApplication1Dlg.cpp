@@ -389,6 +389,8 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_MESSAGE(WM_AI_STREAM_DONE, &CMFCApplication1Dlg::OnAiStreamDone)
     ON_MESSAGE(WM_AI_EXECUTE_COMMAND, &CMFCApplication1Dlg::OnAiExecuteCommand)
     ON_MESSAGE(WM_PROCESS_SCAN_START, &CMFCApplication1Dlg::OnProcessScanStart)
+    ON_REGISTERED_MESSAGE(WM_QL_CHANGED, &CMFCApplication1Dlg::OnQLChanged)
+    ON_REGISTERED_MESSAGE(WM_QL_CLOSED, &CMFCApplication1Dlg::OnQLClosed)
     ON_WM_TIMER()
 END_MESSAGE_MAP()
 
@@ -722,6 +724,24 @@ void CMFCApplication1Dlg::OnTcnSelchangeQuickTab(NMHDR* pNMHDR, LRESULT* pResult
     if (pTab)
         UpdateQuickTab(pTab->GetCurSel());
     *pResult = 0;
+}
+
+LRESULT CMFCApplication1Dlg::OnQLChanged(WPARAM, LPARAM)
+{
+    // Quick launch items changed in modeless dialog: save and refresh buttons
+    SaveQuickLaunchItems();
+    UpdateQuickLaunchButtons();
+    // Refresh visibility for current tab (hide empty buttons)
+    CTabCtrl* pTab = (CTabCtrl*)GetDlgItem(IDC_TAB_QUICK);
+    if (pTab) UpdateQuickTab(pTab->GetCurSel());
+    return 0;
+}
+
+LRESULT CMFCApplication1Dlg::OnQLClosed(WPARAM, LPARAM)
+{
+    // Modeless dialog has been destroyed, clear the pointer
+    m_pQuickLaunchDlg = nullptr;
+    return 0;
 }
 
 // ========== Window handling new features ==========

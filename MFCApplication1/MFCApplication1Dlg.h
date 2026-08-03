@@ -25,7 +25,7 @@ class CContextMenuDlg;
 class CEnvVarDlg;
 class CGitCmdResultDlg;
 
-// Forward declaration for WebBrowser event sink
+class CQuickLaunchDlg;
 class CWebBrowserEventSink;
 
 // Forward declaration for Quick Launch dialog
@@ -341,6 +341,8 @@ public:
     afx_msg LRESULT OnAiStreamChunk(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnAiStreamDone(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnAiExecuteCommand(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnQLChanged(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnQLClosed(WPARAM wParam, LPARAM lParam);
     afx_msg void OnTimer(UINT_PTR nIDEvent);
 
     // WebBrowser event sink for AI executable commands
@@ -363,6 +365,7 @@ public:
     void UpdateQuickLaunchButtons();
     void OnQuickLaunchItem(int index);
     afx_msg void OnQuickLaunchManage();
+    CQuickLaunchDlg* m_pQuickLaunchDlg{nullptr};
     afx_msg void OnQuickLaunchBtn0();
     afx_msg void OnQuickLaunchBtn1();
     afx_msg void OnQuickLaunchBtn2();

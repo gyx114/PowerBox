@@ -9,10 +9,16 @@
 #include "Utils.h"
 #include "afxdialogex.h"
 #include <algorithm>
+#include <ShlObj.h>
+#include <atlbase.h>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
+
+// Registered message definitions
+const UINT WM_QL_CHANGED = ::RegisterWindowMessage(_T("WM_QL_CHANGED_QUICKLAUNCH"));
+const UINT WM_QL_CLOSED = ::RegisterWindowMessage(_T("WM_QL_CLOSED_QUICKLAUNCH"));
 
 // ============================================================================
 // Local item edit dialog for name/path input
@@ -50,6 +56,7 @@ protected:
         SetDlgItemText(IDC_QL_LABEL_NAME, loc.GetString(_T("QuickLaunch"), _T("LabelName")));
         SetDlgItemText(IDC_QL_LABEL_TYPE, loc.GetString(_T("QuickLaunch"), _T("LabelType")));
         SetDlgItemText(IDC_QL_LABEL_PATH, loc.GetString(_T("QuickLaunch"), _T("LabelPath")));
+        SetDlgItemText(IDC_QL_DROP_HINT, loc.GetString(_T("QuickLaunch"), _T("DropHintAdd")));
 
         SetDlgItemText(IDC_QL_EDIT_NAME, m_name);
 
@@ -70,6 +77,10 @@ protected:
         SetDlgItemText(IDCANCEL, loc.GetString(_T("QuickLaunch"), _T("BtnCancel")));
 
         SetDlgItemText(IDC_QL_EDIT_PATH, m_path);
+
+        // Accept drag-drop
+        DragAcceptFiles(TRUE);
+
         return TRUE;
     }
 
@@ -123,11 +134,50 @@ protected:
         }
     }
 
+    afx_msg void OnDropFiles(HDROP hDropInfo)
+    {
+        TCHAR buf[MAX_PATH] = {};
+        DragQueryFile(hDropInfo, 0, buf, MAX_PATH);
+        CString path(buf);
+
+        // Resolve shortcut
+        CString target;
+        int type = QLItem::OtherFile;
+        if (CQuickLaunchDlg::ResolveShortcut(path, target, type))
+        {
+            path = target;
+        }
+        else
+        {
+            DWORD attr = GetFileAttributes(path);
+            if (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY))
+                type = QLItem::Folder;
+            else if (path.Right(4).CompareNoCase(_T(".exe")) == 0)
+                type = QLItem::Executable;
+        }
+
+        // Extract file name as default name
+        CString name = path;
+        int pos = name.ReverseFind(_T('\\'));
+        if (pos != -1) name = name.Mid(pos + 1);
+        int dot = name.ReverseFind(_T('.'));
+        if (dot != -1) name = name.Left(dot);
+
+        SetDlgItemText(IDC_QL_EDIT_PATH, path);
+        SetDlgItemText(IDC_QL_EDIT_NAME, name);
+
+        CComboBox* pType = (CComboBox*)GetDlgItem(IDC_QL_COMBO_TYPE);
+        if (pType) pType->SetCurSel(type);
+
+        DragFinish(hDropInfo);
+    }
+
     DECLARE_MESSAGE_MAP()
 };
 
 BEGIN_MESSAGE_MAP(CQLItemEditDlg, CDialog)
     ON_BN_CLICKED(IDC_QL_BROWSE, &CQLItemEditDlg::OnBnClickedQlBrowse)
+    ON_WM_DROPFILES()
 END_MESSAGE_MAP()
 
 // ============================================================================
@@ -158,6 +208,8 @@ BEGIN_MESSAGE_MAP(CQuickLaunchDlg, CDialogEx)
     ON_BN_CLICKED(IDC_QL_DOWN, &CQuickLaunchDlg::OnBnClickedQlDown)
     ON_NOTIFY(NM_DBLCLK, IDC_QL_LIST, &CQuickLaunchDlg::OnNMDblclkQlList)
     ON_NOTIFY(NM_RCLICK, IDC_QL_LIST, &CQuickLaunchDlg::OnNMRclickQlList)
+    ON_WM_DROPFILES()
+    ON_WM_CLOSE()
 END_MESSAGE_MAP()
 
 BOOL CQuickLaunchDlg::OnInitDialog()
@@ -167,12 +219,15 @@ BOOL CQuickLaunchDlg::OnInitDialog()
     auto& loc = CLocalizationManager::GetInstance();
     SetWindowText(loc.GetString(_T("QuickLaunch"), _T("DlgTitle")));
 
+    // Drop hint
+    SetDlgItemText(IDC_QL_DROP_HINT, loc.GetString(_T("QuickLaunch"), _T("DropHintManage")));
+
     // Initialize list control with proportional column widths
     CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_QL_LIST);
     if (pList)
     {
         pList->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
-        // Get actual client width from the control (RC defines width=260 at 7,7,260,200)
+        // Get actual client width from the control (RC defines width=260 at 7,7,260,185)
         CRect rcList;
         pList->GetClientRect(&rcList);
         int totalWidth = rcList.Width();
@@ -188,10 +243,50 @@ BOOL CQuickLaunchDlg::OnInitDialog()
     SetDlgItemText(IDC_QL_DELETE, loc.GetString(_T("QuickLaunch"), _T("BtnDelete")));
     SetDlgItemText(IDC_QL_UP, loc.GetString(_T("QuickLaunch"), _T("BtnUp")));
     SetDlgItemText(IDC_QL_DOWN, loc.GetString(_T("QuickLaunch"), _T("BtnDown")));
-    SetDlgItemText(IDOK, loc.GetString(_T("QuickLaunch"), _T("BtnOK")));
+    SetDlgItemText(IDCANCEL, loc.GetString(_T("QuickLaunch"), _T("BtnClose")));
+
+    // Accept drag-drop
+    DragAcceptFiles(TRUE);
 
     RefreshList();
+    // Place window centered on parent
+    CenterWindow();
     return TRUE;
+}
+
+void CQuickLaunchDlg::PostNcDestroy()
+{
+    delete this;
+}
+
+void CQuickLaunchDlg::OnClose()
+{
+    // X button → WM_CLOSE → OnClose(): notify parent before destroying
+    NotifyParent();
+    CWnd* pParent = GetParent();
+    if (pParent && ::IsWindow(pParent->m_hWnd))
+        pParent->SendMessage(WM_QL_CLOSED, 0, 0);
+    DestroyWindow();
+}
+
+void CQuickLaunchDlg::OnCancel()
+{
+    // "关闭" button → IDCANCEL → OnCancel(): notify parent before destroying
+    NotifyParent();
+    CWnd* pParent = GetParent();
+    if (pParent && ::IsWindow(pParent->m_hWnd))
+        pParent->SendMessage(WM_QL_CLOSED, 0, 0);
+    CDialogEx::OnCancel();
+}
+
+void CQuickLaunchDlg::NotifyParent()
+{
+    // Notify parent (main dialog) to save and refresh
+    CWnd* pParent = GetParent();
+    if (pParent && ::IsWindow(pParent->m_hWnd))
+    {
+        pParent->SendMessage(WM_QL_CHANGED, 0, 0);
+    }
 }
 
 void CQuickLaunchDlg::RefreshList()
@@ -236,6 +331,7 @@ void CQuickLaunchDlg::OnAdd()
     {
         m_items.push_back(item);
         RefreshList();
+        NotifyParent();
     }
 }
 
@@ -254,6 +350,7 @@ void CQuickLaunchDlg::OnEdit()
     {
         pList->SetItemText(sel, 0, m_items[sel].name);
         pList->SetItemText(sel, 1, m_items[sel].path);
+        NotifyParent();
     }
 }
 
@@ -271,6 +368,7 @@ void CQuickLaunchDlg::OnDelete()
     {
         m_items.erase(m_items.begin() + sel);
         RefreshList();
+        NotifyParent();
     }
 }
 
@@ -284,6 +382,7 @@ void CQuickLaunchDlg::OnMoveUp()
     RefreshList();
     pList->SetSelectionMark(sel - 1);
     pList->SetItemState(sel - 1, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
+    NotifyParent();
 }
 
 void CQuickLaunchDlg::OnMoveDown()
@@ -296,6 +395,7 @@ void CQuickLaunchDlg::OnMoveDown()
     RefreshList();
     pList->SetSelectionMark(sel + 1);
     pList->SetItemState(sel + 1, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
+    NotifyParent();
 }
 
 void CQuickLaunchDlg::OnBnClickedQlAdd() { OnAdd(); }
@@ -376,4 +476,94 @@ BOOL CQuickLaunchDlg::OnCommand(WPARAM wParam, LPARAM lParam)
         return TRUE;
     }
     return CDialogEx::OnCommand(wParam, lParam);
+}
+
+// ============================================================================
+// Shortcut (.lnk) resolution
+// ============================================================================
+bool CQuickLaunchDlg::ResolveShortcut(const CString& path, CString& outTarget, int& outType)
+{
+    if (path.Right(4).CompareNoCase(_T(".lnk")) != 0)
+        return false;
+
+    CComPtr<IShellLink> psl;
+    if (FAILED(psl.CoCreateInstance(CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER)))
+        return false;
+
+    CComQIPtr<IPersistFile> ppf(psl);
+    if (!ppf) return false;
+
+    if (FAILED(ppf->Load(path, STGM_READ)))
+        return false;
+
+    if (FAILED(psl->Resolve(NULL, SLR_ANY_MATCH | SLR_NO_UI)))
+        return false;
+
+    TCHAR buf[MAX_PATH] = {};
+    WIN32_FIND_DATA wfd = {};
+    if (FAILED(psl->GetPath(buf, MAX_PATH, &wfd, 0)))
+        return false;
+
+    outTarget = buf;
+    DWORD attr = GetFileAttributes(outTarget);
+    if (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY))
+        outType = QLItem::Folder;
+    else if (outTarget.Right(4).CompareNoCase(_T(".exe")) == 0)
+        outType = QLItem::Executable;
+    else
+        outType = QLItem::OtherFile;
+
+    return true;
+}
+
+// ============================================================================
+// Drag-drop handler for the management dialog
+// ============================================================================
+void CQuickLaunchDlg::OnDropFiles(HDROP hDropInfo)
+{
+    TCHAR buf[MAX_PATH] = {};
+    UINT count = DragQueryFile(hDropInfo, 0xFFFFFFFF, NULL, 0);
+
+    for (UINT i = 0; i < count; ++i)
+    {
+        DragQueryFile(hDropInfo, i, buf, MAX_PATH);
+        CString path(buf);
+
+        // Try to resolve shortcut, otherwise determine type from path
+        CString target;
+        int type = QLItem::OtherFile;
+        if (ResolveShortcut(path, target, type))
+        {
+            path = target;
+        }
+        else
+        {
+            DWORD attr = GetFileAttributes(path);
+            if (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY))
+                type = QLItem::Folder;
+            else if (path.Right(4).CompareNoCase(_T(".exe")) == 0)
+                type = QLItem::Executable;
+        }
+
+        // Extract name from path
+        CString name = path;
+        int pos = name.ReverseFind(_T('\\'));
+        if (pos != -1) name = name.Mid(pos + 1);
+        int dot = name.ReverseFind(_T('.'));
+        if (dot != -1) name = name.Left(dot);
+
+        // Open edit dialog with pre-filled info
+        QLItem item;
+        item.name = name;
+        item.path = path;
+        item.type = type;
+        if (EditItem(item, true))
+        {
+            m_items.push_back(item);
+            NotifyParent();
+        }
+    }
+
+    RefreshList();
+    DragFinish(hDropInfo);
 }

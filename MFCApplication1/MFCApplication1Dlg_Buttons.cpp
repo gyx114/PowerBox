@@ -1048,19 +1048,26 @@ void CMFCApplication1Dlg::OnQuickLaunchManage()
 {
     auto& loc = CLocalizationManager::GetInstance();
 
+    // If already open, just bring it to front
+    if (m_pQuickLaunchDlg && ::IsWindow(m_pQuickLaunchDlg->m_hWnd))
+    {
+        m_pQuickLaunchDlg->SetForegroundWindow();
+        return;
+    }
+
     // Load current items before opening dialog
     LoadQuickLaunchItems();
 
-    CQuickLaunchDlg dlg(m_qlItems, this);
-    if (dlg.DoModal() == IDOK)
+    // Create modeless dialog
+    m_pQuickLaunchDlg = new CQuickLaunchDlg(m_qlItems, this);
+    if (!m_pQuickLaunchDlg->Create(IDD_QUICK_LAUNCH_DLG, this))
     {
-        // Save and update buttons
-        SaveQuickLaunchItems();
-        UpdateQuickLaunchButtons();
-        // Refresh visibility for current tab (hide empty buttons)
-        CTabCtrl* pTab = (CTabCtrl*)GetDlgItem(IDC_TAB_QUICK);
-        if (pTab) UpdateQuickTab(pTab->GetCurSel());
+        delete m_pQuickLaunchDlg;
+        m_pQuickLaunchDlg = nullptr;
+        MessageBox(loc.GetString(_T("Msg"), _T("CreateDlgFailed")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
+        return;
     }
+    m_pQuickLaunchDlg->ShowWindow(SW_SHOW);
 }
 
 // Individual button handlers
