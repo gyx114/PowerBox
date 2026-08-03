@@ -1878,9 +1878,9 @@ CString CMFCApplication1Dlg::BuildSystemPrompt()
         _T("   - Commands can be configured in config.ini under [GitCommands] section (Cmd1~Cmd99, format: 'description|command')\n")
         _T("   - When Git working directory is set, AI command generation automatically injects real-time git status (branch, status, log, remote, config)\n\n")
 
-        _T("=== Right-Side Quick Actions (3 sub-tabs: Favorites / System / Tools) ===\n\n")
+        _T("=== Right-Side Quick Actions (3 sub-tabs: Quick Launch / System / Tools) ===\n\n")
 
-        _T("\"Favorites\" tab:\n")
+        _T("\"Quick Launch\" tab:\n")
         _T("   - User-configurable quick launch buttons (up to 32, stored in config.ini [QuickButtons])\n")
         _T("   - Types: executable (.exe), folder, URL, or other file\n")
         _T("   - Click \"Manage\" to open the Quick Launch manager dialog:\n")
@@ -2133,9 +2133,9 @@ CString CMFCApplication1Dlg::BuildSystemPrompt()
         _T("   - 命令可在 config.ini 的 [GitCommands] 节中配置（Cmd1~Cmd99，格式：'说明|命令'）\n")
         _T("   - 设置了 Git 工作目录后，AI 命令生成时会自动注入实时 git 状态（分支、状态、日志、远程、配置）\n\n")
 
-        _T("=== 右侧快捷操作（3 个子标签页：常用 / 系统 / 工具） ===\n\n")
+        _T("=== 右侧快捷操作（3 个子标签页：快捷打开 / 系统 / 工具） ===\n\n")
 
-        _T("「常用」标签页：\n")
+        _T("「快捷打开」标签页：\n")
         _T("   - 用户可配置的快捷打开按钮（最多 32 个，存储在 config.ini [QuickButtons] 节）\n")
         _T("   - 支持类型：可执行文件 (.exe)、文件夹、网址、其他文件\n")
         _T("   - 点击\"管理\"打开快捷打开管理对话框：\n")
@@ -3232,8 +3232,9 @@ LRESULT CMFCApplication1Dlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam
         CString cmdLineCopy = cmdLine;
         LPTSTR pCmdLine = cmdLineCopy.GetBuffer(cmdLineCopy.GetLength() + 1);
 
+        CString exeDir = GetExeDir();
         if (CreateProcess(nullptr, pCmdLine, nullptr, nullptr, TRUE,
-            CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
+            CREATE_NO_WINDOW, nullptr, exeDir.IsEmpty() ? nullptr : exeDir.GetString(), &si, &pi))
         {
             CloseHandle(hWritePipe);
             hWritePipe = nullptr;
