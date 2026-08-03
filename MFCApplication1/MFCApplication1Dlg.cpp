@@ -1703,8 +1703,8 @@ void CMFCApplication1Dlg::TranslateUI()
 {
     auto& loc = CLocalizationManager::GetInstance();
 
-    // Window title
-    SetWindowText(loc.GetString(_T("DlgCaption"), _T("MainDlg")));
+    // Window title (with hotkey hint)
+    UpdateTitleBar();
 
     // Translate menu
     CMenu* pMenu = GetMenu();

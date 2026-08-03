@@ -98,6 +98,8 @@ BOOL CHotkeyCaptureDlg::OnInitDialog()
     SetWindowText(loc.GetString(_T("Hotkey"), _T("CaptureTitle")));
     SetDlgItemText(IDC_HOTKEY_PROMPT, loc.GetString(_T("Hotkey"), _T("CapturePrompt")));
     SetDlgItemText(IDC_HOTKEY_CLEAR, loc.GetString(_T("Hotkey"), _T("BtnClear")));
+    SetDlgItemText(IDOK, loc.GetString(_T("Settings"), _T("BtnOK")));
+    SetDlgItemText(IDCANCEL, loc.GetString(_T("Settings"), _T("BtnCancel")));
     UpdateDisplay();
     return TRUE;
 }

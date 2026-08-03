@@ -206,7 +206,7 @@ void CMFCApplication1Dlg::UpdateShortcutMenuText()
 void CMFCApplication1Dlg::UpdateTitleBar()
 {
     auto& loc = CLocalizationManager::GetInstance();
-    CString title = loc.GetString(_T("MainDlg"), _T("MainDlg"));
+    CString baseTitle = loc.GetString(_T("MainDlg"), _T("MainDlg"));
 
     // Read current ShowHide hotkey config
     HotkeyInfo showHide = HotkeyInfo::FromConfigString(
@@ -215,12 +215,16 @@ void CMFCApplication1Dlg::UpdateTitleBar()
     if (!showHide.IsEmpty())
     {
         CString hotkeyStr = showHide.ToDisplay();
-        CString suffix;
-        suffix.Format(_T(" (%s)"), (LPCTSTR)hotkeyStr);
-        title += suffix;
+        CString fmt = loc.GetString(_T("MainDlg"), _T("TitleFormat"));
+        // fmt is like "%s (%s to show/hide)" or "%s (%s 唤起此窗口)"
+        CString title;
+        title.Format(fmt, (LPCTSTR)baseTitle, (LPCTSTR)hotkeyStr);
+        SetWindowText(title);
     }
-
-    SetWindowText(title);
+    else
+    {
+        SetWindowText(baseTitle);
+    }
 }
 
 void CMFCApplication1Dlg::OnClose()

@@ -43,6 +43,10 @@ BOOL CSettingsDlg::OnInitDialog()
 {
     CDialogEx::OnInitDialog();
 
+    // Temporarily unregister main window global hotkeys to avoid interference
+    CMFCApplication1Dlg* pMain = static_cast<CMFCApplication1Dlg*>(AfxGetMainWnd());
+    if (pMain) pMain->UnregisterHotkeys();
+
     // Translate UI
     auto& loc = CLocalizationManager::GetInstance();
     SetWindowText(loc.GetString(_T("DlgCaption"), _T("SettingsDlg")));
@@ -240,6 +244,11 @@ void CSettingsDlg::OnOK()
 
     bool bRestart = (strOldLang != m_strCurrentLang);
 
+    // Notify main window to re-register hotkeys (unless restarting)
+    CMFCApplication1Dlg* pMainNotify = static_cast<CMFCApplication1Dlg*>(AfxGetMainWnd());
+    if (pMainNotify && !bRestart)
+        pMainNotify->PostMessage(CMFCApplication1Dlg::WM_HOTKEYS_CHANGED);
+
     DestroyWindow();
 
     if (bRestart)
@@ -264,6 +273,9 @@ void CSettingsDlg::OnCancel()
 
 void CSettingsDlg::OnClose()
 {
+    // Restore old hotkeys before closing (nothing was saved on cancel/close)
+    CMFCApplication1Dlg* pMain = static_cast<CMFCApplication1Dlg*>(AfxGetMainWnd());
+    if (pMain) pMain->PostMessage(CMFCApplication1Dlg::WM_HOTKEYS_CHANGED);
     DestroyWindow();
 }
 

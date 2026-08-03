@@ -137,11 +137,12 @@ protected:
 	afx_msg void OnTrayExit();
 	afx_msg void OnHotKey(UINT nHotKeyId, UINT nKey1, UINT nKey2);
     afx_msg LRESULT OnHotkeysChanged(WPARAM wParam, LPARAM lParam);
+public:
     void RegisterHotkeys();
     void UnregisterHotkeys();
     void UpdateShortcutMenuText();
     void UpdateTitleBar();
-
+protected:
 	NOTIFYICONDATA m_nid{};
 	bool m_bTrayVisible{false};
     bool m_bMinimizeOnClose{true};
