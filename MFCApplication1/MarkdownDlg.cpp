@@ -859,9 +859,47 @@ CString CMarkdownDlg::MarkdownToHtml(const CString& markdown)
 				quoteContent = line.Mid(1);
 		}
 
-		if (line.Find(_T('|')) >= 0)
+		// Table detection: distinguish real Markdown tables from command lines with pipes.
+		// A line starts a table only if:
+		//   1. It has | AND starts/ends with | (e.g. "| a | b |"), OR
+		//   2. It has | AND the next line is a separator (contains --- and |)
+		// Once inside a table, any line with | continues the table.
+		int pipeCount = 0;
+		for (int i = 0; i < line.GetLength(); i++)
+			if (line[i] == _T('|')) pipeCount++;
+
+		if (pipeCount > 0)
 		{
-			isTable = true;
+			if (inTable)
+			{
+				isTable = true;
+			}
+			else
+			{
+				CString trimmedLine = line;
+				trimmedLine.Trim();
+				bool startsOrEndsWithPipe = (!trimmedLine.IsEmpty() &&
+					(trimmedLine[0] == _T('|') || trimmedLine[trimmedLine.GetLength() - 1] == _T('|')));
+
+				bool nextIsSeparator = false;
+				if (idx + 1 < lines.GetSize())
+				{
+					CString nextLine = lines[idx + 1];
+					nextLine.Remove(_T('\r'));
+					if (nextLine.Find(_T('|')) >= 0 && nextLine.Find(_T("---")) >= 0)
+						nextIsSeparator = true;
+				}
+
+				if (startsOrEndsWithPipe || nextIsSeparator)
+					isTable = true;
+			}
+		}
+		else if (inTable)
+		{
+			// Previous lines formed a table, but this line has no pipe.
+			inTable = false;
+			inTHead = false;
+			body += _T("</tbody></table>");
 		}
 
 		if (isTable)
