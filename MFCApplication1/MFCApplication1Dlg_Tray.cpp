@@ -59,15 +59,6 @@ LRESULT CMFCApplication1Dlg::OnTrayNotification(WPARAM wParam, LPARAM lParam)
         ShowWindow(SW_SHOW);
         ShowWindow(SW_RESTORE);
 
-        // Re-show tab controls and lightweight redraw (no image list rebuild!)
-        CTabCtrl* pTab = (CTabCtrl*)GetDlgItem(IDC_TAB_QUICK);
-        if (pTab) UpdateQuickTab(pTab->GetCurSel());
-        CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_QUICK_LAUNCH);
-        if (pList && ::IsWindowVisible(pList->m_hWnd))
-        {
-            pList->RedrawWindow(NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN | RDW_ERASE);
-        }
-
         if (m_bTrayVisible)
         {
             Shell_NotifyIcon(NIM_DELETE, &m_nid);
@@ -82,19 +73,6 @@ void CMFCApplication1Dlg::OnTrayShowWindow()
 {
     ShowWindow(SW_SHOW);
     ShowWindow(SW_RESTORE);
-
-    // Re-show the current quick tab's controls (they may be hidden after hide/show)
-    CTabCtrl* pTab = (CTabCtrl*)GetDlgItem(IDC_TAB_QUICK);
-    if (pTab) UpdateQuickTab(pTab->GetCurSel());
-
-    // Lightweight redraw only — never rebuild image list on restore, that
-    // destroys the image handles while ListCtrl still holds indices → blank
-    // icons until mouse-hover repaint. Invalidate is enough.
-    CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_QUICK_LAUNCH);
-    if (pList && ::IsWindowVisible(pList->m_hWnd))
-    {
-        pList->RedrawWindow(NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN | RDW_ERASE);
-    }
 
     if (m_bTrayVisible)
     {
@@ -138,18 +116,6 @@ void CMFCApplication1Dlg::OnHotKey(UINT nHotKeyId, UINT nKey1, UINT nKey2)
         {
             ShowWindow(SW_SHOW);
             ShowWindow(SW_RESTORE);
-
-            // Re-show tab controls (may be hidden), then do LIGHTWEIGHT redraw only.
-            // Do NOT call RefreshQuickLaunchList here — deleting+recreating the
-            // image list while the list ctrl references old indices causes blank
-            // icons until the user hovers over items to trigger a repaint.
-            CTabCtrl* pTab = (CTabCtrl*)GetDlgItem(IDC_TAB_QUICK);
-            if (pTab) UpdateQuickTab(pTab->GetCurSel());
-            CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_QUICK_LAUNCH);
-            if (pList && ::IsWindowVisible(pList->m_hWnd))
-            {
-                pList->RedrawWindow(NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN | RDW_ERASE);
-            }
 
             if (m_bTrayVisible)
             {

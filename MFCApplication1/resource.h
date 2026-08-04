@@ -466,13 +466,16 @@
 // Default icon for hotkey-only quick launch items
 #define IDI_HOTKEY_DEFAULT               158
 
+// Quick launch separator
+#define IDC_QL_SEPARATOR                 1398
+
 // Next default values for new objects
 //
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        159
 #define _APS_NEXT_COMMAND_VALUE         32854
-#define _APS_NEXT_CONTROL_VALUE         1397
+#define _APS_NEXT_CONTROL_VALUE         1399
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

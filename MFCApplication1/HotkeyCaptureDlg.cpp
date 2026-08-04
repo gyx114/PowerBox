@@ -60,18 +60,29 @@ CString HotkeyInfo::ToDisplay() const
 CString HotkeyInfo::ToConfigString() const
 {
     CString s;
-    s.Format(_T("%u|%u"), modifier, vk);
+    s.Format(_T("%u,%u"), modifier, vk);
     return s;
 }
 
 HotkeyInfo HotkeyInfo::FromConfigString(const CString& str)
 {
     HotkeyInfo info;
-    int sep = str.Find(_T('|'));
+    // Try new format first (comma-separated)
+    int sep = str.Find(_T(','));
     if (sep != -1)
     {
         info.modifier = (UINT)_tstol(str.Left(sep));
         info.vk = (UINT)_tstol(str.Mid(sep + 1));
+    }
+    else
+    {
+        // Fallback: old format with pipe (|)
+        sep = str.Find(_T('|'));
+        if (sep != -1)
+        {
+            info.modifier = (UINT)_tstol(str.Left(sep));
+            info.vk = (UINT)_tstol(str.Mid(sep + 1));
+        }
     }
     return info;
 }

@@ -16,9 +16,9 @@ struct HotkeyInfo
 
     // Format as display string, e.g. "Ctrl+Alt+Space"
     CString ToDisplay() const;
-    // Format as modifier|vk for config storage, e.g. "3|32"
+    // Format as modifier,vk for config storage, e.g. "3,32"
     CString ToConfigString() const;
-    // Parse from config string
+    // Parse from config string (supports comma and pipe-separated formats)
     static HotkeyInfo FromConfigString(const CString& str);
 };
 

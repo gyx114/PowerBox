@@ -1002,23 +1002,27 @@ void CMFCApplication1Dlg::LoadQuickLaunchItems()
                 {
                     item.type = _ttoi(typeStr.Left(sep3));
                     CString hotkeyAndIcon = typeStr.Mid(sep3 + 1);
-                    // Format: modifier|vk|customIconPath
-                    // Find the second '|' to get the full "modifier|vk" pair
+                    // Format: modifier|vk|customIconPath (old) or modifier,vk|customIconPath (new)
                     int sep4 = hotkeyAndIcon.Find(_T('|'));
                     if (sep4 != -1)
                     {
                         int sep5 = hotkeyAndIcon.Find(_T('|'), sep4 + 1);
                         if (sep5 != -1)
                         {
-                            // Have both modifier|vk and customIconPath
+                            // Old format: modifier|vk|customIconPath (has two pipes)
                             item.hotkey = HotkeyInfo::FromConfigString(hotkeyAndIcon.Left(sep5));
                             item.customIconPath = hotkeyAndIcon.Mid(sep5 + 1);
                         }
                         else
                         {
-                            // Only modifier|vk, no customIconPath
-                            item.hotkey = HotkeyInfo::FromConfigString(hotkeyAndIcon);
+                            // New format: modifier,vk|customIconPath (hotkey uses comma, pipe separates customIconPath)
+                            item.hotkey = HotkeyInfo::FromConfigString(hotkeyAndIcon.Left(sep4));
+                            item.customIconPath = hotkeyAndIcon.Mid(sep4 + 1);
                         }
+                        // Clean up garbage: Windows file paths cannot contain '|',
+                        // so if customIconPath has '|' it's remnant from old corrupted format
+                        if (item.customIconPath.Find(_T('|')) != -1)
+                            item.customIconPath.Empty();
                     }
                     else
                     {
@@ -1116,9 +1120,8 @@ void CMFCApplication1Dlg::RefreshQuickLaunchList()
         pList->InsertItem((int)i, m_qlItems[i].name, iconIdx);
     }
 
-    // Force immediate redraw to prevent blank/flicker on restore from tray
-    pList->Invalidate();
-    pList->UpdateWindow();
+    // Move list control to top of Z-order so it draws in front of the tab control
+    pList->SetWindowPos(&CWnd::wndTop, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 }
 
 // Helper: check if a process with the given executable path is running
