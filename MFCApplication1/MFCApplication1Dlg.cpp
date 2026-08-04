@@ -3317,10 +3317,10 @@ LRESULT CMFCApplication1Dlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam
     if (hWritePipe) CloseHandle(hWritePipe);
     if (hReadPipe) CloseHandle(hReadPipe);
 
-    // Append output to result message
+    // Append output to result message (wrap in code block to prevent pipe chars from becoming tables)
     if (!outputStr.IsEmpty())
     {
-        resultMsg += loc.GetString(_T("Msg"), _T("OutputLabel")) + outputStr + _T("\n\n");
+        resultMsg += loc.GetString(_T("Msg"), _T("OutputLabel")) + _T("\n```\n") + outputStr + _T("\n```\n\n");
     }
     CString exitStr;
     exitStr.Format(loc.GetString(_T("Msg"), _T("ExitCodeFmt")), exitCode);
