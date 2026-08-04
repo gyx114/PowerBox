@@ -451,13 +451,18 @@
 #define IDC_EDIT_GITBASH_PATH           1388
 #define IDC_BROWSE_GITBASH              1389
 
+// Git command result dialog - command input controls
+#define IDC_EDIT_GIT_CMD_INPUT           1390
+#define IDC_BTN_GIT_CMD_EXECUTE          1391
+#define IDC_BTN_GIT_CMD_CLEAR            1392
+
 // Next default values for new objects
 //
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        158
 #define _APS_NEXT_COMMAND_VALUE         32854
-#define _APS_NEXT_CONTROL_VALUE         1390
+#define _APS_NEXT_CONTROL_VALUE         1393
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

@@ -692,6 +692,9 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("GitCmdDlg"), _T("LabelAiAsk"))] = _T("向AI提问:");
     m_defaults[MakeKey(_T("GitCmdDlg"), _T("BtnAiAsk"))] = _T("提问");
     m_defaults[MakeKey(_T("GitCmdDlg"), _T("LabelCmdList"))] = _T("命令列表 (右键执行/复制/编辑/删除):");
+    m_defaults[MakeKey(_T("GitCmdDlg"), _T("LabelCmdInput"))] = _T("命令输入:");
+    m_defaults[MakeKey(_T("GitCmdDlg"), _T("BtnCmdExecute"))] = _T("执行");
+    m_defaults[MakeKey(_T("GitCmdDlg"), _T("BtnCmdInputClear"))] = _T("清空");
 
     // ===== Git command execution =====
     m_defaults[MakeKey(_T("GitExec"), _T("ConfirmTitle"))] = _T("确认执行");

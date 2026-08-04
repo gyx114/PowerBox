@@ -3176,8 +3176,10 @@ LRESULT CMFCApplication1Dlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam
     {
         // Record cancellation in conversation
         CString resultMsg;
+        CString displayCmdCancelled = command;
+        displayCmdCancelled.Replace(_T('|'), _T('\uFF5C'));
         resultMsg.Format(loc.GetString(_T("Msg"), _T("CmdCancelledFmt")),
-            command.GetString());
+            displayCmdCancelled.GetString());
         // Insert after the last assistant message so results stay with their action cards
         {
             int insertPos = (int)m_aiHistory.size();
@@ -3200,8 +3202,10 @@ LRESULT CMFCApplication1Dlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam
 
     // Execute the command
     CString resultMsg;
+    CString displayCmd = command;
+    displayCmd.Replace(_T('|'), _T('\uFF5C')); // replace | with full-width ｜ to prevent table rendering
     resultMsg.Format(_T("【命令执行结果】\n命令：%s\n状态：已执行\n\n"),
-        command.GetString());
+        displayCmd.GetString());
 
     CString cmdTrimmed = command;
     cmdTrimmed.Trim();

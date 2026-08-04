@@ -37,6 +37,8 @@ protected:
     afx_msg void OnBnClickedAiAsk();
     afx_msg void OnBnClickedAddCmd();
     afx_msg void OnBnClickedClearCmds();
+    afx_msg void OnBnClickedGitCmdExecute();
+    afx_msg void OnBnClickedGitCmdClear();
     afx_msg void OnNMRclickCmdList(NMHDR* pNMHDR, LRESULT* pResult);
     afx_msg void OnNMDblclkCmdList(NMHDR* pNMHDR, LRESULT* pResult);
     afx_msg LRESULT OnGitCmdOutput(WPARAM wParam, LPARAM lParam);
@@ -71,6 +73,8 @@ private:
     int m_addBtnLeft, m_clearBtnLeft, m_btnCmdTop;
     int m_listLeft, m_listTop, m_listHeight;
     int m_outputLabelTop;
+    int m_cmdInputTop, m_cmdInputLeft, m_cmdInputWidth;
+    int m_execBtnLeft, m_cmdInputClearBtnLeft, m_cmdInputBtnTop;
     int m_outputLeft, m_outputTop, m_outputHeight;
     int m_copyBtnLeft, m_closeBtnLeft, m_bottomBtnTop, m_bottomBtnWidth, m_bottomBtnHeight;
 

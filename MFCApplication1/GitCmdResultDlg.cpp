@@ -28,6 +28,8 @@ CGitCmdResultDlg::CGitCmdResultDlg(const CString& strWorkDir, CWnd* pParent)
     , m_outputLabelTop(0)
     , m_outputLeft(0), m_outputTop(0), m_outputHeight(0)
     , m_copyBtnLeft(0), m_closeBtnLeft(0), m_bottomBtnTop(0), m_bottomBtnWidth(0), m_bottomBtnHeight(0)
+    , m_cmdInputTop(0), m_cmdInputLeft(0), m_cmdInputWidth(0)
+    , m_execBtnLeft(0), m_cmdInputClearBtnLeft(0), m_cmdInputBtnTop(0)
 {
 }
 
@@ -49,6 +51,8 @@ BEGIN_MESSAGE_MAP(CGitCmdResultDlg, CDialogEx)
     ON_BN_CLICKED(IDC_BTN_GIT_AI_ASK, &CGitCmdResultDlg::OnBnClickedAiAsk)
     ON_BN_CLICKED(IDC_BTN_GIT_ADD_CMD, &CGitCmdResultDlg::OnBnClickedAddCmd)
     ON_BN_CLICKED(IDC_BTN_GIT_CLEAR_CMDS, &CGitCmdResultDlg::OnBnClickedClearCmds)
+    ON_BN_CLICKED(IDC_BTN_GIT_CMD_EXECUTE, &CGitCmdResultDlg::OnBnClickedGitCmdExecute)
+    ON_BN_CLICKED(IDC_BTN_GIT_CMD_CLEAR, &CGitCmdResultDlg::OnBnClickedGitCmdClear)
     ON_NOTIFY(NM_RCLICK, IDC_LIST_GIT_CMDS, &CGitCmdResultDlg::OnNMRclickCmdList)
     ON_NOTIFY(NM_DBLCLK, IDC_LIST_GIT_CMDS, &CGitCmdResultDlg::OnNMDblclkCmdList)
     ON_MESSAGE(CGitCmdResultDlg::WM_GIT_CMD_OUTPUT, &CGitCmdResultDlg::OnGitCmdOutput)
@@ -68,6 +72,12 @@ BOOL CGitCmdResultDlg::PreTranslateMessage(MSG* pMsg)
         if (pFocus && pFocus->GetDlgCtrlID() == IDC_EDIT_GIT_AI_ASK)
         {
             OnBnClickedAiAsk();
+            return TRUE;
+        }
+        // Enter key in command input edit box triggers execute
+        if (pFocus && pFocus->GetDlgCtrlID() == IDC_EDIT_GIT_CMD_INPUT)
+        {
+            OnBnClickedGitCmdExecute();
             return TRUE;
         }
         return TRUE; // block Enter for other controls too
@@ -113,6 +123,15 @@ BOOL CGitCmdResultDlg::OnInitDialog()
     m_listLeft = rcList.left; m_listTop = rcList.top; m_listHeight = rcList.Height();
 
     m_outputLabelTop = ReadRect(IDC_STATIC_GIT_OUTPUT_LABEL).top;
+
+    // Command input controls
+    CRect rcCmdInput = ReadRect(IDC_EDIT_GIT_CMD_INPUT);
+    m_cmdInputLeft = rcCmdInput.left; m_cmdInputTop = rcCmdInput.top; m_cmdInputWidth = rcCmdInput.Width();
+
+    CRect rcExecBtn = ReadRect(IDC_BTN_GIT_CMD_EXECUTE);
+    m_execBtnLeft = rcExecBtn.left; m_cmdInputBtnTop = rcExecBtn.top;
+
+    m_cmdInputClearBtnLeft = ReadRect(IDC_BTN_GIT_CMD_CLEAR).left;
 
     CRect rcOutput = ReadRect(IDC_EDIT_GIT_OUTPUT);
     m_outputLeft = rcOutput.left; m_outputTop = rcOutput.top; m_outputHeight = rcOutput.Height();
@@ -166,6 +185,11 @@ void CGitCmdResultDlg::TranslateUI()
     SetChildTextByCurrentText(this, _T("向AI提问:"), loc.GetString(_T("GitCmdDlg"), _T("LabelAiAsk")));
     SetChildTextByCurrentText(this, _T("命令列表 (右键执行/复制/编辑/删除):"), loc.GetString(_T("GitCmdDlg"), _T("LabelCmdList")));
     SetChildTextByCurrentText(this, _T("执行输出:"), loc.GetString(_T("GitCmdDlg"), _T("OutputLabel")));
+
+    // Command input controls
+    SetChildTextByCurrentText(this, _T("命令输入:"), loc.GetString(_T("GitCmdDlg"), _T("LabelCmdInput")));
+    SetDlgItemText(IDC_BTN_GIT_CMD_EXECUTE, loc.GetString(_T("GitCmdDlg"), _T("BtnCmdExecute")));
+    SetDlgItemText(IDC_BTN_GIT_CMD_CLEAR, loc.GetString(_T("GitCmdDlg"), _T("BtnCmdInputClear")));
 
     // Translate buttons
     SetDlgItemText(IDC_BTN_GIT_AI_ASK, loc.GetString(_T("GitCmdDlg"), _T("BtnAiAsk")));
@@ -265,6 +289,19 @@ void CGitCmdResultDlg::ResizeControls()
             }
         }
     }
+
+    // Command input: edit box stretches, buttons stay right-aligned
+    CWnd* pCmdInput = GetDlgItem(IDC_EDIT_GIT_CMD_INPUT);
+    if (pCmdInput)
+        pCmdInput->SetWindowPos(nullptr, m_cmdInputLeft, m_cmdInputBtnTop,
+            m_execBtnLeft - m_cmdInputLeft, 12, SWP_NOZORDER);
+    CWnd* pExecBtn = GetDlgItem(IDC_BTN_GIT_CMD_EXECUTE);
+    if (pExecBtn)
+        pExecBtn->SetWindowPos(nullptr, rightEdge - m_cmdInputClearBtnLeft + m_execBtnLeft - m_cmdInputClearBtnLeft,
+            m_cmdInputBtnTop, 35, 12, SWP_NOZORDER);
+    CWnd* pCmdClear = GetDlgItem(IDC_BTN_GIT_CMD_CLEAR);
+    if (pCmdClear)
+        pCmdClear->SetWindowPos(nullptr, rightEdge - 35, m_cmdInputBtnTop, 35, 12, SWP_NOZORDER);
 
     // Output edit: only width adjusts
     CWnd* pOutput = GetDlgItem(IDC_EDIT_GIT_OUTPUT);
@@ -917,6 +954,51 @@ void CGitCmdResultDlg::OnBnClickedClearCmds()
 {
     CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_GIT_CMDS);
     if (pList) pList->DeleteAllItems();
+}
+
+void CGitCmdResultDlg::OnBnClickedGitCmdExecute()
+{
+    auto& loc = CLocalizationManager::GetInstance();
+
+    CString command;
+    GetDlgItemText(IDC_EDIT_GIT_CMD_INPUT, command);
+    command.Trim();
+
+    if (command.IsEmpty())
+        return;
+
+    if (m_strWorkDir.IsEmpty())
+    {
+        MessageBox(loc.GetString(_T("Msg"), _T("NoWorkDirSet")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
+        return;
+    }
+
+    // Show confirmation dialog
+    CString msg;
+    msg.Format(loc.GetString(_T("GitExec"), _T("ConfirmMsg")),
+        command.GetString(),
+        m_strWorkDir.GetString());
+    if (MessageBox(msg, loc.GetString(_T("GitExec"), _T("ConfirmTitle")), MB_YESNO | MB_ICONQUESTION) != IDYES)
+        return;
+
+    // Add to command list
+    CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_GIT_CMDS);
+    if (pList)
+    {
+        int idx = pList->InsertItem(pList->GetItemCount(), command);
+        pList->SetItemText(idx, 1, command);
+    }
+
+    // Execute the command
+    StartExecution(command);
+
+    // Clear input box
+    SetDlgItemText(IDC_EDIT_GIT_CMD_INPUT, _T(""));
+}
+
+void CGitCmdResultDlg::OnBnClickedGitCmdClear()
+{
+    SetDlgItemText(IDC_EDIT_GIT_CMD_INPUT, _T(""));
 }
 
 void CGitCmdResultDlg::OnNMDblclkCmdList(NMHDR* pNMHDR, LRESULT* pResult)
