@@ -104,13 +104,15 @@ protected:
         m_name.Trim();
         m_path.Trim();
         if (m_name.IsEmpty()) return;
-        // HotkeyOnly type: path can be empty
-        if (m_type != QLItem::HotkeyOnly && m_path.IsEmpty())
-            return;
 
+        // Read type from combo FIRST, then validate path
         CComboBox* pType = (CComboBox*)GetDlgItem(IDC_QL_COMBO_TYPE);
         if (pType) m_type = pType->GetCurSel();
         if (m_type < 0) m_type = QLItem::Executable;
+
+        // HotkeyOnly type: path can be empty
+        if (m_type != QLItem::HotkeyOnly && m_path.IsEmpty())
+            return;
 
         // Save hotkey (m_hotkey already set via capture dialog)
 
@@ -416,6 +418,7 @@ void CQuickLaunchDlg::OnEdit()
         pList->SetItemText(sel, 0, m_items[sel].name);
         pList->SetItemText(sel, 1, CQLItemEditDlg::TypeLabel(m_items[sel].type));
         pList->SetItemText(sel, 2, m_items[sel].path);
+        pList->SetItemText(sel, 3, m_items[sel].hotkey.ToDisplay());
         NotifyParent();
     }
 }
