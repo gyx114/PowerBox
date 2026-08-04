@@ -20,6 +20,7 @@ BEGIN_MESSAGE_MAP(CSettingsDlg, CDialogEx)
     ON_CBN_SELCHANGE(IDC_COMBO_LANGUAGE, &CSettingsDlg::OnCbnSelchangeLanguage)
     ON_BN_CLICKED(IDC_BTN_HOTKEY_SHOWHIDE, &CSettingsDlg::OnBnClickedHotkeyShowHide)
     ON_BN_CLICKED(IDC_BTN_HOTKEY_LOCATE, &CSettingsDlg::OnBnClickedHotkeyLocate)
+    ON_BN_CLICKED(IDC_BROWSE_GITBASH, &CSettingsDlg::OnBrowseGitBash)
     ON_WM_CLOSE()
 END_MESSAGE_MAP()
 
@@ -155,6 +156,15 @@ BOOL CSettingsDlg::OnInitDialog()
     SetDlgItemText(IDC_BTN_HOTKEY_SHOWHIDE, loc.GetString(_T("Settings"), _T("BtnHotkeyCapture")));
     SetDlgItemText(IDC_BTN_HOTKEY_LOCATE, loc.GetString(_T("Settings"), _T("BtnHotkeyCapture")));
 
+    // Git group translation
+    SetChildTextByCurrentText(this, _T("Git"), loc.GetString(_T("Settings"), _T("GroupGit")));
+    SetDlgItemText(IDC_STATIC_GITBASH_LABEL, loc.GetString(_T("Settings"), _T("LabelGitBash")));
+    SetDlgItemText(IDC_BROWSE_GITBASH, loc.GetString(_T("Settings"), _T("BtnBrowse")));
+
+    // Load GitBash path
+    SetDlgItemText(IDC_EDIT_GITBASH_PATH,
+        AfxGetApp()->GetProfileString(_T("Paths"), _T("GitBashPath"), _T("")));
+
     // Load hotkey configs
     m_hotkeyShowHide = HotkeyInfo::FromConfigString(
         AfxGetApp()->GetProfileString(_T("Hotkeys"), _T("ShowHide"), _T("3|32"))); // Ctrl+Alt+Space
@@ -241,6 +251,10 @@ void CSettingsDlg::OnOK()
     // Save hotkey configs
     AfxGetApp()->WriteProfileString(_T("Hotkeys"), _T("ShowHide"), m_hotkeyShowHide.ToConfigString());
     AfxGetApp()->WriteProfileString(_T("Hotkeys"), _T("Locate"), m_hotkeyLocate.ToConfigString());
+
+    // Save GitBash path
+    GetDlgItemText(IDC_EDIT_GITBASH_PATH, v);
+    AfxGetApp()->WriteProfileString(_T("Paths"), _T("GitBashPath"), v);
 
     bool bRestart = (strOldLang != m_strCurrentLang);
 
@@ -396,4 +410,13 @@ void CSettingsDlg::OnBnClickedHotkeyLocate()
         m_hotkeyLocate = dlg.m_result;
         SetDlgItemText(IDC_EDIT_HOTKEY_LOCATE, m_hotkeyLocate.ToDisplay());
     }
+}
+
+void CSettingsDlg::OnBrowseGitBash()
+{
+    CFileDialog dlg(TRUE, _T("exe"), NULL, OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST,
+        _T("Git Bash (git-bash.exe)|git-bash.exe|Executable Files (*.exe)|*.exe|All Files (*.*)|*.*||"), this);
+    dlg.m_ofn.lpstrTitle = CLocalizationManager::GetInstance().GetString(_T("Settings"), _T("DlgTitleGitBash"));
+    if (dlg.DoModal() == IDOK)
+        SetDlgItemText(IDC_EDIT_GITBASH_PATH, dlg.GetPathName());
 }

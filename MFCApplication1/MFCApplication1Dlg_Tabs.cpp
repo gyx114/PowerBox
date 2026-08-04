@@ -433,6 +433,8 @@ void CMFCApplication1Dlg::OnTcnSelchangeTab1(NMHDR* pNMHDR, LRESULT* pResult)
         UpdateTabVisibility(nSel);
         if (nSel == 1)
             RefreshStartupList();
+        if (nSel == 5)
+            UpdateGitRepoInfo();
     }
     *pResult = 0;
 }

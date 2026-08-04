@@ -687,6 +687,68 @@ static CString RunAndCapture(const CString& exePath, const CString& args,
     return result;
 }
 
+// Helper: find git.exe from configured GitBashPath or common locations
+static CString FindGitExe()
+{
+    // 1. Try configured GitBashPath
+    CString gitBashPath = AfxGetApp()->GetProfileString(_T("Paths"), _T("GitBashPath"), _T(""));
+    if (!gitBashPath.IsEmpty())
+    {
+        int pos = gitBashPath.ReverseFind(_T('\\'));
+        if (pos > 0)
+        {
+            CString gitDir = gitBashPath.Left(pos);
+            CString candidates[] = {
+                gitDir + _T("\\bin\\git.exe"),
+                gitDir + _T("\\mingw64\\bin\\git.exe"),
+                gitDir + _T("\\usr\\bin\\git.exe"),
+            };
+            for (const auto& path : candidates)
+            {
+                if (GetFileAttributes(path) != INVALID_FILE_ATTRIBUTES)
+                    return path;
+            }
+        }
+    }
+
+    // 2. Try PATH environment variable
+    TCHAR buf[4096] = {};
+    if (GetEnvironmentVariable(_T("PATH"), buf, 4096) > 0)
+    {
+        CString pathEnv(buf);
+        int start = 0;
+        while (start < pathEnv.GetLength())
+        {
+            int end = pathEnv.Find(_T(';'), start);
+            if (end == -1) end = pathEnv.GetLength();
+            CString dir = pathEnv.Mid(start, end - start);
+            dir.Trim();
+            if (!dir.IsEmpty())
+            {
+                CString exe = dir + _T("\\git.exe");
+                if (GetFileAttributes(exe) != INVALID_FILE_ATTRIBUTES)
+                    return exe;
+            }
+            start = end + 1;
+        }
+    }
+
+    // 3. Try common installation directories
+    CString commonPaths[] = {
+        _T("C:\\Program Files\\Git\\bin\\git.exe"),
+        _T("C:\\Program Files (x86)\\Git\\bin\\git.exe"),
+        _T("C:\\Program Files\\Git\\mingw64\\bin\\git.exe"),
+        _T("C:\\Program Files\\Git\\usr\\bin\\git.exe"),
+    };
+    for (const auto& path : commonPaths)
+    {
+        if (GetFileAttributes(path) != INVALID_FILE_ATTRIBUTES)
+            return path;
+    }
+
+    return _T("");
+}
+
 // Detect whether the directory is a Git repo and get the current branch.
 // Uses git.exe directly with CreateProcess + lpCurrentDirectory for reliable detection.
 void CMFCApplication1Dlg::DetectGitRepoInfo(const CString& strWorkDir, bool& bIsRepo, CString& strBranch) const
@@ -696,28 +758,7 @@ void CMFCApplication1Dlg::DetectGitRepoInfo(const CString& strWorkDir, bool& bIs
 
     if (strWorkDir.IsEmpty()) return;
 
-    // Find git.exe from git-bash.exe path
-    CString gitBashPath = AfxGetApp()->GetProfileString(_T("Paths"), _T("GitBashPath"), _T(""));
-    if (gitBashPath.IsEmpty()) return;
-
-    int pos = gitBashPath.ReverseFind(_T('\\'));
-    if (pos <= 0) return;
-    CString gitDir = gitBashPath.Left(pos);
-
-    CString gitExe;
-    CString candidates[] = {
-        gitDir + _T("\\bin\\git.exe"),
-        gitDir + _T("\\mingw64\\bin\\git.exe"),
-        gitDir + _T("\\usr\\bin\\git.exe"),
-    };
-    for (const auto& path : candidates)
-    {
-        if (GetFileAttributes(path) != INVALID_FILE_ATTRIBUTES)
-        {
-            gitExe = path;
-            break;
-        }
-    }
+    CString gitExe = FindGitExe();
     if (gitExe.IsEmpty()) return;
 
     // Step 1: git rev-parse --is-inside-work-tree  (checks if inside a repo)

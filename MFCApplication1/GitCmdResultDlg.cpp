@@ -340,18 +340,66 @@ static CString RunAndCaptureGit(const CString& exePath, const CString& args,
     return result;
 }
 
-// Find git.exe from the configured GitBashPath
+// Find git.exe from configured GitBashPath, PATH environment, or common installation directories
 static CString FindGitExe()
 {
+    // 1. Try configured GitBashPath
     CString gitBashPath = AfxGetApp()->GetProfileString(_T("Paths"), _T("GitBashPath"), _T(""));
-    if (gitBashPath.IsEmpty()) return _T("");
-    int pos = gitBashPath.ReverseFind(_T('\\'));
-    if (pos <= 0) return _T("");
-    CString gitDir = gitBashPath.Left(pos);
-    CString exe = gitDir + _T("\\bin\\git.exe");
-    if (GetFileAttributes(exe) == INVALID_FILE_ATTRIBUTES)
-        return _T("");
-    return exe;
+    if (!gitBashPath.IsEmpty())
+    {
+        int pos = gitBashPath.ReverseFind(_T('\\'));
+        if (pos > 0)
+        {
+            CString gitDir = gitBashPath.Left(pos);
+            CString candidates[] = {
+                gitDir + _T("\\bin\\git.exe"),
+                gitDir + _T("\\mingw64\\bin\\git.exe"),
+                gitDir + _T("\\usr\\bin\\git.exe"),
+            };
+            for (const auto& path : candidates)
+            {
+                if (GetFileAttributes(path) != INVALID_FILE_ATTRIBUTES)
+                    return path;
+            }
+        }
+    }
+
+    // 2. Try PATH environment variable
+    TCHAR buf[4096] = {};
+    if (GetEnvironmentVariable(_T("PATH"), buf, 4096) > 0)
+    {
+        CString pathEnv(buf);
+        int start = 0;
+        while (start < pathEnv.GetLength())
+        {
+            int end = pathEnv.Find(_T(';'), start);
+            if (end == -1) end = pathEnv.GetLength();
+            CString dir = pathEnv.Mid(start, end - start);
+            dir.Trim();
+            if (!dir.IsEmpty())
+            {
+                CString exe = dir + _T("\\git.exe");
+                if (GetFileAttributes(exe) != INVALID_FILE_ATTRIBUTES)
+                    return exe;
+            }
+            start = end + 1;
+        }
+    }
+
+    // 3. Try common installation directories
+    CString commonPaths[] = {
+        _T("C:\\Program Files\\Git\\bin\\git.exe"),
+        _T("C:\\Program Files (x86)\\Git\\bin\\git.exe"),
+        _T("C:\\Program Files\\Git\\mingw64\\bin\\git.exe"),
+        _T("C:\\Program Files\\Git\\usr\\bin\\git.exe"),
+    };
+    for (const auto& path : commonPaths)
+    {
+        if (GetFileAttributes(path) != INVALID_FILE_ATTRIBUTES)
+            return path;
+    }
+
+    return _T("");
 }
 
 // ========== Command execution helpers ==========

@@ -19,6 +19,7 @@ public:
     afx_msg void OnCbnSelchangeAiVendor();
     afx_msg void OnBnClickedHotkeyShowHide();
     afx_msg void OnBnClickedHotkeyLocate();
+    afx_msg void OnBrowseGitBash();
 
 private:
     void BrowseFile(UINT id, LPCTSTR title);

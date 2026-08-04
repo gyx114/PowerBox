@@ -479,6 +479,9 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("Settings"), _T("GroupAutoClicker"))] = _T("连点器");
     m_defaults[MakeKey(_T("Settings"), _T("DlgTitleScreenshot"))] = _T("选择截图保存目录");
     m_defaults[MakeKey(_T("Settings"), _T("DlgTitleSticky"))] = _T("选择便签保存目录");
+    m_defaults[MakeKey(_T("Settings"), _T("DlgTitleGitBash"))] = _T("选择 Git Bash 路径");
+    m_defaults[MakeKey(_T("Settings"), _T("GroupGit"))] = _T("Git");
+    m_defaults[MakeKey(_T("Settings"), _T("LabelGitBash"))] = _T("Git Bash路径:");
     m_defaults[MakeKey(_T("Settings"), _T("MsgKeySame"))] = _T("开始键和停止键不能相同，请重新设置。");
 
     // ===== Context Menu Manager =====

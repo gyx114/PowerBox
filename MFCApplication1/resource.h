@@ -446,13 +446,18 @@
 #define IDC_QL_EDIT_HOTKEY              1385
 #define IDC_QL_BTN_HOTKEY               1386
 
+// Settings dialog GitBash path controls
+#define IDC_STATIC_GITBASH_LABEL        1387
+#define IDC_EDIT_GITBASH_PATH           1388
+#define IDC_BROWSE_GITBASH              1389
+
 // Next default values for new objects
 //
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        158
 #define _APS_NEXT_COMMAND_VALUE         32854
-#define _APS_NEXT_CONTROL_VALUE         1387
+#define _APS_NEXT_CONTROL_VALUE         1390
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
