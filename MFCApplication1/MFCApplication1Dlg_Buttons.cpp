@@ -1001,7 +1001,29 @@ void CMFCApplication1Dlg::LoadQuickLaunchItems()
                 if (sep3 != -1)
                 {
                     item.type = _ttoi(typeStr.Left(sep3));
-                    item.hotkey = HotkeyInfo::FromConfigString(typeStr.Mid(sep3 + 1));
+                    CString hotkeyAndIcon = typeStr.Mid(sep3 + 1);
+                    // Format: modifier|vk|customIconPath
+                    // Find the second '|' to get the full "modifier|vk" pair
+                    int sep4 = hotkeyAndIcon.Find(_T('|'));
+                    if (sep4 != -1)
+                    {
+                        int sep5 = hotkeyAndIcon.Find(_T('|'), sep4 + 1);
+                        if (sep5 != -1)
+                        {
+                            // Have both modifier|vk and customIconPath
+                            item.hotkey = HotkeyInfo::FromConfigString(hotkeyAndIcon.Left(sep5));
+                            item.customIconPath = hotkeyAndIcon.Mid(sep5 + 1);
+                        }
+                        else
+                        {
+                            // Only modifier|vk, no customIconPath
+                            item.hotkey = HotkeyInfo::FromConfigString(hotkeyAndIcon);
+                        }
+                    }
+                    else
+                    {
+                        item.hotkey = HotkeyInfo::FromConfigString(hotkeyAndIcon);
+                    }
                 }
                 else
                 {
@@ -1040,29 +1062,63 @@ void CMFCApplication1Dlg::SaveQuickLaunchItems()
     {
         CString key, val;
         key.Format(_T("Item%d"), (int)i);
-        val.Format(_T("%s|%s|%d|%s"), m_qlItems[i].name.GetString(), m_qlItems[i].path.GetString(), m_qlItems[i].type, m_qlItems[i].hotkey.ToConfigString().GetString());
+        val.Format(_T("%s|%s|%d|%s|%s"), m_qlItems[i].name.GetString(), m_qlItems[i].path.GetString(), m_qlItems[i].type, m_qlItems[i].hotkey.ToConfigString().GetString(), m_qlItems[i].customIconPath.GetString());
         WritePrivateProfileString(_T("QuickLaunch"), key, val, configPath);
     }
 }
 
-void CMFCApplication1Dlg::UpdateQuickLaunchButtons()
+void CMFCApplication1Dlg::RefreshQuickLaunchList()
 {
-    for (int i = 0; i < MAX_QL_BUTTONS; ++i)
-    {
-        CWnd* pBtn = GetDlgItem(QL_BTN_IDS[i]);
-        if (!pBtn) continue;
+    CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_QUICK_LAUNCH);
+    if (!pList) return;
+    pList->DeleteAllItems();
 
-        if (i < (int)m_qlItems.size())
+    // Calculate icon size based on list width: 5 items per row
+    CRect rcList;
+    pList->GetClientRect(&rcList);
+    int listWidth = rcList.Width();
+    if (listWidth <= 0) listWidth = 211; // fallback to RC-defined width
+
+    int cellWidth = listWidth / 5;                    // grid cell width for 5 columns
+    // Icon takes ~50% of cell width, leaving ~25% padding on each side for clean spacing
+    int iconSize = cellWidth / 2;
+    if (iconSize < 32) iconSize = 32;
+    // Vertical spacing per row: icon height + label (~16px) + inter-row padding (~20px)
+    int spacingY = iconSize + 36;
+
+    // Rebuild image list with calculated icon size
+    if (m_quickLaunchImages.GetSafeHandle()) m_quickLaunchImages.DeleteImageList();
+    m_quickLaunchImages.Create(iconSize, iconSize, ILC_COLOR32 | ILC_MASK, 1, 36);
+    pList->SetImageList(&m_quickLaunchImages, LVSIL_NORMAL);
+
+    // Set spacing for icon view: 5 columns, vertical includes room for label + top/bottom padding
+    pList->SetIconSpacing(CSize(cellWidth, spacingY));
+
+    for (size_t i = 0; i < m_qlItems.size(); ++i)
+    {
+        HICON hIcon = CQuickLaunchDlg::ExtractIconForItem(m_qlItems[i]);
+        int iconIdx = -1;
+        if (hIcon)
         {
-            // Item exists: set button text (visibility managed by UpdateQuickTab)
-            pBtn->SetWindowText(m_qlItems[i].name);
+            // Scale icon to calculated size for the image list
+            HICON hScaled = (HICON)CopyImage(hIcon, IMAGE_ICON, iconSize, iconSize, LR_COPYFROMRESOURCE);
+            if (hScaled)
+            {
+                iconIdx = m_quickLaunchImages.Add(hScaled);
+                DestroyIcon(hScaled);
+            }
+            else
+            {
+                iconIdx = m_quickLaunchImages.Add(hIcon);
+            }
+            DestroyIcon(hIcon);
         }
-        else
-        {
-            // No item: clear button text (visibility managed by UpdateQuickTab)
-            pBtn->SetWindowText(_T(""));
-        }
+        pList->InsertItem((int)i, m_qlItems[i].name, iconIdx);
     }
+
+    // Force immediate redraw to prevent blank/flicker on restore from tray
+    pList->Invalidate();
+    pList->UpdateWindow();
 }
 
 // Helper: check if a process with the given executable path is running
@@ -1213,36 +1269,67 @@ void CMFCApplication1Dlg::OnQuickLaunchManage()
     m_pQuickLaunchDlg->ShowWindow(SW_SHOW);
 }
 
-// Individual button handlers
-void CMFCApplication1Dlg::OnQuickLaunchBtn0() { OnQuickLaunchItem(0); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn1() { OnQuickLaunchItem(1); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn2() { OnQuickLaunchItem(2); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn3() { OnQuickLaunchItem(3); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn4() { OnQuickLaunchItem(4); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn5() { OnQuickLaunchItem(5); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn6() { OnQuickLaunchItem(6); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn7() { OnQuickLaunchItem(7); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn8() { OnQuickLaunchItem(8); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn9() { OnQuickLaunchItem(9); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn10() { OnQuickLaunchItem(10); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn11() { OnQuickLaunchItem(11); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn12() { OnQuickLaunchItem(12); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn13() { OnQuickLaunchItem(13); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn14() { OnQuickLaunchItem(14); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn15() { OnQuickLaunchItem(15); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn16() { OnQuickLaunchItem(16); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn17() { OnQuickLaunchItem(17); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn18() { OnQuickLaunchItem(18); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn19() { OnQuickLaunchItem(19); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn20() { OnQuickLaunchItem(20); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn21() { OnQuickLaunchItem(21); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn22() { OnQuickLaunchItem(22); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn23() { OnQuickLaunchItem(23); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn24() { OnQuickLaunchItem(24); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn25() { OnQuickLaunchItem(25); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn26() { OnQuickLaunchItem(26); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn27() { OnQuickLaunchItem(27); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn28() { OnQuickLaunchItem(28); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn29() { OnQuickLaunchItem(29); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn30() { OnQuickLaunchItem(30); }
-void CMFCApplication1Dlg::OnQuickLaunchBtn31() { OnQuickLaunchItem(31); }
+// List control handlers: double-click to activate, right-click for context menu
+void CMFCApplication1Dlg::OnNMDblclkQuickLaunchList(NMHDR* pNMHDR, LRESULT* pResult)
+{
+    LPNMITEMACTIVATE pItem = (LPNMITEMACTIVATE)pNMHDR;
+    if (pItem->iItem >= 0 && pItem->iItem < (int)m_qlItems.size())
+        OnQuickLaunchItem(pItem->iItem);
+    *pResult = 0;
+}
+
+void CMFCApplication1Dlg::OnNMRclickQuickLaunchList(NMHDR* pNMHDR, LRESULT* pResult)
+{
+    LPNMITEMACTIVATE pItem = (LPNMITEMACTIVATE)pNMHDR;
+    if (pItem->iItem < 0 || pItem->iItem >= (int)m_qlItems.size())
+    {
+        *pResult = 0;
+        return;
+    }
+
+    auto& loc = CLocalizationManager::GetInstance();
+    CMenu menu;
+    menu.CreatePopupMenu();
+    menu.AppendMenu(MF_STRING, 1, loc.GetString(_T("QuickLaunch"), _T("BtnEdit")));
+    menu.AppendMenu(MF_STRING, 2, loc.GetString(_T("QuickLaunch"), _T("BtnDelete")));
+    menu.AppendMenu(MF_SEPARATOR);
+    menu.AppendMenu(MF_STRING, 3, loc.GetString(_T("QuickLaunch"), _T("BtnChangeIcon")));
+
+    // Convert list client coordinates to screen coordinates for the popup menu
+    CPoint ptScreen = pItem->ptAction;
+    CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST_QUICK_LAUNCH);
+    if (pList) pList->ClientToScreen(&ptScreen);
+
+    DWORD cmd = menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RETURNCMD | TPM_NONOTIFY,
+        ptScreen.x, ptScreen.y, this);
+
+    if (cmd == 1)
+    {
+        // Edit: open item-specific edit dialog directly
+        CQuickLaunchDlg::EditSingleItem(m_qlItems[pItem->iItem], false, this);
+        SaveQuickLaunchItems();
+        RefreshQuickLaunchList();
+        CTabCtrl* pTab = (CTabCtrl*)GetDlgItem(IDC_TAB_QUICK);
+        if (pTab) UpdateQuickTab(pTab->GetCurSel());
+    }
+    else if (cmd == 2)
+    {
+        // Delete item
+        m_qlItems.erase(m_qlItems.begin() + pItem->iItem);
+        SaveQuickLaunchItems();
+        RefreshQuickLaunchList();
+        CTabCtrl* pTab = (CTabCtrl*)GetDlgItem(IDC_TAB_QUICK);
+        if (pTab) UpdateQuickTab(pTab->GetCurSel());
+    }
+    else if (cmd == 3)
+    {
+        // Change icon: open item-specific edit dialog directly
+        CQuickLaunchDlg::EditSingleItem(m_qlItems[pItem->iItem], false, this);
+        SaveQuickLaunchItems();
+        RefreshQuickLaunchList();
+        CTabCtrl* pTab = (CTabCtrl*)GetDlgItem(IDC_TAB_QUICK);
+        if (pTab) UpdateQuickTab(pTab->GetCurSel());
+    }
+
+    *pResult = 0;
+}

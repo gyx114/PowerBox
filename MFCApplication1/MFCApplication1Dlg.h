@@ -359,56 +359,16 @@ public:
     void ConnectAiBrowserEvents();
     void DisconnectAiBrowserEvents();
 
-    // Quick Launch: user-configurable buttons
-    static constexpr int MAX_QL_BUTTONS = 32;
-    static constexpr UINT QL_BTN_IDS[MAX_QL_BUTTONS] = {
-        IDC_QL_BTN0, IDC_QL_BTN1, IDC_QL_BTN2, IDC_QL_BTN3,
-        IDC_QL_BTN4, IDC_QL_BTN5, IDC_QL_BTN6, IDC_QL_BTN7,
-        IDC_QL_BTN8, IDC_QL_BTN9, IDC_QL_BTN10, IDC_QL_BTN11,
-        IDC_QL_BTN12, IDC_QL_BTN13, IDC_QL_BTN14, IDC_QL_BTN15,
-        IDC_QL_BTN16, IDC_QL_BTN17, IDC_QL_BTN18, IDC_QL_BTN19,
-        IDC_QL_BTN20, IDC_QL_BTN21, IDC_QL_BTN22, IDC_QL_BTN23,
-        IDC_QL_BTN24, IDC_QL_BTN25, IDC_QL_BTN26, IDC_QL_BTN27,
-        IDC_QL_BTN28, IDC_QL_BTN29, IDC_QL_BTN30, IDC_QL_BTN31
-    };
+    // Quick Launch: icon-based list control
     std::vector<QLItem> m_qlItems;
+    CImageList m_quickLaunchImages; // 32x32 icons for the list
     void LoadQuickLaunchItems();
     void SaveQuickLaunchItems();
-    void UpdateQuickLaunchButtons();
+    void RefreshQuickLaunchList();
     void OnQuickLaunchItem(int index);
     afx_msg void OnQuickLaunchManage();
+    afx_msg void OnNMDblclkQuickLaunchList(NMHDR* pNMHDR, LRESULT* pResult);
+    afx_msg void OnNMRclickQuickLaunchList(NMHDR* pNMHDR, LRESULT* pResult);
     CQuickLaunchDlg* m_pQuickLaunchDlg{nullptr};
     CString m_strShortcutText; // Dynamic shortcut text for Help > Shortcuts menu
-    afx_msg void OnQuickLaunchBtn0();
-    afx_msg void OnQuickLaunchBtn1();
-    afx_msg void OnQuickLaunchBtn2();
-    afx_msg void OnQuickLaunchBtn3();
-    afx_msg void OnQuickLaunchBtn4();
-    afx_msg void OnQuickLaunchBtn5();
-    afx_msg void OnQuickLaunchBtn6();
-    afx_msg void OnQuickLaunchBtn7();
-    afx_msg void OnQuickLaunchBtn8();
-    afx_msg void OnQuickLaunchBtn9();
-    afx_msg void OnQuickLaunchBtn10();
-    afx_msg void OnQuickLaunchBtn11();
-    afx_msg void OnQuickLaunchBtn12();
-    afx_msg void OnQuickLaunchBtn13();
-    afx_msg void OnQuickLaunchBtn14();
-    afx_msg void OnQuickLaunchBtn15();
-    afx_msg void OnQuickLaunchBtn16();
-    afx_msg void OnQuickLaunchBtn17();
-    afx_msg void OnQuickLaunchBtn18();
-    afx_msg void OnQuickLaunchBtn19();
-    afx_msg void OnQuickLaunchBtn20();
-    afx_msg void OnQuickLaunchBtn21();
-    afx_msg void OnQuickLaunchBtn22();
-    afx_msg void OnQuickLaunchBtn23();
-    afx_msg void OnQuickLaunchBtn24();
-    afx_msg void OnQuickLaunchBtn25();
-    afx_msg void OnQuickLaunchBtn26();
-    afx_msg void OnQuickLaunchBtn27();
-    afx_msg void OnQuickLaunchBtn28();
-    afx_msg void OnQuickLaunchBtn29();
-    afx_msg void OnQuickLaunchBtn30();
-    afx_msg void OnQuickLaunchBtn31();
 };

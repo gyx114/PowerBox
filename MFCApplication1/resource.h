@@ -456,13 +456,23 @@
 #define IDC_BTN_GIT_CMD_EXECUTE          1391
 #define IDC_BTN_GIT_CMD_CLEAR            1392
 
+// Quick launch icon-based list and icon controls
+#define IDC_LIST_QUICK_LAUNCH            1393
+#define IDC_BTN_QL_CHANGE_ICON           1394
+#define IDC_QL_ICON_PREVIEW              1395
+#define IDC_QL_BTN_RESET_ICON            1396
+#define IDC_QL_LABEL_ICON                1397
+
+// Default icon for hotkey-only quick launch items
+#define IDI_HOTKEY_DEFAULT               158
+
 // Next default values for new objects
 //
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        158
+#define _APS_NEXT_RESOURCE_VALUE        159
 #define _APS_NEXT_COMMAND_VALUE         32854
-#define _APS_NEXT_CONTROL_VALUE         1393
+#define _APS_NEXT_CONTROL_VALUE         1397
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

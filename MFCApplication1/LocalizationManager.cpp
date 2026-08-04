@@ -1234,4 +1234,7 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("QuickLaunch"), _T("TypeFolder"))] = _T("文件夹");
     m_defaults[MakeKey(_T("QuickLaunch"), _T("TypeUrl"))] = _T("网址");
     m_defaults[MakeKey(_T("QuickLaunch"), _T("TypeOtherFile"))] = _T("其他文件");
+    m_defaults[MakeKey(_T("QuickLaunch"), _T("BtnChangeIcon"))] = _T("更改图标");
+    m_defaults[MakeKey(_T("QuickLaunch"), _T("BtnResetIcon"))] = _T("恢复默认");
+    m_defaults[MakeKey(_T("QuickLaunch"), _T("SelectIconFile"))] = _T("选择图标文件");
 }

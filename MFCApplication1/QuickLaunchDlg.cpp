@@ -10,7 +10,11 @@
 #include "afxdialogex.h"
 #include <algorithm>
 #include <ShlObj.h>
+#include <shellapi.h>
+#include <Shlwapi.h>
 #include <atlbase.h>
+
+#pragma comment(lib, "Shlwapi.lib")
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -19,6 +23,68 @@
 // Registered message definitions
 const UINT WM_QL_CHANGED = ::RegisterWindowMessage(_T("WM_QL_CHANGED_QUICKLAUNCH"));
 const UINT WM_QL_CLOSED = ::RegisterWindowMessage(_T("WM_QL_CLOSED_QUICKLAUNCH"));
+
+// ============================================================================
+// Static helper: extract icon for a quick launch item
+// ============================================================================
+HICON CQuickLaunchDlg::ExtractIconForItem(const QLItem& item)
+{
+    // 1. Try custom icon path
+    if (!item.customIconPath.IsEmpty())
+    {
+        HICON hIcon = NULL;
+        ExtractIconEx(item.customIconPath, 0, &hIcon, NULL, 1);
+        if (hIcon) return hIcon;
+    }
+
+    // 2. For URL items, get the default browser icon
+    if (item.type == QLItem::Url)
+    {
+        // Look up the default browser executable for HTTP protocol
+        TCHAR browserPath[MAX_PATH] = {};
+        DWORD bufSize = MAX_PATH;
+        if (SUCCEEDED(AssocQueryString(ASSOCF_NONE, ASSOCSTR_EXECUTABLE, _T("http"), _T("open"), browserPath, &bufSize)))
+        {
+            SHFILEINFO shfi = {};
+            if (SHGetFileInfo(browserPath, 0, &shfi, sizeof(shfi), SHGFI_ICON | SHGFI_LARGEICON))
+            {
+                return shfi.hIcon;
+            }
+        }
+        // Fallback: try to use the URL itself with SHGetFileInfo
+        SHFILEINFO shfi = {};
+        if (SHGetFileInfo(item.path, 0, &shfi, sizeof(shfi), SHGFI_ICON | SHGFI_LARGEICON | SHGFI_USEFILEATTRIBUTES))
+        {
+            return shfi.hIcon;
+        }
+    }
+
+    // 3. Try SHGetFileInfo for items with a path
+    if (item.type != QLItem::HotkeyOnly && !item.path.IsEmpty())
+    {
+        SHFILEINFO shfi = {};
+        if (SHGetFileInfo(item.path, 0, &shfi, sizeof(shfi), SHGFI_ICON | SHGFI_LARGEICON))
+        {
+            return shfi.hIcon;
+        }
+    }
+
+    // 4. Fallback: default hotkey icon
+    HMODULE hRes = AfxGetResourceHandle();
+    return (HICON)LoadImage(hRes, MAKEINTRESOURCE(IDI_HOTKEY_DEFAULT), IMAGE_ICON, 32, 32, LR_DEFAULTCOLOR);
+}
+
+CString CQuickLaunchDlg::GetIconsDir()
+{
+    TCHAR szAppData[MAX_PATH] = {};
+    if (SUCCEEDED(SHGetFolderPath(NULL, CSIDL_APPDATA, NULL, 0, szAppData)))
+    {
+        CString dir = CString(szAppData) + _T("\\PowerBox\\icons");
+        CreateDirectory(dir, NULL);
+        return dir;
+    }
+    return _T("");
+}
 
 // ============================================================================
 // Local item edit dialog for name/path input
@@ -31,6 +97,8 @@ public:
     CString m_title;
     int m_type = QLItem::Executable;
     HotkeyInfo m_hotkey;
+    CString m_customIconPath;
+    HICON m_hPreviewIcon = NULL;
 
     CQLItemEditDlg(CWnd* pParent = nullptr)
         : CDialog(IDD_QL_ITEM_DLG, pParent) {}
@@ -64,6 +132,9 @@ protected:
         SetDlgItemText(IDC_QL_LABEL_HOTKEY, loc.GetString(_T("QuickLaunch"), _T("LabelHotkey")));
         SetDlgItemText(IDC_QL_BTN_HOTKEY, loc.GetString(_T("QuickLaunch"), _T("BtnHotkey")));
 
+        // Localize icon label
+        SetDlgItemText(IDC_QL_LABEL_ICON, loc.GetString(_T("QuickLaunch"), _T("LabelIcon")));
+
         SetDlgItemText(IDC_QL_EDIT_NAME, m_name);
 
         // Init type combo
@@ -90,6 +161,13 @@ protected:
 
         // Enable/disable path controls based on type
         UpdatePathControls(m_type);
+
+        // Localize icon controls
+        SetDlgItemText(IDC_BTN_QL_CHANGE_ICON, loc.GetString(_T("QuickLaunch"), _T("BtnChangeIcon")));
+        SetDlgItemText(IDC_QL_BTN_RESET_ICON, loc.GetString(_T("QuickLaunch"), _T("BtnResetIcon")));
+
+        // Load and display icon preview
+        UpdateIconPreview();
 
         // Accept drag-drop
         DragAcceptFiles(TRUE);
@@ -220,12 +298,94 @@ protected:
         DragFinish(hDropInfo);
     }
 
+    // Update icon preview in the edit dialog
+    void UpdateIconPreview()
+    {
+        if (m_hPreviewIcon) { DestroyIcon(m_hPreviewIcon); m_hPreviewIcon = NULL; }
+
+        QLItem tmp;
+        tmp.name = m_name;
+        tmp.path = m_path;
+        tmp.type = m_type;
+        tmp.customIconPath = m_customIconPath;
+        m_hPreviewIcon = CQuickLaunchDlg::ExtractIconForItem(tmp);
+
+        CWnd* pPreview = GetDlgItem(IDC_QL_ICON_PREVIEW);
+        if (pPreview && m_hPreviewIcon)
+        {
+            pPreview->SendMessage(STM_SETICON, (WPARAM)m_hPreviewIcon, 0);
+        }
+    }
+
+    // Change icon: open file dialog to pick .ico/.exe/.dll
+    afx_msg void OnBnClickedChangeIcon()
+    {
+        auto& loc = CLocalizationManager::GetInstance();
+        CFileDialog dlg(TRUE, _T("ico"), NULL, OFN_HIDEREADONLY | OFN_FILEMUSTEXIST,
+            _T("Icon Files (*.ico)|*.ico|Executable Files (*.exe;*.dll)|*.exe;*.dll|All Files (*.*)|*.*||"), this);
+        dlg.m_ofn.lpstrTitle = loc.GetString(_T("QuickLaunch"), _T("SelectIconFile"));
+        if (dlg.DoModal() == IDOK)
+        {
+            CString srcPath = dlg.GetPathName();
+            CString ext = srcPath.Mid(srcPath.ReverseFind(_T('.')));
+            ext.MakeLower();
+
+            if (ext == _T(".ico"))
+            {
+                // Copy .ico to icons directory for persistence
+                CString iconsDir = CQuickLaunchDlg::GetIconsDir();
+                if (!iconsDir.IsEmpty())
+                {
+                    CString safeName = m_name;
+                    safeName.Replace(_T('\\'), _T('_'));
+                    safeName.Replace(_T('/'), _T('_'));
+                    safeName.Replace(_T(':'), _T('_'));
+                    safeName.Replace(_T('|'), _T('_'));
+                    safeName.Replace(_T('*'), _T('_'));
+                    safeName.Replace(_T('?'), _T('_'));
+                    safeName.Replace(_T('"'), _T('_'));
+                    safeName.Replace(_T('<'), _T('_'));
+                    safeName.Replace(_T('>'), _T('_'));
+                    CString dstPath = iconsDir + _T("\\") + safeName + _T(".ico");
+                    CopyFile(srcPath, dstPath, FALSE);
+                    m_customIconPath = dstPath;
+                }
+                else
+                {
+                    m_customIconPath = srcPath;
+                }
+            }
+            else
+            {
+                // For .exe/.dll, save path as-is
+                m_customIconPath = srcPath;
+            }
+            UpdateIconPreview();
+        }
+    }
+
+    // Reset icon to default
+    afx_msg void OnBnClickedResetIcon()
+    {
+        m_customIconPath.Empty();
+        UpdateIconPreview();
+    }
+
+    // Destructor: clean up preview icon (must be public for stack allocation)
+public:
+    ~CQLItemEditDlg()
+    {
+        if (m_hPreviewIcon) DestroyIcon(m_hPreviewIcon);
+    }
+
     DECLARE_MESSAGE_MAP()
 };
 
 BEGIN_MESSAGE_MAP(CQLItemEditDlg, CDialog)
     ON_BN_CLICKED(IDC_QL_BROWSE, &CQLItemEditDlg::OnBnClickedQlBrowse)
     ON_BN_CLICKED(IDC_QL_BTN_HOTKEY, &CQLItemEditDlg::OnBnClickedQlBtnHotkey)
+    ON_BN_CLICKED(IDC_BTN_QL_CHANGE_ICON, &CQLItemEditDlg::OnBnClickedChangeIcon)
+    ON_BN_CLICKED(IDC_QL_BTN_RESET_ICON, &CQLItemEditDlg::OnBnClickedResetIcon)
     ON_CBN_SELCHANGE(IDC_QL_COMBO_TYPE, &CQLItemEditDlg::OnCbnSelchangeQlComboType)
     ON_WM_DROPFILES()
 END_MESSAGE_MAP()
@@ -256,6 +416,7 @@ BEGIN_MESSAGE_MAP(CQuickLaunchDlg, CDialogEx)
     ON_BN_CLICKED(IDC_QL_DELETE, &CQuickLaunchDlg::OnBnClickedQlDelete)
     ON_BN_CLICKED(IDC_QL_UP, &CQuickLaunchDlg::OnBnClickedQlUp)
     ON_BN_CLICKED(IDC_QL_DOWN, &CQuickLaunchDlg::OnBnClickedQlDown)
+    ON_BN_CLICKED(IDC_BTN_QL_CHANGE_ICON, &CQuickLaunchDlg::OnBnClickedQlChangeIcon)
     ON_NOTIFY(NM_DBLCLK, IDC_QL_LIST, &CQuickLaunchDlg::OnNMDblclkQlList)
     ON_NOTIFY(NM_RCLICK, IDC_QL_LIST, &CQuickLaunchDlg::OnNMRclickQlList)
     ON_NOTIFY(LVN_BEGINDRAG, IDC_QL_LIST, &CQuickLaunchDlg::OnLvnBeginDrag)
@@ -298,7 +459,15 @@ BOOL CQuickLaunchDlg::OnInitDialog()
     SetDlgItemText(IDC_QL_DELETE, loc.GetString(_T("QuickLaunch"), _T("BtnDelete")));
     SetDlgItemText(IDC_QL_UP, loc.GetString(_T("QuickLaunch"), _T("BtnUp")));
     SetDlgItemText(IDC_QL_DOWN, loc.GetString(_T("QuickLaunch"), _T("BtnDown")));
+    SetDlgItemText(IDC_BTN_QL_CHANGE_ICON, loc.GetString(_T("QuickLaunch"), _T("BtnChangeIcon")));
     SetDlgItemText(IDCANCEL, loc.GetString(_T("QuickLaunch"), _T("BtnClose")));
+
+    // Initialize image list for list icons (16x16 small icons for report view)
+    if (pList && m_imgList.GetSafeHandle() == NULL)
+    {
+        m_imgList.Create(16, 16, ILC_COLOR32 | ILC_MASK, 1, 32);
+        pList->SetImageList(&m_imgList, LVSIL_SMALL);
+    }
 
     // Accept drag-drop
     DragAcceptFiles(TRUE);
@@ -350,9 +519,23 @@ void CQuickLaunchDlg::RefreshList()
     if (!pList) return;
     pList->DeleteAllItems();
 
+    // Rebuild image list
+    if (m_imgList.GetSafeHandle()) m_imgList.DeleteImageList();
+    m_imgList.Create(16, 16, ILC_COLOR32 | ILC_MASK, 1, 32);
+    pList->SetImageList(&m_imgList, LVSIL_SMALL);
+
     for (size_t i = 0; i < m_items.size(); ++i)
     {
-        int idx = pList->InsertItem((int)i, m_items[i].name);
+        // Extract icon and add to image list
+        HICON hIcon = ExtractIconForItem(m_items[i]);
+        int iconIdx = -1;
+        if (hIcon)
+        {
+            iconIdx = m_imgList.Add(hIcon);
+            DestroyIcon(hIcon);
+        }
+
+        int idx = pList->InsertItem((int)i, m_items[i].name, iconIdx);
         pList->SetItemText(idx, 1, CQLItemEditDlg::TypeLabel(m_items[i].type));
         pList->SetItemText(idx, 2, m_items[i].path);
         pList->SetItemText(idx, 3, m_items[i].hotkey.ToDisplay());
@@ -368,6 +551,7 @@ bool CQuickLaunchDlg::EditItem(QLItem& item, bool bNew)
     dlg.m_path = item.path;
     dlg.m_type = item.type;
     dlg.m_hotkey = item.hotkey;
+    dlg.m_customIconPath = item.customIconPath;
     dlg.m_title = bNew ? loc.GetString(_T("QuickLaunch"), _T("AddTitle"))
                        : loc.GetString(_T("QuickLaunch"), _T("EditTitle"));
 
@@ -377,6 +561,33 @@ bool CQuickLaunchDlg::EditItem(QLItem& item, bool bNew)
         item.path = dlg.m_path;
         item.type = dlg.m_type;
         item.hotkey = dlg.m_hotkey;
+        item.customIconPath = dlg.m_customIconPath;
+        return true;
+    }
+    return false;
+}
+
+// Static: open the item-specific edit dialog without the overview management window
+bool CQuickLaunchDlg::EditSingleItem(QLItem& item, bool bNew, CWnd* pParent)
+{
+    auto& loc = CLocalizationManager::GetInstance();
+
+    CQLItemEditDlg dlg(pParent);
+    dlg.m_name = item.name;
+    dlg.m_path = item.path;
+    dlg.m_type = item.type;
+    dlg.m_hotkey = item.hotkey;
+    dlg.m_customIconPath = item.customIconPath;
+    dlg.m_title = bNew ? loc.GetString(_T("QuickLaunch"), _T("AddTitle"))
+                       : loc.GetString(_T("QuickLaunch"), _T("EditTitle"));
+
+    if (dlg.DoModal() == IDOK)
+    {
+        item.name = dlg.m_name;
+        item.path = dlg.m_path;
+        item.type = dlg.m_type;
+        item.hotkey = dlg.m_hotkey;
+        item.customIconPath = dlg.m_customIconPath;
         return true;
     }
     return false;
@@ -415,10 +626,7 @@ void CQuickLaunchDlg::OnEdit()
     }
     if (EditItem(m_items[sel], false))
     {
-        pList->SetItemText(sel, 0, m_items[sel].name);
-        pList->SetItemText(sel, 1, CQLItemEditDlg::TypeLabel(m_items[sel].type));
-        pList->SetItemText(sel, 2, m_items[sel].path);
-        pList->SetItemText(sel, 3, m_items[sel].hotkey.ToDisplay());
+        RefreshList();
         NotifyParent();
     }
 }
@@ -626,6 +834,60 @@ void CQuickLaunchDlg::OnBnClickedQlEdit() { OnEdit(); }
 void CQuickLaunchDlg::OnBnClickedQlDelete() { OnDelete(); }
 void CQuickLaunchDlg::OnBnClickedQlUp() { OnMoveUp(); }
 void CQuickLaunchDlg::OnBnClickedQlDown() { OnMoveDown(); }
+
+void CQuickLaunchDlg::OnBnClickedQlChangeIcon()
+{
+    auto& loc = CLocalizationManager::GetInstance();
+    CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_QL_LIST);
+    if (!pList) return;
+    int sel = pList->GetSelectionMark();
+    if (sel < 0 || sel >= (int)m_items.size())
+    {
+        MessageBox(loc.GetString(_T("QuickLaunch"), _T("NoSelection")), loc.GetString(_T("Msg"), _T("Info")), MB_ICONINFORMATION);
+        return;
+    }
+
+    CFileDialog dlg(TRUE, _T("ico"), NULL, OFN_HIDEREADONLY | OFN_FILEMUSTEXIST,
+        _T("Icon Files (*.ico)|*.ico|Executable Files (*.exe;*.dll)|*.exe;*.dll|All Files (*.*)|*.*||"), this);
+    dlg.m_ofn.lpstrTitle = loc.GetString(_T("QuickLaunch"), _T("SelectIconFile"));
+    if (dlg.DoModal() == IDOK)
+    {
+        CString srcPath = dlg.GetPathName();
+        CString ext = srcPath.Mid(srcPath.ReverseFind(_T('.')));
+        ext.MakeLower();
+
+        if (ext == _T(".ico"))
+        {
+            CString iconsDir = GetIconsDir();
+            if (!iconsDir.IsEmpty())
+            {
+                CString safeName = m_items[sel].name;
+                safeName.Replace(_T('\\'), _T('_'));
+                safeName.Replace(_T('/'), _T('_'));
+                safeName.Replace(_T(':'), _T('_'));
+                safeName.Replace(_T('|'), _T('_'));
+                safeName.Replace(_T('*'), _T('_'));
+                safeName.Replace(_T('?'), _T('_'));
+                safeName.Replace(_T('"'), _T('_'));
+                safeName.Replace(_T('<'), _T('_'));
+                safeName.Replace(_T('>'), _T('_'));
+                CString dstPath = iconsDir + _T("\\") + safeName + _T(".ico");
+                CopyFile(srcPath, dstPath, FALSE);
+                m_items[sel].customIconPath = dstPath;
+            }
+            else
+            {
+                m_items[sel].customIconPath = srcPath;
+            }
+        }
+        else
+        {
+            m_items[sel].customIconPath = srcPath;
+        }
+        RefreshList();
+        NotifyParent();
+    }
+}
 
 void CQuickLaunchDlg::OnNMDblclkQlList(NMHDR* pNMHDR, LRESULT* pResult)
 {

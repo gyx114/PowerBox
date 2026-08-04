@@ -348,38 +348,8 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_COMMAND(41001, &CMFCApplication1Dlg::OnBiliNext)
     // Quick Launch management and dynamic buttons
     ON_BN_CLICKED(IDC_QL_BTN_MANAGE, &CMFCApplication1Dlg::OnQuickLaunchManage)
-    ON_BN_CLICKED(IDC_QL_BTN0, &CMFCApplication1Dlg::OnQuickLaunchBtn0)
-    ON_BN_CLICKED(IDC_QL_BTN1, &CMFCApplication1Dlg::OnQuickLaunchBtn1)
-    ON_BN_CLICKED(IDC_QL_BTN2, &CMFCApplication1Dlg::OnQuickLaunchBtn2)
-    ON_BN_CLICKED(IDC_QL_BTN3, &CMFCApplication1Dlg::OnQuickLaunchBtn3)
-    ON_BN_CLICKED(IDC_QL_BTN4, &CMFCApplication1Dlg::OnQuickLaunchBtn4)
-    ON_BN_CLICKED(IDC_QL_BTN5, &CMFCApplication1Dlg::OnQuickLaunchBtn5)
-    ON_BN_CLICKED(IDC_QL_BTN6, &CMFCApplication1Dlg::OnQuickLaunchBtn6)
-    ON_BN_CLICKED(IDC_QL_BTN7, &CMFCApplication1Dlg::OnQuickLaunchBtn7)
-    ON_BN_CLICKED(IDC_QL_BTN8, &CMFCApplication1Dlg::OnQuickLaunchBtn8)
-    ON_BN_CLICKED(IDC_QL_BTN9, &CMFCApplication1Dlg::OnQuickLaunchBtn9)
-    ON_BN_CLICKED(IDC_QL_BTN10, &CMFCApplication1Dlg::OnQuickLaunchBtn10)
-    ON_BN_CLICKED(IDC_QL_BTN11, &CMFCApplication1Dlg::OnQuickLaunchBtn11)
-    ON_BN_CLICKED(IDC_QL_BTN12, &CMFCApplication1Dlg::OnQuickLaunchBtn12)
-    ON_BN_CLICKED(IDC_QL_BTN13, &CMFCApplication1Dlg::OnQuickLaunchBtn13)
-    ON_BN_CLICKED(IDC_QL_BTN14, &CMFCApplication1Dlg::OnQuickLaunchBtn14)
-    ON_BN_CLICKED(IDC_QL_BTN15, &CMFCApplication1Dlg::OnQuickLaunchBtn15)
-    ON_BN_CLICKED(IDC_QL_BTN16, &CMFCApplication1Dlg::OnQuickLaunchBtn16)
-    ON_BN_CLICKED(IDC_QL_BTN17, &CMFCApplication1Dlg::OnQuickLaunchBtn17)
-    ON_BN_CLICKED(IDC_QL_BTN18, &CMFCApplication1Dlg::OnQuickLaunchBtn18)
-    ON_BN_CLICKED(IDC_QL_BTN19, &CMFCApplication1Dlg::OnQuickLaunchBtn19)
-    ON_BN_CLICKED(IDC_QL_BTN20, &CMFCApplication1Dlg::OnQuickLaunchBtn20)
-    ON_BN_CLICKED(IDC_QL_BTN21, &CMFCApplication1Dlg::OnQuickLaunchBtn21)
-    ON_BN_CLICKED(IDC_QL_BTN22, &CMFCApplication1Dlg::OnQuickLaunchBtn22)
-    ON_BN_CLICKED(IDC_QL_BTN23, &CMFCApplication1Dlg::OnQuickLaunchBtn23)
-    ON_BN_CLICKED(IDC_QL_BTN24, &CMFCApplication1Dlg::OnQuickLaunchBtn24)
-    ON_BN_CLICKED(IDC_QL_BTN25, &CMFCApplication1Dlg::OnQuickLaunchBtn25)
-    ON_BN_CLICKED(IDC_QL_BTN26, &CMFCApplication1Dlg::OnQuickLaunchBtn26)
-    ON_BN_CLICKED(IDC_QL_BTN27, &CMFCApplication1Dlg::OnQuickLaunchBtn27)
-    ON_BN_CLICKED(IDC_QL_BTN28, &CMFCApplication1Dlg::OnQuickLaunchBtn28)
-    ON_BN_CLICKED(IDC_QL_BTN29, &CMFCApplication1Dlg::OnQuickLaunchBtn29)
-    ON_BN_CLICKED(IDC_QL_BTN30, &CMFCApplication1Dlg::OnQuickLaunchBtn30)
-    ON_BN_CLICKED(IDC_QL_BTN31, &CMFCApplication1Dlg::OnQuickLaunchBtn31)
+    ON_NOTIFY(NM_DBLCLK, IDC_LIST_QUICK_LAUNCH, &CMFCApplication1Dlg::OnNMDblclkQuickLaunchList)
+    ON_NOTIFY(NM_RCLICK, IDC_LIST_QUICK_LAUNCH, &CMFCApplication1Dlg::OnNMRclickQuickLaunchList)
     ON_NOTIFY(NM_DBLCLK, IDC_LIST4, &CMFCApplication1Dlg::OnNMDblclkList4)
     ON_NOTIFY(NM_RCLICK, IDC_LIST4, &CMFCApplication1Dlg::OnNMRclickList4)
     ON_NOTIFY(NM_DBLCLK, IDC_LIST5, &CMFCApplication1Dlg::OnNMDblclkList5)
@@ -474,7 +444,7 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 
 	// Load Quick Launch items
 	LoadQuickLaunchItems();
-	UpdateQuickLaunchButtons();
+	RefreshQuickLaunchList();
 
 	// Load initial data
 	if (nCur == 0)
@@ -645,16 +615,8 @@ void CMFCApplication1Dlg::InitQuickTab()
 
 void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
 {
-    static const int kCommonIds[] = {
-        IDC_QL_BTN0, IDC_QL_BTN1, IDC_QL_BTN2, IDC_QL_BTN3,
-        IDC_QL_BTN4, IDC_QL_BTN5, IDC_QL_BTN6, IDC_QL_BTN7,
-        IDC_QL_BTN8, IDC_QL_BTN9, IDC_QL_BTN10, IDC_QL_BTN11,
-        IDC_QL_BTN12, IDC_QL_BTN13, IDC_QL_BTN14, IDC_QL_BTN15,
-        IDC_QL_BTN16, IDC_QL_BTN17, IDC_QL_BTN18, IDC_QL_BTN19,
-        IDC_QL_BTN20, IDC_QL_BTN21, IDC_QL_BTN22, IDC_QL_BTN23,
-        IDC_QL_BTN24, IDC_QL_BTN25, IDC_QL_BTN26, IDC_QL_BTN27,
-        IDC_QL_BTN28, IDC_QL_BTN29, IDC_QL_BTN30, IDC_QL_BTN31,
-        IDC_QL_BTN_MANAGE, IDC_QL_STATIC_COUNT
+    static const int kQuickLaunchIds[] = {
+        IDC_LIST_QUICK_LAUNCH, IDC_QL_BTN_MANAGE, IDC_QL_STATIC_COUNT
     };
     static const int kSystemIds[] = {
         IDC_STATIC_QUICK_SHUTDOWN, IDC_COMBO1, IDC_BUTTON1, IDC_BUTTON2,
@@ -710,34 +672,24 @@ void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
         }
     }
 
-    // Quick Launch buttons (tab 1)
+    // Quick Launch list (tab 1)
     if (nTab == 1)
     {
         auto& loc = CLocalizationManager::GetInstance();
-        // Show buttons that have items, hide empty ones
-        for (int i = 0; i < MAX_QL_BUTTONS; ++i)
-        {
-            CWnd* pBtn = GetDlgItem(QL_BTN_IDS[i]);
-            if (pBtn)
-                pBtn->ShowWindow(i < (int)m_qlItems.size() ? SW_SHOW : SW_HIDE);
-        }
-        // Always show manage button
-        CWnd* pManage = GetDlgItem(IDC_QL_BTN_MANAGE);
-        if (pManage) pManage->ShowWindow(SW_SHOW);
+        showGroup(kQuickLaunchIds, _countof(kQuickLaunchIds), true);
 
         // Update count label
         CWnd* pCount = GetDlgItem(IDC_QL_STATIC_COUNT);
         if (pCount)
         {
             CString countText;
-            countText.Format(loc.GetString(_T("QuickLaunch"), _T("BtnCount")), (int)m_qlItems.size(), MAX_QL_BUTTONS);
+            countText.Format(loc.GetString(_T("QuickLaunch"), _T("BtnCount")), (int)m_qlItems.size(), MAX_QL_ITEMS);
             pCount->SetWindowText(countText);
-            pCount->ShowWindow(SW_SHOW);
         }
     }
     else
     {
-        showGroup(kCommonIds, _countof(kCommonIds), false);
+        showGroup(kQuickLaunchIds, _countof(kQuickLaunchIds), false);
     }
 
     // System tools (tab 2)
@@ -757,10 +709,10 @@ void CMFCApplication1Dlg::OnTcnSelchangeQuickTab(NMHDR* pNMHDR, LRESULT* pResult
 
 LRESULT CMFCApplication1Dlg::OnQLChanged(WPARAM, LPARAM)
 {
-    // Quick launch items changed in modeless dialog: save and refresh buttons
+    // Quick launch items changed in modeless dialog: save and refresh list
     SaveQuickLaunchItems();
-    UpdateQuickLaunchButtons();
-    // Refresh visibility for current tab (hide empty buttons)
+    RefreshQuickLaunchList();
+    // Refresh visibility for current tab
     CTabCtrl* pTab = (CTabCtrl*)GetDlgItem(IDC_TAB_QUICK);
     if (pTab) UpdateQuickTab(pTab->GetCurSel());
     return 0;
@@ -1787,7 +1739,7 @@ void CMFCApplication1Dlg::TranslateUI()
 
     // ===== Quick Launch buttons =====
     SetDlgItemText(IDC_QL_BTN_MANAGE, loc.GetString(_T("QuickLaunch"), _T("BtnManage")));
-    UpdateQuickLaunchButtons();
+    RefreshQuickLaunchList();
 
     // ===== Quick tab 3 - Tools =====
     SetDlgItemText(IDC_STATIC_QUICK_CMDLINE, loc.GetString(_T("MainCtrl"), _T("LabelCmdLine")));
