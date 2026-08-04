@@ -40,10 +40,26 @@ protected:
     virtual BOOL OnInitDialog();
     virtual void OnOK();
     virtual void OnCancel();
+    virtual void OnDestroy();
     afx_msg void OnClear();
+    afx_msg LRESULT OnCapturedKey(WPARAM wParam, LPARAM lParam);
     DECLARE_MESSAGE_MAP()
 
 private:
     HotkeyInfo m_current;
+    HHOOK m_hHook{nullptr}; // low-level keyboard hook
     void UpdateDisplay();
+
+    // Tracks modifier key state manually in the hook callback.
+    // This is more reliable than GetAsyncKeyState because the hook
+    // callback's thread context may not have accurate async key state.
+    bool m_bCtrlDown{false};
+    bool m_bAltDown{false};
+    bool m_bShiftDown{false};
+    bool m_bWinDown{false};
+
+    // Low-level keyboard hook to intercept keys before they reach any target window
+    static LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
+    static CHotkeyCaptureDlg* s_pCaptureDlg; // weak ref for hook callback
+    static UINT WM_CAPTURE_HOTKEY_KEY;       // registered message for key data
 };
