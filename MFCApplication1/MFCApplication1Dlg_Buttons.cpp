@@ -1117,7 +1117,13 @@ void CMFCApplication1Dlg::RefreshQuickLaunchList()
             }
             DestroyIcon(hIcon);
         }
-        pList->InsertItem((int)i, m_qlItems[i].name, iconIdx);
+        // Truncate label to fit one line; full name shown via LVS_EX_INFOTIP tooltip
+        CString label = m_qlItems[i].name;
+        int maxLen = AfxGetApp()->GetProfileInt(_T("QuickLaunch"), _T("LabelMaxLen"), 10);
+        if (maxLen < 0) maxLen = 0;
+        if (maxLen > 0 && label.GetLength() > maxLen)
+            label = label.Left(maxLen) + _T("...");
+        pList->InsertItem((int)i, label, iconIdx);
     }
 
     // Move list control to top of Z-order so it draws in front of the tab control

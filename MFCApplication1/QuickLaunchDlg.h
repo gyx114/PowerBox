@@ -51,6 +51,7 @@ protected:
 
 private:
     std::vector<QLItem>& m_items; // reference to caller's list
+    int m_nLabelMaxLen; // label truncation length for icon view (0 = no truncation)
 
     void RefreshList();
     void OnAdd();

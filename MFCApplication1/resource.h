@@ -468,6 +468,8 @@
 
 // Quick launch separator
 #define IDC_QL_SEPARATOR                 1398
+#define IDC_QL_LABEL_TRUNCATE            1399
+#define IDC_QL_EDIT_TRUNCATE             1400
 
 // Next default values for new objects
 //
@@ -475,7 +477,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        159
 #define _APS_NEXT_COMMAND_VALUE         32854
-#define _APS_NEXT_CONTROL_VALUE         1399
+#define _APS_NEXT_CONTROL_VALUE         1401
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

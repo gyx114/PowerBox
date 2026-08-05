@@ -397,7 +397,7 @@ END_MESSAGE_MAP()
 IMPLEMENT_DYNAMIC(CQuickLaunchDlg, CDialogEx)
 
 CQuickLaunchDlg::CQuickLaunchDlg(std::vector<QLItem>& items, CWnd* pParent)
-    : CDialogEx(IDD_QUICK_LAUNCH_DLG, pParent), m_items(items)
+    : CDialogEx(IDD_QUICK_LAUNCH_DLG, pParent), m_items(items), m_nLabelMaxLen(10)
 {
 }
 
@@ -462,6 +462,22 @@ BOOL CQuickLaunchDlg::OnInitDialog()
     SetDlgItemText(IDC_BTN_QL_CHANGE_ICON, loc.GetString(_T("QuickLaunch"), _T("BtnChangeIcon")));
     SetDlgItemText(IDCANCEL, loc.GetString(_T("QuickLaunch"), _T("BtnClose")));
 
+    // Label truncation length: read from config.ini
+    TCHAR exePath[MAX_PATH] = {};
+    GetModuleFileName(NULL, exePath, MAX_PATH);
+    CString configPath = exePath;
+    int pSep = configPath.ReverseFind(_T('\\'));
+    if (pSep != -1) configPath = configPath.Left(pSep) + _T("\\config.ini");
+    else configPath = _T("config.ini");
+
+    m_nLabelMaxLen = GetPrivateProfileInt(_T("QuickLaunch"), _T("LabelMaxLen"), 10, configPath);
+    if (m_nLabelMaxLen < 0) m_nLabelMaxLen = 0; // 0 = no truncation
+    if (m_nLabelMaxLen > 30) m_nLabelMaxLen = 30;
+    CString val;
+    val.Format(_T("%d"), m_nLabelMaxLen);
+    SetDlgItemText(IDC_QL_EDIT_TRUNCATE, val);
+    SetDlgItemText(IDC_QL_LABEL_TRUNCATE, loc.GetString(_T("QuickLaunch"), _T("LabelTruncate")));
+
     // Initialize image list for list icons (16x16 small icons for report view)
     if (pList && m_imgList.GetSafeHandle() == NULL)
     {
@@ -485,6 +501,24 @@ void CQuickLaunchDlg::PostNcDestroy()
 
 void CQuickLaunchDlg::OnClose()
 {
+    // Save label truncation length to config
+    TCHAR buf[16] = {};
+    GetDlgItemText(IDC_QL_EDIT_TRUNCATE, buf, 16);
+    m_nLabelMaxLen = _ttoi(buf);
+    if (m_nLabelMaxLen < 0) m_nLabelMaxLen = 0;
+    if (m_nLabelMaxLen > 30) m_nLabelMaxLen = 30;
+
+    TCHAR exePath[MAX_PATH] = {};
+    GetModuleFileName(NULL, exePath, MAX_PATH);
+    CString configPath = exePath;
+    int pSep = configPath.ReverseFind(_T('\\'));
+    if (pSep != -1) configPath = configPath.Left(pSep) + _T("\\config.ini");
+    else configPath = _T("config.ini");
+
+    CString val;
+    val.Format(_T("%d"), m_nLabelMaxLen);
+    WritePrivateProfileString(_T("QuickLaunch"), _T("LabelMaxLen"), val, configPath);
+
     // X button → WM_CLOSE → OnClose(): notify parent before destroying
     NotifyParent();
     CWnd* pParent = GetParent();
@@ -495,6 +529,24 @@ void CQuickLaunchDlg::OnClose()
 
 void CQuickLaunchDlg::OnCancel()
 {
+    // Save label truncation length to config
+    TCHAR buf[16] = {};
+    GetDlgItemText(IDC_QL_EDIT_TRUNCATE, buf, 16);
+    int nLen = _ttoi(buf);
+    if (nLen < 0) nLen = 0;
+    if (nLen > 30) nLen = 30;
+
+    TCHAR exePath[MAX_PATH] = {};
+    GetModuleFileName(NULL, exePath, MAX_PATH);
+    CString configPath = exePath;
+    int pSep = configPath.ReverseFind(_T('\\'));
+    if (pSep != -1) configPath = configPath.Left(pSep) + _T("\\config.ini");
+    else configPath = _T("config.ini");
+
+    CString val;
+    val.Format(_T("%d"), nLen);
+    WritePrivateProfileString(_T("QuickLaunch"), _T("LabelMaxLen"), val, configPath);
+
     // "关闭" button → IDCANCEL → OnCancel(): notify parent before destroying
     NotifyParent();
     CWnd* pParent = GetParent();
