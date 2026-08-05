@@ -369,6 +369,7 @@ public:
     afx_msg void OnQuickLaunchManage();
     afx_msg void OnNMDblclkQuickLaunchList(NMHDR* pNMHDR, LRESULT* pResult);
     afx_msg void OnNMRclickQuickLaunchList(NMHDR* pNMHDR, LRESULT* pResult);
+    afx_msg void OnGetInfoTipQuickLaunch(NMHDR* pNMHDR, LRESULT* pResult);
     CQuickLaunchDlg* m_pQuickLaunchDlg{nullptr};
     CString m_strShortcutText; // Dynamic shortcut text for Help > Shortcuts menu
 };

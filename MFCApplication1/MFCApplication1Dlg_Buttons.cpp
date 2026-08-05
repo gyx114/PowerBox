@@ -1077,6 +1077,9 @@ void CMFCApplication1Dlg::RefreshQuickLaunchList()
     if (!pList) return;
     pList->DeleteAllItems();
 
+    // Enable infotip tooltip for showing full name on hover when label is truncated
+    pList->SetExtendedStyle(pList->GetExtendedStyle() | LVS_EX_INFOTIP);
+
     // Calculate icon size based on list width: 5 items per row
     CRect rcList;
     pList->GetClientRect(&rcList);
@@ -1340,5 +1343,17 @@ void CMFCApplication1Dlg::OnNMRclickQuickLaunchList(NMHDR* pNMHDR, LRESULT* pRes
         if (pTab) UpdateQuickTab(pTab->GetCurSel());
     }
 
+    *pResult = 0;
+}
+
+// LVN_GETINFOTIP handler: return full name (not truncated) for tooltip
+void CMFCApplication1Dlg::OnGetInfoTipQuickLaunch(NMHDR* pNMHDR, LRESULT* pResult)
+{
+    NMLVGETINFOTIP* pInfo = (NMLVGETINFOTIP*)pNMHDR;
+    if (pInfo->iItem >= 0 && pInfo->iItem < (int)m_qlItems.size())
+    {
+        CString fullName = m_qlItems[pInfo->iItem].name;
+        _tcsncpy_s(pInfo->pszText, pInfo->cchTextMax, fullName, _TRUNCATE);
+    }
     *pResult = 0;
 }
