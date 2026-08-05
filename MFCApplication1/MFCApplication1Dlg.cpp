@@ -616,7 +616,7 @@ void CMFCApplication1Dlg::InitQuickTab()
 void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
 {
     static const int kQuickLaunchIds[] = {
-        IDC_LIST_QUICK_LAUNCH, IDC_QL_BTN_MANAGE, IDC_QL_STATIC_COUNT
+        IDC_LIST_QUICK_LAUNCH, IDC_QL_SEPARATOR, IDC_QL_BTN_MANAGE, IDC_QL_STATIC_COUNT
     };
     static const int kSystemIds[] = {
         IDC_STATIC_QUICK_SHUTDOWN, IDC_COMBO1, IDC_BUTTON1, IDC_BUTTON2,
