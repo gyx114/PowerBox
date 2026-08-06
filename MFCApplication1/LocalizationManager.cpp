@@ -416,7 +416,6 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("MainCtrl"), _T("CheckAutoStart"))] = _T("开机自启动");
     m_defaults[MakeKey(_T("MainCtrl"), _T("CheckTopmost"))] = _T("窗口置顶");
     m_defaults[MakeKey(_T("MainCtrl"), _T("CheckAutoClicker"))] = _T("连点器");
-    m_defaults[MakeKey(_T("MainCtrl"), _T("CheckMinimizeToTray"))] = _T("最小化到托盘");
     m_defaults[MakeKey(_T("MainCtrl"), _T("CheckPreventLock"))] = _T("禁止自动锁屏");
     m_defaults[MakeKey(_T("MainCtrl"), _T("GroupRename"))] = _T("修改文件名");
     m_defaults[MakeKey(_T("MainCtrl"), _T("BtnModify"))] = _T("修改");
@@ -768,6 +767,7 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("Menu"), _T("WindowLocate"))] = _T("窗口定位(&L)");
     m_defaults[MakeKey(_T("Menu"), _T("WindowUntopmost"))] = _T("取消全部置顶(&T)");
     m_defaults[MakeKey(_T("Menu"), _T("WindowClose"))] = _T("关闭选中窗口(&C)");
+    m_defaults[MakeKey(_T("Menu"), _T("MenuMinimizeToTray"))] = _T("最小化到托盘(&M)");
     m_defaults[MakeKey(_T("Menu"), _T("Tools"))] = _T("工具(&T)");
     m_defaults[MakeKey(_T("Menu"), _T("ToolsText"))] = _T("文本工具(&T)");
     m_defaults[MakeKey(_T("Menu"), _T("ToolsMarkdown"))] = _T("Markdown 预览(&M)");
@@ -836,6 +836,7 @@ void CLocalizationManager::LoadBuiltinDefaults()
     // ===== Auto-clicker VBS input =====
     m_defaults[MakeKey(_T("AutoClicker"), _T("VbsPrompt"))] = _T("点击频率：(ms/次)");
     m_defaults[MakeKey(_T("AutoClicker"), _T("VbsTitle"))] = _T("连点器");
+    m_defaults[MakeKey(_T("AutoClicker"), _T("LabelInterval"))] = _T("间隔(ms):");
 
     // ===== Process scan AI fail messages =====
     m_defaults[MakeKey(_T("Msg"), _T("AiScanFailedStatus"))] = _T("AI扫描失败: %s");

@@ -425,6 +425,7 @@
 #define ID_QL_RCLICK_DELETE_SEL        32851
 #define ID_QL_RCLICK_UP_SEL            32852
 #define ID_QL_RCLICK_DOWN_SEL          32853
+#define ID_VIEW_MINIMIZE_TRAY          32854
 
 // Hotkey capture dialog
 #define IDD_HOTKEY_CAPTURE_DLG          157
@@ -476,7 +477,7 @@
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        159
-#define _APS_NEXT_COMMAND_VALUE         32854
+#define _APS_NEXT_COMMAND_VALUE         32855
 #define _APS_NEXT_CONTROL_VALUE         1401
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

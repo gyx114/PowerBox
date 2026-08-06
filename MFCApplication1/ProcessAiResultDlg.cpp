@@ -45,16 +45,7 @@ BOOL CProcessAiResultDlg::OnInitDialog()
 
     // Build prompt with all selected processes
     CString prompt;
-    BOOL bIsEnglish = (CLocalizationManager::GetInstance().GetCurrentLanguage() == _T("en-US"));
-
-    if (bIsEnglish)
-    {
-        prompt = _T("Analyze the following Windows processes, determine if each process is malicious/suspicious/unnecessary, and briefly explain its purpose:\n\n");
-    }
-    else
-    {
-        prompt = _T("分析以下Windows进程，判断每个进程是否为恶意/可疑/无用进程，并简要解释其用途：\n\n");
-    }
+    prompt = _T("Analyze the following Windows processes, determine if each process is malicious/suspicious/unnecessary, and briefly explain its purpose:\n\n");
 
     for (int i = 0; i < (int)m_procInfos.size(); i++)
     {
@@ -63,23 +54,23 @@ BOOL CProcessAiResultDlg::OnInitDialog()
         prompt += idx + m_procInfos[i] + _T("\n");
     }
 
-    if (bIsEnglish)
-    {
-        prompt += _T("\nPlease answer in the following format (one paragraph per process, separated by ---):\n");
-        prompt += _T("[Process Name] xxx (PID: 123)\n");
-        prompt += _T("[Security Level] Safe/Suspicious/Malicious/Unnecessary\n");
-        prompt += _T("[Purpose] Brief description\n");
-        prompt += _T("[Suggestion] If necessary, give suggestions\n");
-    }
-    else
-    {
-        prompt += _T("\n请用以下格式回答（每个进程一段，用---分隔）：\n");
-        prompt += _T("【进程名】xxx (PID: 123)\n");
-        prompt += _T("【安全等级】安全/可疑/恶意/无用\n");
-        prompt += _T("【用途】简要说明\n");
-        prompt += _T("【建议】如有必要，给出操作建议\n");
-    }
+    prompt += _T("\nFor each process, answer in the following format (one paragraph per process, separated by ---):\n");
+    prompt += _T("**[Process Name]** xxx (PID: 123)\n");
+    prompt += _T("**[Security Level]** Safe/Suspicious/Malicious/Unnecessary\n");
+    prompt += _T("**[Purpose]** Brief description\n");
+    prompt += _T("**[Suggestion]** If necessary, give suggestions\n");
     prompt += _T("---\n");
+
+    // Add language constraint based on current UI language
+    CString langName = CLocalizationManager::GetInstance().GetString(_T("Language"), _T("DisplayName"));
+    prompt += _T("\nCRITICAL LANGUAGE REQUIREMENT:\n");
+    prompt += _T("- You MUST respond ENTIRELY in ") + langName + _T(".\n");
+    prompt += _T("- This includes ALL field labels, security level values, descriptions, and suggestions.\n");
+    prompt += _T("- The field labels [Process Name], [Security Level], [Purpose], [Suggestion] MUST be translated to ") + langName + _T(".\n");
+    prompt += _T("- The security level values (Safe/Suspicious/Malicious/Unnecessary) MUST be in ") + langName + _T(".\n");
+    prompt += _T("- Do NOT include any English translations in parentheses.\n");
+    prompt += _T("- Do NOT mix languages. Only exception: process names, file paths, and PIDs stay as-is.\n");
+    prompt += _T("- Keep the ** ** bold markers around field labels.\n");
 
     // Get AI config
     CString vendor = AfxGetApp()->GetProfileString(_T("AI"), _T("Vendor"), _T("DeepSeek"));
@@ -101,10 +92,7 @@ BOOL CProcessAiResultDlg::OnInitDialog()
 
     // Build messages
     std::vector<std::pair<CString, CString>> messages;
-    if (bIsEnglish)
-        messages.push_back({ _T("system"), _T("You are a Windows system security expert.") });
-    else
-        messages.push_back({ _T("system"), _T("你是一个Windows系统安全专家。请用中文回答。") });
+    messages.push_back({ _T("system"), _T("You are a Windows system security expert.") });
     messages.push_back({ _T("user"), prompt });
 
     CAIApiClient::SendAsync(messages, vendor, apiKey, model, m_hWnd);
@@ -123,7 +111,63 @@ void CProcessAiResultDlg::TranslateUI()
 
 void CProcessAiResultDlg::SetResult(const CString& text)
 {
-    SetDlgItemText(IDC_RICHEDIT_AI_RESULT, text);
+    CRichEditCtrl* pEdit = (CRichEditCtrl*)GetDlgItem(IDC_RICHEDIT_AI_RESULT);
+    if (!pEdit)
+    {
+        SetDlgItemText(IDC_RICHEDIT_AI_RESULT, text);
+        return;
+    }
+
+    // Parse **bold** markers: build clean text and record bold ranges
+    CString cleanText;
+    std::vector<std::pair<int,int>> boldRanges;
+    int i = 0;
+    int len = text.GetLength();
+    while (i < len)
+    {
+        if (i + 1 < len && text[i] == _T('*') && text[i + 1] == _T('*'))
+        {
+            // Found opening **
+            int boldStart = cleanText.GetLength();
+            i += 2;
+            while (i + 1 < len && !(text[i] == _T('*') && text[i + 1] == _T('*')))
+            {
+                cleanText += text[i];
+                i++;
+            }
+            int boldEnd = cleanText.GetLength();
+            if (boldEnd > boldStart)
+                boldRanges.push_back({boldStart, boldEnd});
+            i += 2; // Skip closing **
+        }
+        else
+        {
+            cleanText += text[i];
+            i++;
+        }
+    }
+
+    pEdit->SetWindowText(cleanText);
+
+    // Apply bold formatting to recorded ranges
+    if (!boldRanges.empty())
+    {
+        CHARFORMAT2 cf;
+        memset(&cf, 0, sizeof(cf));
+        cf.cbSize = sizeof(CHARFORMAT2);
+        cf.dwMask = CFM_BOLD;
+        cf.dwEffects = CFE_BOLD;
+
+        for (const auto& range : boldRanges)
+        {
+            pEdit->SetSel(range.first, range.second);
+            pEdit->SetSelectionCharFormat(cf);
+        }
+    }
+
+    // Reset selection to top
+    pEdit->SetSel(0, 0);
+    pEdit->SendMessage(WM_VSCROLL, SB_TOP, 0);
 }
 
 void CProcessAiResultDlg::AppendResult(const CString& text)

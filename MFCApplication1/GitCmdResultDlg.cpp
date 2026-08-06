@@ -855,7 +855,11 @@ void CGitCmdResultDlg::OnBnClickedAiAsk()
     sysPrompt += _T("查看状态|查看当前分支  <- WRONG: command is not a git command\n");
     sysPrompt += _T("提交代码到github  <- WRONG: missing | separator and command\n\n");
     sysPrompt += _T("Now generate git commands for the user's request. ");
-    sysPrompt += _T("Remember: the | separator is required, and text after | must start with 'git'.\n\n");
+    sysPrompt += _T("Remember: the | separator is required, and text after | must start with 'git'.\n");
+
+    // Add language constraint based on current UI language
+    CString langName = CLocalizationManager::GetInstance().GetString(_T("Language"), _T("DisplayName"));
+    sysPrompt += _T("Please use ") + langName + _T(" for the description part.\n\n");
 
     // Add dynamic git context if a working directory is set
     if (!m_strWorkDir.IsEmpty())

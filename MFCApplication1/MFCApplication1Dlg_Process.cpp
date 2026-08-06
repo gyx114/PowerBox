@@ -541,81 +541,85 @@ LRESULT CMFCApplication1Dlg::OnProcessScanStart(WPARAM wParam, LPARAM lParam)
     }
 
     CString prompt;
-    prompt.Format(_T("分析以下Windows进程，找出可疑(恶意/病毒/木马)和无用(冗余广告软件)进程。\n")
-        _T("判断要点：路径不在C:\\Windows系统目录、公司名缺失/非正规、进程名伪装成系统名但路径不对、原名与显示名不一致且相差很大。\n\n")
-        _T("【极其重要：绝对白名单 — 以下系统核心进程，即使名称/路径出现异常，也绝对不能列入返回结果！】\n")
-        _T("禁止列入：smss.exe、csrss.exe、wininit.exe、winlogon.exe、services.exe、lsass.exe、lsm.exe、svchost.exe、\n")
-        _T("fontdrvhost.exe、dwm.exe、sihost.exe、RuntimeBroker.exe、explorer.exe、ntoskrnl.exe、hal.dll、\n")
-        _T("Registry、System进程、Idle进程、SearchHost.exe、SearchIndexer.exe、\n")
-        _T("ShellExperienceHost.exe、StartMenuExperienceHost.exe、SecurityHealthService.exe、\n")
-        _T("TextInputHost.exe、ctfmon.exe、audiodg.exe、spoolsv.exe、conhost.exe、dllhost.exe、\n")
-        _T("taskhostw.exe、taskhostex.exe、SearchProtocolHost.exe、SearchFilterHost.exe、\n")
-        _T("以及所有路径前缀为 C:\\Windows\\System32\\、C:\\Windows\\SysWOW64\\、C:\\Windows\\SystemApps\\ 的Microsoft签名进程。\n")
-        _T("（如果某个上述白名单进程确实异常可疑，请直接在reason里写出""疑似误报请人工核实""并跳过该条，不要列入返回数组！）\n\n")
-        _T("【其他规则】\n")
-        _T("· 可疑进程必须满足至少2条判断依据；不确定则不列入（宁放过不杀错）\n")
-        _T("· 无用进程只列入明确的弹窗广告、自启工具栏、无用捆绑软件；普通常见软件（浏览器、杀软、输入法、驱动工具等）一律不算无用\n")
-        _T("· 最多返回10条结果，超过的请只保留最可疑/最无用的\n")
-        _T("· 结果按可疑程度从高到低排序\n\n")
-        _T("(已自动过滤svchost/explorer/smss/csrss等%d个已知安全的系统核心进程，当前仅列需关注的%d个进程)\n")
-        _T("进程列表：\n%s\n")
-        _T("返回JSON数组。格式：[{\"pid\":数字,\"name\":\"xxx.exe\",\"risk\":\"可疑\",\"reason\":\"简短原因（不超过30字）\"},...]")
-        _T("risk取""可疑""或""无用""。若无不安全进程，返回空数组[]。只返回JSON，不要markdown、不要说明文字。"),
+    prompt.Format(_T("Analyze the following Windows processes, find suspicious (malicious/virus/trojan) and unnecessary (redundant adware) processes.\n")
+        _T("Key indicators: path not in C:\\Windows system directory, company name missing/disreputable, process name mimics system process but path differs, original name differs significantly from display name.\n\n")
+        _T("[CRITICAL: Absolute whitelist — the following core system processes must NEVER be included in results, even if their name/path seems anomalous!]\n")
+        _T("Forbidden: smss.exe, csrss.exe, wininit.exe, winlogon.exe, services.exe, lsass.exe, lsm.exe, svchost.exe,\n")
+        _T("fontdrvhost.exe, dwm.exe, sihost.exe, RuntimeBroker.exe, explorer.exe, ntoskrnl.exe, hal.dll,\n")
+        _T("Registry, System, Idle, SearchHost.exe, SearchIndexer.exe,\n")
+        _T("ShellExperienceHost.exe, StartMenuExperienceHost.exe, SecurityHealthService.exe,\n")
+        _T("TextInputHost.exe, ctfmon.exe, audiodg.exe, spoolsv.exe, conhost.exe, dllhost.exe,\n")
+        _T("taskhostw.exe, taskhostex.exe, SearchProtocolHost.exe, SearchFilterHost.exe,\n")
+        _T("and all Microsoft-signed processes with path prefix C:\\Windows\\System32\\, C:\\Windows\\SysWOW64\\, C:\\Windows\\SystemApps\\.\n")
+        _T("(If a whitelisted process seems genuinely anomalous, write \"possible false positive, manual review needed\" in the reason field and skip it — do NOT include it in the result array!)\n\n")
+        _T("[Other rules]\n")
+        _T("- Suspicious processes must meet at least 2 criteria; if uncertain, do not include (better to miss than false-positive)\n")
+        _T("- Unnecessary processes: only include clear popup ads, autostart toolbars, useless bundled software; common software (browsers, antivirus, IME, drivers, etc.) are NOT unnecessary\n")
+        _T("- Return at most 10 results, keeping only the most suspicious/unnecessary\n")
+        _T("- Sort results by suspicion level, highest first\n\n")
+        _T("(Already filtered svchost/explorer/smss/csrss and %d other known-safe core system processes, currently listing %d processes to review)\n")
+        _T("Process list:\n%s\n")
+        _T("Return JSON array. Format: [{\"pid\":number,\"name\":\"xxx.exe\",\"risk\":\"suspicious\",\"reason\":\"brief reason (max 30 chars)\"},...]")
+        _T("risk is either \"suspicious\" or \"unnecessary\". If no problematic processes, return empty array []. Return ONLY JSON, no markdown, no explanations."),
         (int)(_countof(kSafeSystemProcs)), count, processList);
 
     // Build system prompt and user prompt based on scan level
     CString sysPrompt, userPrompt;
     switch (scanLevel)
     {
-    case 0: // 保守 — daily check, extremely strict
-        sysPrompt = _T("你是一个极其保守的Windows系统安全分析专家。\n")
-            _T("核心原则：系统关键进程保护 > 威胁检测（宁放过不杀错）。\n\n")
-            _T("必须遵守以下铁律：\n")
-            _T("1. 绝对白名单（csrss/smss/lsass/wininit/winlogon/services/svchost/dwm/explorer/shell experience/TextInputHost/ctfmon/conhost/taskhostw/audiodg/spoolsv/SearchHost/SecurityHealth等）以及任何位于C:\\Windows\\System32\\或SystemApps下且由Microsoft发布的进程，即便可疑也不得列入返回，宁可跳过也不冒险；\n")
-            _T("2. 列入""可疑""必须同时满足3条以上判断依据（如：非系统目录 + 无签名 + 公司名可疑 + 进程名伪装等），依据不足的不列入；\n")
-            _T("3. 列入""无用""必须是典型的弹窗广告、浏览器捆绑工具栏、常驻广告软件等；正常办公/娱乐软件、杀毒软件、输入法、驱动/电源管理、显卡控制面板等均不得列为无用；\n")
-            _T("4. 若发现上述绝对白名单进程看似异常（如名字相似但路径不对），请在JSON结果中跳过该条目，不要返回。请交由人工判断；\n")
-            _T("5. 仅返回最可疑的前5条结果，按可疑度从高到低排序；\n")
-            _T("6. 若不确定，请直接返回空数组[]，不要为了凑数而列入。\n\n")
-            _T("输出要求：仅JSON数组，不包含markdown、解释文字、代码块标记。");
+    case 0: // Conservative — daily check, extremely strict
+        sysPrompt = _T("You are an extremely conservative Windows system security analyst.\n")
+            _T("Core principle: System critical process protection > Threat detection (better to miss than to false-positive).\n\n")
+            _T("Strict rules:\n")
+            _T("1. Absolute whitelist (csrss/smss/lsass/wininit/winlogon/services/svchost/dwm/explorer/shell experience/TextInputHost/ctfmon/conhost/taskhostw/audiodg/spoolsv/SearchHost/SecurityHealth, etc.) and any process located in C:\\Windows\\System32\\ or SystemApps signed by Microsoft must NOT be included, even if suspicious — skip rather than risk it;\n")
+            _T("2. To mark as \"suspicious\", must meet 3+ criteria simultaneously (e.g.: non-system directory + unsigned + suspicious company + name masquerading, etc.); insufficient evidence = do not include;\n")
+            _T("3. To mark as \"unnecessary\": must be typical popup ads, browser bundle toolbars, resident adware; normal office/entertainment software, antivirus, IME, driver/power management, GPU control panels are NOT unnecessary;\n")
+            _T("4. If a whitelisted process seems anomalous (e.g., similar name but wrong path), skip it in the JSON result. Leave it for manual judgment;\n")
+            _T("5. Return only the top 5 most suspicious results, sorted by suspicion level descending;\n")
+            _T("6. If uncertain, return an empty array [] — do not pad results.\n\n")
+            _T("Output: JSON array only, no markdown, no explanatory text, no code block markers.");
         userPrompt = prompt;
         break;
 
-    case 2: // 激进 — virus hunting, less strict, report anything suspicious
-        sysPrompt = _T("你是一个Windows系统安全分析专家，当前为病毒查杀模式。\n")
-            _T("核心原则：宁可误报也不漏报（但绝对不能动系统核心进程）。\n\n")
-            _T("必须遵守的规则：\n")
-            _T("1. 绝对禁止列入的进程：smss.exe、csrss.exe、wininit.exe、System、Registry、Idle。其他进程即便在System32目录下，如果路径/行为异常也可以列入；\n")
-            _T("2. 列入""可疑""只需满足1条明确判断依据（如：非系统目录、无签名、公司名可疑/缺失、进程名伪装系统名、路径异常等）；\n")
-            _T("3. 列入""无用""：除了弹窗广告和捆绑工具栏外，常驻后台消耗资源但无实际功用的进程、异常自启动进程、可疑的第三方服务等均可列入；\n")
-            _T("4. 常见软件（浏览器、杀软、输入法、驱动工具等）仅当存在异常行为（如路径异常、无签名、多个异常副本）时才列入；\n")
-            _T("5. 最多返回20条结果，按可疑度从高到低排序；\n")
-            _T("6. 即使略有怀疑也应列入，不要过于保守。\n\n")
-            _T("输出要求：仅JSON数组，不包含markdown、解释文字、代码块标记。");
-        userPrompt.Format(_T("分析以下Windows进程，找出可疑(恶意/病毒/木马)和无用(冗余广告软件)进程。\n")
-            _T("判断要点：路径非系统目录、公司名缺失/非正规、进程名伪装成系统名但路径不对、原名与显示名不一致且相差很大。\n\n")
-            _T("【绝对禁止项：smss.exe、csrss.exe、wininit.exe、System、Registry、Idle进程禁止列入。其他进程均可列入。】\n\n")
-            _T("(已自动过滤smss/csrss/wininit等%d个最核心系统进程，当前列%d个进程)\n")
-            _T("进程列表：\n%s\n")
-            _T("返回JSON数组。格式：[{\"pid\":数字,\"name\":\"xxx.exe\",\"risk\":\"可疑\",\"reason\":\"简短原因（不超过30字）\"},...]")
-            _T("risk取""可疑""或""无用""。最多20条。若无问题进程，返回空数组[]。只返回JSON，不要markdown。"),
+    case 2: // Aggressive — virus hunting, less strict, report anything suspicious
+        sysPrompt = _T("You are a Windows system security analyst in virus-hunting mode.\n")
+            _T("Core principle: Better to false-positive than to miss (but NEVER touch system core processes).\n\n")
+            _T("Rules:\n")
+            _T("1. Absolutely forbidden processes: smss.exe, csrss.exe, wininit.exe, System, Registry, Idle. Other processes, even in System32, can be included if path/behavior is anomalous;\n")
+            _T("2. To mark as \"suspicious\", only 1 clear criterion is needed (e.g.: non-system directory, unsigned, suspicious/missing company, name mimics system process, anomalous path, etc.);\n")
+            _T("3. To mark as \"unnecessary\": in addition to popup ads and bundle toolbars, also include resident background processes consuming resources with no real purpose, anomalous autostart processes, suspicious third-party services;\n")
+            _T("4. Common software (browsers, antivirus, IME, drivers, etc.) should only be included when anomalous behavior exists (abnormal path, unsigned, multiple anomalous copies);\n")
+            _T("5. Return at most 20 results, sorted by suspicion level descending;\n")
+            _T("6. Even if slightly suspicious, include it — do not be too conservative.\n\n")
+            _T("Output: JSON array only, no markdown, no explanatory text, no code block markers.");
+        userPrompt.Format(_T("Analyze the following Windows processes, find suspicious (malicious/virus/trojan) and unnecessary (redundant adware) processes.\n")
+            _T("Key indicators: path not in system directory, company name missing/disreputable, process name mimics system process but path differs, original name differs significantly from display name.\n\n")
+            _T("[Absolute forbidden: smss.exe, csrss.exe, wininit.exe, System, Registry, Idle processes must NOT be included. All other processes can be included.]\n\n")
+            _T("(Already filtered smss/csrss/wininit and %d other core system processes, currently listing %d processes)\n")
+            _T("Process list:\n%s\n")
+            _T("Return JSON array. Format: [{\"pid\":number,\"name\":\"xxx.exe\",\"risk\":\"suspicious\",\"reason\":\"brief reason (max 30 chars)\"},...]")
+            _T("risk is either \"suspicious\" or \"unnecessary\". At most 20 results. If no problematic processes, return empty array []. Return ONLY JSON, no markdown."),
             (int)(_countof(kSafeSystemProcs)), count, processList);
         break;
 
-    default: // 1=标准 (balanced)
-        sysPrompt = _T("你是一个极其保守的Windows系统安全分析专家。\n")
-            _T("核心原则：系统关键进程保护 > 威胁检测（宁放过不杀错）。\n\n")
-            _T("必须遵守以下铁律：\n")
-            _T("1. 绝对白名单（csrss/smss/lsass/wininit/winlogon/services/svchost/dwm/explorer/shell experience/TextInputHost/ctfmon/conhost/taskhostw/audiodg/spoolsv/SearchHost/SecurityHealth等）以及任何位于C:\\Windows\\System32\\或SystemApps下且由Microsoft发布的进程，即便可疑也不得列入返回，宁可跳过也不冒险；\n")
-            _T("2. 列入""可疑""必须同时满足2条以上判断依据（如：非系统目录 + 无签名 + 公司名可疑 + 进程名伪装等）；\n")
-            _T("3. 列入""无用""必须是典型的弹窗广告、浏览器捆绑工具栏、常驻广告软件等；正常办公/娱乐软件、杀毒软件、输入法、驱动/电源管理、显卡控制面板等均不得列为无用；\n")
-            _T("4. 若发现上述绝对白名单进程看似异常（如名字相似但路径不对），请在JSON结果中跳过该条目，不要返回。请交由人工判断；\n")
-            _T("5. 仅返回最可疑的前10条结果，按可疑度从高到低排序；\n")
-            _T("6. 若不确定，请直接返回空数组[]，不要为了凑数而列入。\n\n")
-            _T("输出要求：仅JSON数组，不包含markdown、解释文字、代码块标记。");
+    default: // 1=Standard (balanced)
+        sysPrompt = _T("You are an extremely conservative Windows system security analyst.\n")
+            _T("Core principle: System critical process protection > Threat detection (better to miss than to false-positive).\n\n")
+            _T("Strict rules:\n")
+            _T("1. Absolute whitelist (csrss/smss/lsass/wininit/winlogon/services/svchost/dwm/explorer/shell experience/TextInputHost/ctfmon/conhost/taskhostw/audiodg/spoolsv/SearchHost/SecurityHealth, etc.) and any process located in C:\\Windows\\System32\\ or SystemApps signed by Microsoft must NOT be included, even if suspicious — skip rather than risk it;\n")
+            _T("2. To mark as \"suspicious\", must meet 2+ criteria simultaneously (e.g.: non-system directory + unsigned + suspicious company + name masquerading, etc.);\n")
+            _T("3. To mark as \"unnecessary\": must be typical popup ads, browser bundle toolbars, resident adware; normal office/entertainment software, antivirus, IME, driver/power management, GPU control panels are NOT unnecessary;\n")
+            _T("4. If a whitelisted process seems anomalous (e.g., similar name but wrong path), skip it in the JSON result. Leave it for manual judgment;\n")
+            _T("5. Return only the top 10 most suspicious results, sorted by suspicion level descending;\n")
+            _T("6. If uncertain, return an empty array [] — do not pad results.\n\n")
+            _T("Output: JSON array only, no markdown, no explanatory text, no code block markers.");
         userPrompt = prompt;
         break;
     }
+
+    // Add language constraint based on current UI language
+    CString langName = CLocalizationManager::GetInstance().GetString(_T("Language"), _T("DisplayName"));
+    sysPrompt += _T("\n\nIMPORTANT: The \"risk\" and \"reason\" fields in the JSON must be written in ") + langName + _T(".");
 
     // Build messages and send async
     std::vector<std::pair<CString, CString>> messages;

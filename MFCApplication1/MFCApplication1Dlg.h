@@ -152,7 +152,9 @@ protected:
 public:
     bool m_bExiting{false};
     afx_msg void OnStnClickedStaticPath();
-	afx_msg void OnBnClickedCheck2();
+	afx_msg void OnViewMinimizeTray();
+	afx_msg void OnMeasureItem(int nIDCtl, LPMEASUREITEMSTRUCT lpMeasureItemStruct);
+	afx_msg void OnDrawItem(int nIDCtl, LPDRAWITEMSTRUCT lpDrawItemStruct);
   // volume controls
 	afx_msg void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar);
 	afx_msg void OnBnClickedButton12(); // apply edit value

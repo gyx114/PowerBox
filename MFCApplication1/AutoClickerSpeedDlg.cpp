@@ -24,6 +24,8 @@ BOOL CAutoClickerSpeedDlg::OnInitDialog()
 {
     CDialogEx::OnInitDialog();
     SetWindowText(CLocalizationManager::GetInstance().GetString(_T("DlgCaption"), _T("ClickSpeedDlg")));
+    // Translate "间隔(ms):" label
+    SetDlgItemText(IDC_STATIC, CLocalizationManager::GetInstance().GetString(_T("AutoClicker"), _T("LabelInterval")));
     CSliderCtrl* pSlider = static_cast<CSliderCtrl*>(GetDlgItem(IDC_SLIDER_CLICK_SPEED));
     if (pSlider)
     {

@@ -481,11 +481,104 @@ void CMFCApplication1Dlg::OnBnClickedCheck1()
     RegCloseKey(hKey);
 }
 
-void CMFCApplication1Dlg::OnBnClickedCheck2()
+void CMFCApplication1Dlg::OnViewMinimizeTray()
 {
-    CButton* pCheck = (CButton*)GetDlgItem(IDC_CHECK2);
-    if (!pCheck) return;
+    // Toggle minimize-to-tray behavior (owner-draw checkbox on menu bar)
+    m_bMinimizeOnClose = !m_bMinimizeOnClose;
+}
 
-    // Update internal flag
-    m_bMinimizeOnClose = (pCheck->GetCheck() == BST_CHECKED);
+// Strip mnemonic markers from menu text for owner-draw display.
+// Handles both "(&X)" (CJK style) and "&X" (Western style) patterns.
+static CString StripMnemonic(const CString& text)
+{
+    CString result = text;
+    // Pattern 1: "(&X)" - remove the whole group
+    int p = result.Find(_T("(&"));
+    if (p >= 0 && p + 3 < result.GetLength() && result[p + 3] == _T(')'))
+        result = result.Left(p) + result.Mid(p + 4);
+    // Pattern 2: remaining "&X" - remove ampersand only
+    result.Remove(_T('&'));
+    result.Trim();
+    return result;
+}
+
+void CMFCApplication1Dlg::OnMeasureItem(int nIDCtl, LPMEASUREITEMSTRUCT lpMIS)
+{
+    // Owner-draw menu item: nIDCtl == 0 for menus
+    if (lpMIS && lpMIS->CtlType == ODT_MENU && lpMIS->itemID == ID_VIEW_MINIMIZE_TRAY)
+    {
+        // Get menu font for text measurement
+        NONCLIENTMETRICS ncm = { sizeof(ncm) };
+        SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(ncm), &ncm, 0);
+        CFont font;
+        font.CreateFontIndirect(&ncm.lfMenuFont);
+
+        CClientDC dc(this);
+        CFont* pOldFont = dc.SelectObject(&font);
+
+        CString text = StripMnemonic(
+            CLocalizationManager::GetInstance().GetString(_T("Menu"), _T("MenuMinimizeToTray")));
+        CSize sz(0, 0);
+        GetTextExtentPoint32(dc.m_hDC, text, text.GetLength(), &sz);
+        dc.SelectObject(pOldFont);
+
+        int checkSize = GetSystemMetrics(SM_CXMENUCHECK);
+        int cyMenu = GetSystemMetrics(SM_CYMENU);
+
+        lpMIS->itemWidth = checkSize + 6 + sz.cx + 8;
+        lpMIS->itemHeight = cyMenu;
+        return;
+    }
+    CDialogEx::OnMeasureItem(nIDCtl, lpMIS);
+}
+
+void CMFCApplication1Dlg::OnDrawItem(int nIDCtl, LPDRAWITEMSTRUCT lpDIS)
+{
+    // Owner-draw menu item: nIDCtl == 0 for menus
+    if (lpDIS && lpDIS->CtlType == ODT_MENU && lpDIS->itemID == ID_VIEW_MINIMIZE_TRAY)
+    {
+        CDC dc;
+        dc.Attach(lpDIS->hDC);
+
+        CRect rc = lpDIS->rcItem;
+        bool bSelected = (lpDIS->itemState & ODS_SELECTED) != 0;
+        bool bDisabled = (lpDIS->itemState & (ODS_GRAYED | ODS_DISABLED)) != 0;
+
+        // Background
+        dc.FillSolidRect(rc, GetSysColor(bSelected ? COLOR_HIGHLIGHT : COLOR_MENU));
+
+        // Draw checkbox frame
+        int checkSize = GetSystemMetrics(SM_CXMENUCHECK);
+        int checkY = rc.top + (rc.Height() - checkSize) / 2;
+        CRect rcCheck(rc.left + 4, checkY, rc.left + 4 + checkSize, checkY + checkSize);
+        UINT dfcs = DFCS_BUTTONCHECK | DFCS_FLAT;
+        if (m_bMinimizeOnClose)
+            dfcs |= DFCS_CHECKED;
+        if (bDisabled)
+            dfcs |= DFCS_INACTIVE;
+        DrawFrameControl(dc.m_hDC, &rcCheck, DFC_BUTTON, dfcs);
+
+        // Draw text
+        CString text = StripMnemonic(
+            CLocalizationManager::GetInstance().GetString(_T("Menu"), _T("MenuMinimizeToTray")));
+        NONCLIENTMETRICS ncm = { sizeof(ncm) };
+        SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(ncm), &ncm, 0);
+        CFont font;
+        font.CreateFontIndirect(&ncm.lfMenuFont);
+        CFont* pOldFont = dc.SelectObject(&font);
+
+        dc.SetBkMode(TRANSPARENT);
+        if (bDisabled)
+            dc.SetTextColor(GetSysColor(COLOR_GRAYTEXT));
+        else
+            dc.SetTextColor(GetSysColor(bSelected ? COLOR_HIGHLIGHTTEXT : COLOR_MENUTEXT));
+
+        CRect rcText(rcCheck.right + 6, rc.top, rc.right - 4, rc.bottom);
+        dc.DrawText(text, &rcText, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+        dc.SelectObject(pOldFont);
+        dc.Detach();
+        return;
+    }
+    CDialogEx::OnDrawItem(nIDCtl, lpDIS);
 }

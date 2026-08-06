@@ -169,6 +169,10 @@ void CBatchRenameAIDlg::OnBnClickedAiSend()
         _T("Return ONLY a valid JSON object (no markdown code blocks, no extra text) with the following format:\n")
         _T("{\"mappings\":[{\"old\":\"current_name.ext\",\"new\":\"new_name.ext\"}]}");
 
+    // Add language constraint based on current UI language
+    CString langName = CLocalizationManager::GetInstance().GetString(_T("Language"), _T("DisplayName"));
+    systemPrompt += _T("\n\nPlease respond in ") + langName + _T(".");
+
     // Build user prompt with file list
     CString userPrompt;
     userPrompt += _T("Current file list:\n");
