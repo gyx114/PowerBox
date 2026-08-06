@@ -857,6 +857,17 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("OCR"), _T("TranslateErrPrefix"))] = _T("翻译失败：");
     m_defaults[MakeKey(_T("OCR"), _T("TranslateErrParseResponse"))] = _T("翻译失败：无法解析响应。");
     m_defaults[MakeKey(_T("OCR"), _T("TranslateErrResponseFormat"))] = _T("翻译失败：响应格式异常。");
+    m_defaults[MakeKey(_T("OCR"), _T("CheckUseAiTranslate"))] = _T("使用AI翻译");
+    m_defaults[MakeKey(_T("OCR"), _T("AiTranslateNoApiKey"))] = _T("AI翻译：未配置API密钥，请先在设置中配置。");
+    m_defaults[MakeKey(_T("OCR"), _T("TranslateQueryLimitExceeded"))] = _T("翻译内容过长，MyMemory API 拒绝翻译。建议勾选\"使用AI翻译\"后重试。");
+
+    // ===== OCR language pair display names =====
+    m_defaults[MakeKey(_T("OCR"), _T("LangPair0"))] = _T("中文 → 英文");
+    m_defaults[MakeKey(_T("OCR"), _T("LangPair1"))] = _T("中文 → 日文");
+    m_defaults[MakeKey(_T("OCR"), _T("LangPair2"))] = _T("中文 → 韩文");
+    m_defaults[MakeKey(_T("OCR"), _T("LangPair3"))] = _T("英文 → 中文");
+    m_defaults[MakeKey(_T("OCR"), _T("LangPair4"))] = _T("日文 → 中文");
+    m_defaults[MakeKey(_T("OCR"), _T("LangPair5"))] = _T("韩文 → 中文");
 
     // ===== Regex guide =====
     m_defaults[MakeKey(_T("RegexGuide"), _T("GuideContent"))] =

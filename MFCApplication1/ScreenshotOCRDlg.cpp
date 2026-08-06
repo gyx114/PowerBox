@@ -13,11 +13,13 @@
 #include <fstream>
 #include <algorithm>
 #include <winhttp.h>
+#include "json.hpp"
 
 #pragma comment(lib, "gdiplus.lib")
 #pragma comment(lib, "winhttp.lib")
 
 using namespace Gdiplus;
+using json = nlohmann::json;
 
 // Language pairs: display name to API langpair parameter
 const std::pair<const wchar_t*, const wchar_t*> CScreenshotOCRDlg::s_langPairs[] = {
@@ -394,13 +396,7 @@ BOOL CScreenshotOCRDlg::OnInitDialog()
     SetWindowText(CLocalizationManager::GetInstance().GetString(_T("DlgCaption"), _T("OCRDlg")));
 
     // Initialize language selection combo box
-    CComboBox* pCombo = static_cast<CComboBox*>(GetDlgItem(IDC_COMBO_OCR_LANG));
-    if (pCombo)
-    {
-        for (int i = 0; i < s_langPairCount; i++)
-            pCombo->AddString(s_langPairs[i].first);
-        pCombo->SetCurSel(0);  // Default Chinese to English
-    }
+    PopulateLangCombo();
 
     TranslateUI();
     return TRUE;
@@ -436,6 +432,26 @@ CString CScreenshotOCRDlg::GetSelectedLangPair() const
     return L"zh-CN|en";  // Default Chinese to English
 }
 
+void CScreenshotOCRDlg::PopulateLangCombo()
+{
+    CComboBox* pCombo = static_cast<CComboBox*>(GetDlgItem(IDC_COMBO_OCR_LANG));
+    if (!pCombo) return;
+
+    int sel = pCombo->GetCurSel();
+    pCombo->ResetContent();
+    auto& loc = CLocalizationManager::GetInstance();
+    for (int i = 0; i < s_langPairCount; i++)
+    {
+        CString key;
+        key.Format(_T("LangPair%d"), i);
+        pCombo->AddString(loc.GetString(_T("OCR"), key, s_langPairs[i].first));
+    }
+    if (sel >= 0 && sel < s_langPairCount)
+        pCombo->SetCurSel(sel);
+    else
+        pCombo->SetCurSel(0);
+}
+
 void CScreenshotOCRDlg::TranslateUI()
 {
     auto& loc = CLocalizationManager::GetInstance();
@@ -445,6 +461,8 @@ void CScreenshotOCRDlg::TranslateUI()
     SetChildTextByCurrentText(this, _T("识别结果:"), loc.GetString(_T("OCR"), _T("LabelResult")));
     SetChildTextByCurrentText(this, _T("翻译结果:"), loc.GetString(_T("OCR"), _T("LabelTranslated")));
     SetDlgItemText(IDC_STATIC_OCR_STATUS, loc.GetString(_T("OCR"), _T("StatusHint")));
+    SetDlgItemText(IDC_CHECK_USE_AI_TRANSLATE, loc.GetString(_T("OCR"), _T("CheckUseAiTranslate")));
+    PopulateLangCombo();
 }
 
 void CScreenshotOCRDlg::OnOK() {}
@@ -606,9 +624,13 @@ LRESULT CScreenshotOCRDlg::OnOcrComplete(WPARAM wParam, LPARAM lParam)
 }
 
 // ========== Background translate thread ==========
-void CScreenshotOCRDlg::TranslateThreadProc(const CString& text, const CString& langPair, HWND hNotifyWnd)
+void CScreenshotOCRDlg::TranslateThreadProc(const CString& text, const CString& langPair, bool bUseAI, HWND hNotifyWnd)
 {
-    CString result = CallTranslateAPI(text, langPair, 10);
+    CString result;
+    if (bUseAI)
+        result = CallAITranslateAPI(text, langPair, 30);
+    else
+        result = CallTranslateAPI(text, langPair, 10);
     int len = result.GetLength();
     WCHAR* pResult = new WCHAR[len + 1];
     wcscpy_s(pResult, len + 1, result);
@@ -782,6 +804,99 @@ CString CScreenshotOCRDlg::CallTranslateAPI(const CString& text, const CString& 
     return result;
 }
 
+// ========== AI Translate API ==========
+static CString LangCodeToName(const CString& code)
+{
+    if (code == _T("zh-CN") || code == _T("zh")) return CString(_T("Chinese"));
+    if (code == _T("en")) return CString(_T("English"));
+    if (code == _T("ja")) return CString(_T("Japanese"));
+    if (code == _T("ko")) return CString(_T("Korean"));
+    if (code == _T("ru")) return CString(_T("Russian"));
+    if (code == _T("fr")) return CString(_T("French"));
+    if (code == _T("de")) return CString(_T("German"));
+    return code;
+}
+
+CString CScreenshotOCRDlg::CallAITranslateAPI(const CString& text, const CString& langPair, int timeoutSeconds)
+{
+    // Read AI configuration from registry
+    CString vendor = AfxGetApp()->GetProfileString(_T("AI"), _T("Vendor"), _T("DeepSeek"));
+    CString apiKey = AfxGetApp()->GetProfileString(_T("AI"), _T("ApiKey_") + vendor, _T(""));
+    CString model = AfxGetApp()->GetProfileString(_T("AI"), _T("Model"), _T(""));
+
+    if (apiKey.IsEmpty())
+    {
+        return CLocalizationManager::GetInstance().GetString(_T("OCR"), _T("AiTranslateNoApiKey"));
+    }
+
+    // Resolve vendor endpoint
+    CString endpoint, actualModel;
+    if (!CAIApiClient::ResolveVendor(vendor, model, endpoint, actualModel))
+    {
+        CString err;
+        err.Format(_T("[Error] Unknown AI vendor: %s"), vendor.GetString());
+        return err;
+    }
+
+    // Parse language pair
+    int pipePos = langPair.Find(L'|');
+    CString sourceLang = (pipePos > 0) ? LangCodeToName(langPair.Left(pipePos)) : CString(_T("auto"));
+    CString targetLang = (pipePos > 0) ? LangCodeToName(langPair.Mid(pipePos + 1)) : CString(_T("English"));
+
+    // Build translation prompt
+    CString userPrompt;
+    userPrompt.Format(
+        _T("Translate the following text from %s to %s. Only output the translated text, nothing else, no explanations, no notes:\n\n%s"),
+        sourceLang, targetLang, text);
+
+    // Build messages
+    std::vector<std::pair<CString, CString>> messages;
+    messages.push_back({ _T("system"), _T("You are a professional translator. Translate the text accurately and naturally. Output only the translation, no additional text.") });
+    messages.push_back({ _T("user"), userPrompt });
+
+    // Build request body
+    CString body = CAIApiClient::BuildRequestBody(messages, actualModel, false);
+    std::string bodyUtf8 = (LPCSTR)CW2A(body, CP_UTF8);
+
+    // Parse URL
+    CString server;
+    int port = 443;
+    CString path;
+    if (!CAIApiClient::ParseUrl(endpoint, server, port, path))
+    {
+        return _T("[Error] Invalid endpoint URL");
+    }
+
+    // Send request
+    try
+    {
+        std::string response = CAIApiClient::SendRequestInternal(server, port, path, apiKey, bodyUtf8);
+        if (response.empty())
+            return _T("[Error] Empty response from AI server");
+
+        CString content = CAIApiClient::ExtractContent(CString(CA2T(response.c_str(), CP_UTF8)));
+        return content;
+    }
+    catch (const AiApiKeyError& e)
+    {
+        CString err;
+        err.Format(_T("[API Key Error] %hs"), e.what());
+        return err;
+    }
+    catch (const AiNetworkError& e)
+    {
+        CString err;
+        err.Format(_T("[Network Error] %hs (code: %d)"), e.what(), (int)e.errorCode);
+        return err;
+    }
+    catch (const std::exception& e)
+    {
+        CString err;
+        err.Format(_T("[Error] %hs"), e.what());
+        return err;
+    }
+}
+
 // ========== Translate button ==========
 void CScreenshotOCRDlg::OnBnClickedBtnTranslate()
 {
@@ -807,14 +922,17 @@ void CScreenshotOCRDlg::OnBnClickedBtnTranslate()
         return;
     }
 
+    bool bUseAI = (IsDlgButtonChecked(IDC_CHECK_USE_AI_TRANSLATE) == BST_CHECKED);
+
     m_bBusy = true;
     GetDlgItem(IDC_BTN_OCR_CAPTURE)->EnableWindow(FALSE);
     GetDlgItem(IDC_BTN_OCR_TRANSLATE)->EnableWindow(FALSE);
     GetDlgItem(IDC_COMBO_OCR_LANG)->EnableWindow(FALSE);
+    GetDlgItem(IDC_CHECK_USE_AI_TRANSLATE)->EnableWindow(FALSE);
     SetDlgItemText(IDC_EDIT_OCR_TRANSLATED, CLocalizationManager::GetInstance().GetString(_T("OCR"), _T("Translating")));
 
     CString langPair = GetSelectedLangPair();
-    std::thread(TranslateThreadProc, text, langPair, m_hWnd).detach();
+    std::thread(TranslateThreadProc, text, langPair, bUseAI, m_hWnd).detach();
 }
 
 // ========== Translate complete ==========
@@ -824,12 +942,27 @@ LRESULT CScreenshotOCRDlg::OnTranslateComplete(WPARAM /*wParam*/, LPARAM lParam)
     GetDlgItem(IDC_BTN_OCR_CAPTURE)->EnableWindow(TRUE);
     GetDlgItem(IDC_BTN_OCR_TRANSLATE)->EnableWindow(TRUE);
     GetDlgItem(IDC_COMBO_OCR_LANG)->EnableWindow(TRUE);
+    GetDlgItem(IDC_CHECK_USE_AI_TRANSLATE)->EnableWindow(TRUE);
 
     WCHAR* pResult = reinterpret_cast<WCHAR*>(lParam);
     if (pResult)
     {
         m_translatedText = pResult;
         SetDlgItemText(IDC_EDIT_OCR_TRANSLATED, m_translatedText);
+
+        // Check if the translation failed due to query length limit
+        // and the user was not already using AI translation
+        if (m_translatedText.Find(_T("QUERY LENGTH LIMIT EXCEEDED")) >= 0 ||
+            m_translatedText.Find(_T("MAX ALLOWED QUERY")) >= 0)
+        {
+            if (IsDlgButtonChecked(IDC_CHECK_USE_AI_TRANSLATE) != BST_CHECKED)
+            {
+                auto& loc = CLocalizationManager::GetInstance();
+                MessageBox(loc.GetString(_T("OCR"), _T("TranslateQueryLimitExceeded")),
+                    loc.GetString(_T("OCR"), _T("Tip")), MB_OK | MB_ICONINFORMATION);
+            }
+        }
+
         delete[] pResult;
     }
     return 0;

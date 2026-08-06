@@ -472,13 +472,16 @@
 #define IDC_QL_LABEL_TRUNCATE            1399
 #define IDC_QL_EDIT_TRUNCATE             1400
 
+// OCR dialog - AI translation checkbox
+#define IDC_CHECK_USE_AI_TRANSLATE       1401
+
 // Next default values for new objects
 //
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        159
 #define _APS_NEXT_COMMAND_VALUE         32855
-#define _APS_NEXT_CONTROL_VALUE         1401
+#define _APS_NEXT_CONTROL_VALUE         1402
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

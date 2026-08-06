@@ -2,6 +2,7 @@
 
 #include "afxwin.h"
 #include "resource.h"
+#include "AIApiClient.h"
 
 // Custom message: OCR recognition complete, wParam=0 failure/1 success, lParam=PWSTR result text
 #define WM_OCR_COMPLETE       (WM_USER + 100)
@@ -46,13 +47,19 @@ private:
     static void OcrThreadProc(HBITMAP hBitmap, HWND hNotifyWnd);
 
     // Background thread: translation (with language pair)
-    static void TranslateThreadProc(const CString& text, const CString& langPair, HWND hNotifyWnd);
+    static void TranslateThreadProc(const CString& text, const CString& langPair, bool bUseAI, HWND hNotifyWnd);
 
     // Translation API call (with timeout and language pair)
     static CString CallTranslateAPI(const CString& text, const CString& langPair, int timeoutSeconds = 10);
 
+    // AI translation API call (using configured AI provider)
+    static CString CallAITranslateAPI(const CString& text, const CString& langPair, int timeoutSeconds = 30);
+
     // Get currently selected language pair (e.g. "zh-CN|en")
     CString GetSelectedLangPair() const;
+
+    // Populate language combo box with localized strings
+    void PopulateLangCombo();
 
     bool m_bBusy{ false };
 

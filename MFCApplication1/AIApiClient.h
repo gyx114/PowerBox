@@ -122,8 +122,8 @@ public:
         const CString& model,
         HWND hwndNotify);
 
-private:
-    // Build JSON request body
+// ---- Public helper methods (used by external translation code) ----
+    // Build JSON request body from messages
     static CString BuildRequestBody(
         const std::vector<std::pair<CString, CString>>& messages,
         const CString& model,
@@ -135,9 +135,6 @@ private:
         const CString& server, int port, const CString& path,
         const CString& apiKey, const std::string& bodyUtf8);
 
-    // Read response body as SSE stream, posting WM_AI_STREAM_CHUNK per delta
-    static std::string ReadSseStream(HINTERNET hRequest, HWND hwndNotify);
-
     // Extract content from JSON response; throws AiJsonError on parse failure
     static CString ExtractContent(const CString& json);
 
@@ -147,6 +144,10 @@ private:
     // Resolve vendor endpoint/model
     static bool ResolveVendor(const CString& vendor, const CString& model,
         CString& outEndpoint, CString& outModel);
+
+private:
+    // Read response body as SSE stream, posting WM_AI_STREAM_CHUNK per delta
+    static std::string ReadSseStream(HINTERNET hRequest, HWND hwndNotify);
 
     // Cancellation flag shared across all requests
     static std::atomic<bool> s_bCancel;
