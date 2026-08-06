@@ -112,6 +112,16 @@ static std::wstring CleanOcrLine(const std::wstring& line)
     return cleaned.substr(first, last - first + 1);
 }
 
+// Check if a word is entirely composed of ASCII digits (0-9)
+static bool IsAllDigits(const std::wstring& word)
+{
+    if (word.empty()) return false;
+    for (auto c : word)
+        if (c < L'0' || c > L'9')
+            return false;
+    return true;
+}
+
 // PowerToys-style word-by-word text reconstruction.
 // For CJK (non-space-joining) languages, the OCR engine's OcrLine.Text may have
 // incorrect spacing. This method reconstructs the text from individual words,
@@ -122,7 +132,14 @@ static std::wstring CleanOcrLine(const std::wstring& line)
 static bool IsSpaceJoiningWord(const std::wstring& word)
 {
     if (word.size() >= 2)
+    {
+        // Multi-digit numbers (e.g. "81", "26200") are NOT space-joining.
+        // OCR frequently splits multi-digit numbers into separate words
+        // ("1 81" instead of "181"), and we want them concatenated.
+        if (IsAllDigits(word))
+            return false;
         return true;
+    }
     if (word.size() == 1)
     {
         wchar_t c = word[0];
@@ -144,6 +161,12 @@ static bool IsSpaceJoiningWord(const std::wstring& word)
     return false;
 }
 
+// Check if a single character is an ASCII letter (A-Z, a-z)
+static bool IsAsciiLetter(wchar_t c)
+{
+    return (c >= L'A' && c <= L'Z') || (c >= L'a' && c <= L'z');
+}
+
 static std::wstring BuildLineTextFromWords(const OcrLine& ocrLine, bool isSpaceJoining)
 {
     if (isSpaceJoining)
@@ -156,6 +179,7 @@ static std::wstring BuildLineTextFromWords(const OcrLine& ocrLine, bool isSpaceJ
     std::wstring result;
     bool isFirstWord = true;
     bool isPrevWordSpaceJoining = false;
+    std::wstring prevWordText;
 
     auto words = ocrLine.Words();
     for (uint32_t i = 0; i < words.Size(); i++)
@@ -163,18 +187,33 @@ static std::wstring BuildLineTextFromWords(const OcrLine& ocrLine, bool isSpaceJ
         std::wstring wordText(words.GetAt(i).Text().c_str());
         bool isThisWordSpaceJoining = IsSpaceJoiningWord(wordText);
 
-        if (isFirstWord || (!isThisWordSpaceJoining && !isPrevWordSpaceJoining))
+        // Determine if we should add a space before this word
+        bool addSpace = !isFirstWord;
+
+        if (addSpace)
         {
-            result += wordText;
+            // Both non-space-joining: no space (e.g. CJK chars)
+            if (!isThisWordSpaceJoining && !isPrevWordSpaceJoining)
+                addSpace = false;
+            // Consecutive single ASCII letters: no space (OCR splits "guany" → "g u a ny")
+            else if (wordText.size() == 1 && IsAsciiLetter(wordText[0]) &&
+                     prevWordText.size() == 1 && IsAsciiLetter(prevWordText[0]))
+                addSpace = false;
+            // Single ASCII letter followed by digits: no space (e.g. "M 1010" → "M1010", "x 64" → "x64")
+            else if (IsAllDigits(wordText) &&
+                     prevWordText.size() == 1 && IsAsciiLetter(prevWordText[0]))
+                addSpace = false;
         }
-        else
+
+        if (addSpace)
         {
             result += L' ';
-            result += wordText;
         }
+        result += wordText;
 
         isFirstWord = false;
         isPrevWordSpaceJoining = isThisWordSpaceJoining;
+        prevWordText = wordText;
     }
 
     return result;
@@ -187,10 +226,20 @@ static std::wstring BuildLineTextFromWords(const OcrLine& ocrLine, bool isSpaceJ
 //   U+FF0C ， → U+002C ,    (full-width comma → ASCII comma)
 //   U+FF1A ： → U+003A :    (full-width colon → ASCII colon)
 //   U+FF1B ； → U+003B ;    (full-width semicolon → ASCII semicolon)
+//   U+FF08 （ → U+0028 (    (full-width left parenthesis)
+//   U+FF09 ） → U+0029 )    (full-width right parenthesis)
 //   U+201C " → U+0022 "     (left double quote → ASCII quote)
 //   U+201D " → U+0022 "     (right double quote → ASCII quote)
 //   U+2018 ' → U+0027 '     (left single quote → ASCII apostrophe)
 //   U+2019 ' → U+0027 '     (right single quote → ASCII apostrophe)
+//   U+2013 – → U+002D -     (en dash → hyphen)
+//   U+2014 — → U+002D -     (em dash → hyphen)
+//   U+FF0D － → U+002D -    (full-width hyphen → ASCII hyphen)
+//   U+2212 − → U+002D -     (minus sign → hyphen)
+//   U+FF5E ～ → U+007E ~    (full-width tilde → ASCII tilde)
+//   U+30FB ・ → U+00B7 ·    (katakana middle dot)
+//   U+3001 、 → U+002C ,    (CJK comma → ASCII comma)
+//   U+3002 。 → U+002E .    (CJK period → ASCII period)
 static void NormalizeFullWidthPunctuation(std::wstring& text)
 {
     for (auto& c : text)
@@ -201,11 +250,50 @@ static void NormalizeFullWidthPunctuation(std::wstring& text)
         case 0xFF0C: c = L','; break;  // ， → ,
         case 0xFF1A: c = L':'; break;  // ： → :
         case 0xFF1B: c = L';'; break;  // ； → ;
+        case 0xFF08: c = L'('; break;  // （ → (
+        case 0xFF09: c = L')'; break;  // ） → )
+        case 0xFF0D: c = L'-'; break;  // － → -
+        case 0xFF5E: c = L'~'; break;  // ～ → ~
+        case 0x2013:
+        case 0x2014:
+        case 0x2212: c = L'-'; break;  // –/—/− → -
         case 0x201C:
         case 0x201D: c = L'"'; break;  // " " → "
         case 0x2018:
         case 0x2019: c = L'\''; break; // ' ' → '
+        case 0x3001: c = L','; break;  // 、 → ,
+        case 0x3002: c = L'.'; break;  // 。 → .
         }
+    }
+}
+
+// Remove spaces around punctuation marks that the OCR engine inserts.
+// The OCR engine often outputs spaces before/after punctuation (e.g. "10 . 0"
+// instead of "10.0", "2 , 23" instead of "2,23"). This cleanup removes
+// spaces before common punctuation and after opening brackets.
+static void CleanupPunctuationSpaces(std::wstring& text)
+{
+    // Remove space BEFORE punctuation: . , : ; ) % ］
+    size_t pos = 0;
+    while ((pos = text.find_first_of(L".,:;)%]", pos)) != std::wstring::npos)
+    {
+        if (pos > 0 && text[pos - 1] == L' ')
+        {
+            text.erase(pos - 1, 1);
+            --pos;
+        }
+        ++pos;
+    }
+
+    // Remove space AFTER opening brackets: ( [ ［
+    pos = 0;
+    while ((pos = text.find_first_of(L"([", pos)) != std::wstring::npos)
+    {
+        if (pos + 1 < text.size() && text[pos + 1] == L' ')
+        {
+            text.erase(pos + 1, 1);
+        }
+        ++pos;
     }
 }
 
@@ -229,10 +317,15 @@ bool OcrRecognizeFromFile(const wchar_t* filePath, wchar_t* output, int outputSi
         auto decoder = BitmapDecoder::CreateAsync(stream).get();
         auto frame = decoder.GetFrameAsync(0).get();
 
-        // Step 2: Get SoftwareBitmap from frame (no transform, no format conversion)
-        // PowerToys does NOT call SoftwareBitmap::Convert — it lets the BMP encoder/decoder
-        // handle format conversion naturally.
+        // Step 2: Get SoftwareBitmap from frame and ensure BGRA8 format.
+        // PowerToys uses GDI+ Bitmap (Format32bppArgb) which is equivalent to BGRA8.
+        // Explicitly convert to BGRA8 here so the BMP encoder receives a known format,
+        // avoiding potential artifacts from format conversion inside the BMP encoder.
         auto swBitmap = frame.GetSoftwareBitmapAsync().get();
+        if (swBitmap.BitmapPixelFormat() != BitmapPixelFormat::Bgra8)
+        {
+            swBitmap = SoftwareBitmap::Convert(swBitmap, BitmapPixelFormat::Bgra8);
+        }
 
         // Step 3: BMP round-trip — exactly like PowerToys:
         //   GDI+ Bitmap (Format32bppArgb) → BMP stream → WinRT decoder → SoftwareBitmap
@@ -249,15 +342,28 @@ bool OcrRecognizeFromFile(const wchar_t* filePath, wchar_t* output, int outputSi
         auto bmpDecoder = BitmapDecoder::CreateAsync(bmpStream).get();
         auto bmpFrame = bmpDecoder.GetFrameAsync(0).get();
 
-        // Step 4: Apply 1.5x scaling (PowerToys uses 1.5x, consistent with their approach)
-        // If 1.5x would exceed OCR engine max dimension, skip scaling (like PowerToys does)
+        // Step 4: Apply adaptive scaling — try progressively higher factors for small text.
+        // Small text (e.g. 8px font) needs more scaling to bring characters above the
+        // OCR engine's recognition threshold. Try 3.0x → 2.5x → 2.0x → 1.5x → 1.0x (no scale).
+        // NOTE: No sharpening is applied — Laplacian sharpening emphasizes internal character
+        // edges (e.g. 亻/乍 in 作) which causes the OCR engine to split Chinese characters.
         uint32_t maxDim = OcrEngine::MaxImageDimension();
-        double scale = 1.5;
-        bool shouldScale = (bmpFrame.PixelWidth() * scale <= maxDim);
+        double scaleCandidates[] = { 3.0, 2.5, 2.0, 1.5 };
+        double scale = 1.0;
+
+        for (auto s : scaleCandidates)
+        {
+            if (bmpFrame.PixelWidth() * s <= maxDim &&
+                bmpFrame.PixelHeight() * s <= maxDim)
+            {
+                scale = s;
+                break;
+            }
+        }
 
         SoftwareBitmap ocrBitmap = nullptr;
 
-        if (shouldScale)
+        if (scale > 1.0)
         {
             uint32_t newW = static_cast<uint32_t>(bmpFrame.PixelWidth() * scale);
             uint32_t newH = static_cast<uint32_t>(bmpFrame.PixelHeight() * scale);
@@ -267,8 +373,6 @@ bool OcrRecognizeFromFile(const wchar_t* filePath, wchar_t* output, int outputSi
             transform.ScaledHeight(newH);
             transform.InterpolationMode(BitmapInterpolationMode::Fant);
 
-            // PowerToys calls GetSoftwareBitmapAsync() with NO parameters —
-            // no color management, no explicit pixel format, no EXIF orientation override.
             ocrBitmap = bmpFrame.GetSoftwareBitmapAsync(
                 BitmapPixelFormat::Bgra8,
                 BitmapAlphaMode::Ignore,
@@ -323,6 +427,9 @@ bool OcrRecognizeFromFile(const wchar_t* filePath, wchar_t* output, int outputSi
 
         // Normalize full-width punctuation to ASCII (Chinese engine tends to output ．，：)
         NormalizeFullWidthPunctuation(text);
+
+        // Clean up spaces around punctuation (e.g. "10 . 0" → "10.0", "2 , 23" → "2,23")
+        CleanupPunctuationSpaces(text);
 
         wcsncpy_s(output, outputSize, text.c_str(), _TRUNCATE);
         return true;
