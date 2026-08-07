@@ -378,6 +378,7 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_MESSAGE(WM_AI_STREAM_CHUNK, &CMFCApplication1Dlg::OnAiStreamChunk)
     ON_MESSAGE(WM_AI_STREAM_DONE, &CMFCApplication1Dlg::OnAiStreamDone)
     ON_MESSAGE(WM_AI_EXECUTE_COMMAND, &CMFCApplication1Dlg::OnAiExecuteCommand)
+    ON_MESSAGE(WM_AI_COMMAND_RESULT, &CMFCApplication1Dlg::OnAiCommandResult)
     ON_MESSAGE(WM_PROCESS_SCAN_START, &CMFCApplication1Dlg::OnProcessScanStart)
     ON_REGISTERED_MESSAGE(WM_QL_CHANGED, &CMFCApplication1Dlg::OnQLChanged)
     ON_REGISTERED_MESSAGE(WM_QL_CLOSED, &CMFCApplication1Dlg::OnQLClosed)
@@ -2794,6 +2795,141 @@ protected:
     }
 };
 
+// Struct passed from background command-execution thread to main thread
+struct CommandResult
+{
+    CString command;
+    CString resultMsg;
+    DWORD exitCode = 0;
+};
+
+// Background thread: executes command and captures output
+static UINT AFX_CDECL CommandExecThread(LPVOID pParam)
+{
+    struct ThreadParam { CString command; CString exeDir; HWND hTarget; }* p = (ThreadParam*)pParam;
+    CString command = p->command;
+    CString exeDir = p->exeDir;
+    HWND hTarget = p->hTarget;
+    delete p;
+
+    DWORD exitCode = 0;
+    CString outputStr;
+
+    CString cmdTrimmed = command;
+    cmdTrimmed.Trim();
+
+    SECURITY_ATTRIBUTES sa = { sizeof(sa), nullptr, TRUE };
+    HANDLE hReadPipe = nullptr, hWritePipe = nullptr;
+
+    if (CreatePipe(&hReadPipe, &hWritePipe, &sa, 0))
+    {
+        SetHandleInformation(hReadPipe, HANDLE_FLAG_INHERIT, 0);
+
+        CString cmdLine;
+        if (cmdTrimmed.Find(_T("powershell ")) == 0 || cmdTrimmed.Find(_T("PowerShell ")) == 0)
+            cmdLine = _T("powershell.exe ") + cmdTrimmed.Mid(10).Trim();
+        else
+            cmdLine = _T("cmd.exe /c ") + cmdTrimmed;
+
+        STARTUPINFO si = { sizeof(si) };
+        si.dwFlags = STARTF_USESTDHANDLES;
+        si.hStdOutput = hWritePipe;
+        si.hStdError = hWritePipe;
+        PROCESS_INFORMATION pi = { 0 };
+
+        CString cmdLineCopy = cmdLine;
+        LPTSTR pCmdLine = cmdLineCopy.GetBuffer(cmdLineCopy.GetLength() + 1);
+
+        if (CreateProcess(nullptr, pCmdLine, nullptr, nullptr, TRUE,
+            CREATE_NO_WINDOW, nullptr, exeDir.IsEmpty() ? nullptr : exeDir.GetString(), &si, &pi))
+        {
+            CloseHandle(hWritePipe);
+            hWritePipe = nullptr;
+
+            char readBuf[4096];
+            DWORD bytesRead;
+            std::string output;
+            const DWORD timeoutMs = 30000;
+            DWORD waitResult;
+
+            do {
+                waitResult = WaitForSingleObject(pi.hProcess, 100);
+                DWORD available = 0;
+                while (PeekNamedPipe(hReadPipe, nullptr, 0, nullptr, &available, nullptr) && available > 0)
+                {
+                    DWORD toRead = __min(available, (DWORD)sizeof(readBuf) - 1);
+                    if (ReadFile(hReadPipe, readBuf, toRead, &bytesRead, nullptr) && bytesRead > 0)
+                    {
+                        readBuf[bytesRead] = '\0';
+                        output.append(readBuf, bytesRead);
+                    }
+                    else break;
+                }
+            } while (waitResult == WAIT_TIMEOUT);
+
+            while (ReadFile(hReadPipe, readBuf, sizeof(readBuf) - 1, &bytesRead, nullptr) && bytesRead > 0)
+            {
+                readBuf[bytesRead] = '\0';
+                output.append(readBuf, bytesRead);
+            }
+
+            GetExitCodeProcess(pi.hProcess, &exitCode);
+            if (waitResult == WAIT_TIMEOUT)
+            {
+                TerminateProcess(pi.hProcess, 1);
+                output += "\r\n[Timeout 30s, terminated]";
+                exitCode = 1;
+            }
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+
+            int wlen = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, output.c_str(), (int)output.size(), nullptr, 0);
+            if (wlen > 0)
+            {
+                std::wstring wstr(wlen, 0);
+                MultiByteToWideChar(CP_UTF8, 0, output.c_str(), (int)output.size(), &wstr[0], wlen);
+                outputStr = wstr.c_str();
+            }
+            else
+                outputStr = CString(output.c_str());
+            outputStr.Trim();
+        }
+        else
+        {
+            DWORD err = GetLastError();
+            outputStr.Format(_T("CreateProcess failed (error %lu)"), err);
+            exitCode = err;
+        }
+        cmdLineCopy.ReleaseBuffer();
+    }
+    else
+    {
+        outputStr = _T("CreatePipe failed");
+        exitCode = GetLastError();
+    }
+
+    if (hWritePipe) CloseHandle(hWritePipe);
+    if (hReadPipe) CloseHandle(hReadPipe);
+
+    // Build result message
+    CString resultMsg;
+    resultMsg.Format(_T("【命令执行结果】\n命令：%s\n状态：已执行\n\n"), command.GetString());
+    if (!outputStr.IsEmpty())
+        resultMsg += _T("输出：\n```\n") + outputStr + _T("\n```\n\n");
+    CString exitStr;
+    exitStr.Format(_T("退出码：%lu"), exitCode);
+    resultMsg += exitStr;
+
+    // Post result back to main thread
+    auto* pResult = new CommandResult;
+    pResult->command = command;
+    pResult->resultMsg = resultMsg;
+    pResult->exitCode = exitCode;
+    ::PostMessage(hTarget, WM_AI_COMMAND_RESULT, 0, (LPARAM)pResult);
+
+    return 0;
+}
+
 // ============================================================================
 // Handle AI executable command: validate, confirm, execute
 // ============================================================================
@@ -2899,133 +3035,26 @@ LRESULT CMFCApplication1Dlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam
         return 0;
     }
 
-    // Execute the command
-    CString resultMsg;
-    resultMsg.Format(_T("【命令执行结果】\n命令：%s\n状态：已执行\n\n"),
-        command.GetString());
+    // Launch background thread to execute command (non-blocking)
+    CString exeDir = GetExeDir();
+    struct ThreadParam { CString command; CString exeDir; HWND hTarget; }* pParam = new ThreadParam;
+    pParam->command = command;
+    pParam->exeDir = exeDir;
+    pParam->hTarget = m_hWnd;
+    AfxBeginThread(CommandExecThread, pParam, THREAD_PRIORITY_NORMAL, 0, 0, nullptr);
 
-    CString cmdTrimmed = command;
-    cmdTrimmed.Trim();
+    return 0;
+}
 
-    // Use CreateProcess with pipes to capture stdout/stderr and show results in WebBrowser.
-    SECURITY_ATTRIBUTES sa = { sizeof(sa), nullptr, TRUE };
-    HANDLE hReadPipe = nullptr, hWritePipe = nullptr;
-    CString outputStr;
-    DWORD exitCode = 0;
+// Handle command execution result from background thread
+LRESULT CMFCApplication1Dlg::OnAiCommandResult(WPARAM /*wParam*/, LPARAM lParam)
+{
+    CommandResult* pResult = reinterpret_cast<CommandResult*>(lParam);
+    if (!pResult) return 0;
 
-    if (CreatePipe(&hReadPipe, &hWritePipe, &sa, 0))
-    {
-        SetHandleInformation(hReadPipe, HANDLE_FLAG_INHERIT, 0);
-
-        // Build command line
-        CString cmdLine;
-        if (cmdTrimmed.Find(_T("powershell ")) == 0 || cmdTrimmed.Find(_T("PowerShell ")) == 0)
-        {
-            cmdLine = _T("powershell.exe ") + cmdTrimmed.Mid(10).Trim();
-        }
-        else
-        {
-            cmdLine = _T("cmd.exe /c ") + cmdTrimmed;
-        }
-
-        STARTUPINFO si = { sizeof(si) };
-        si.dwFlags = STARTF_USESTDHANDLES;
-        si.hStdOutput = hWritePipe;
-        si.hStdError = hWritePipe;
-        PROCESS_INFORMATION pi = { 0 };
-
-        CString cmdLineCopy = cmdLine;
-        LPTSTR pCmdLine = cmdLineCopy.GetBuffer(cmdLineCopy.GetLength() + 1);
-
-        CString exeDir = GetExeDir();
-        if (CreateProcess(nullptr, pCmdLine, nullptr, nullptr, TRUE,
-            CREATE_NO_WINDOW, nullptr, exeDir.IsEmpty() ? nullptr : exeDir.GetString(), &si, &pi))
-        {
-            CloseHandle(hWritePipe);
-            hWritePipe = nullptr;
-
-            // Read output while process runs (30s timeout, then terminate)
-            char readBuf[4096];
-            DWORD bytesRead;
-            std::string output;
-            const DWORD timeoutMs = 30000;
-            DWORD waitResult;
-
-            do {
-                waitResult = WaitForSingleObject(pi.hProcess, 100);
-                // Drain any available data from pipe
-                DWORD available = 0;
-                while (PeekNamedPipe(hReadPipe, nullptr, 0, nullptr, &available, nullptr) && available > 0)
-                {
-                    DWORD toRead = __min(available, (DWORD)sizeof(readBuf) - 1);
-                    if (ReadFile(hReadPipe, readBuf, toRead, &bytesRead, nullptr) && bytesRead > 0)
-                    {
-                        readBuf[bytesRead] = '\0';
-                        output.append(readBuf, bytesRead);
-                    }
-                    else break;
-                }
-            } while (waitResult == WAIT_TIMEOUT);
-
-            // Read any remaining output
-            while (ReadFile(hReadPipe, readBuf, sizeof(readBuf) - 1, &bytesRead, nullptr) && bytesRead > 0)
-            {
-                readBuf[bytesRead] = '\0';
-                output.append(readBuf, bytesRead);
-            }
-
-            GetExitCodeProcess(pi.hProcess, &exitCode);
-            if (waitResult == WAIT_TIMEOUT)
-            {
-                TerminateProcess(pi.hProcess, 1);
-                output += "\r\n[执行超时（30秒），进程已终止]";
-                exitCode = 1;
-            }
-            CloseHandle(pi.hProcess);
-            CloseHandle(pi.hThread);
-
-            // Convert output: try UTF-8 first, fallback to system ANSI (cmd.exe uses code page)
-            int wlen = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, output.c_str(), (int)output.size(), nullptr, 0);
-            if (wlen > 0)
-            {
-                std::wstring wstr(wlen, 0);
-                MultiByteToWideChar(CP_UTF8, 0, output.c_str(), (int)output.size(), &wstr[0], wlen);
-                outputStr = wstr.c_str();
-            }
-            else
-            {
-                // Not valid UTF-8 → likely system ANSI (e.g. GBK on Chinese Windows)
-                outputStr = CString(output.c_str());
-            }
-            outputStr.Trim();
-        }
-        else
-        {
-            DWORD err = GetLastError();
-            CString errStr;
-            errStr.Format(loc.GetString(_T("Msg"), _T("ExecFailedErrCode")), err);
-            outputStr = errStr;
-            exitCode = err;
-        }
-        cmdLineCopy.ReleaseBuffer();
-    }
-    else
-    {
-        outputStr = loc.GetString(_T("Msg"), _T("CannotCreatePipe"));
-        exitCode = GetLastError();
-    }
-
-    if (hWritePipe) CloseHandle(hWritePipe);
-    if (hReadPipe) CloseHandle(hReadPipe);
-
-    // Append output to result message (wrap in code block to prevent pipe chars from becoming tables)
-    if (!outputStr.IsEmpty())
-    {
-        resultMsg += loc.GetString(_T("Msg"), _T("OutputLabel")) + _T("\n```\n") + outputStr + _T("\n```\n\n");
-    }
-    CString exitStr;
-    exitStr.Format(loc.GetString(_T("Msg"), _T("ExitCodeFmt")), exitCode);
-    resultMsg += exitStr;
+    CString command = pResult->command;
+    CString resultMsg = pResult->resultMsg;
+    delete pResult;
 
     // Record result in conversation history — insert after the last assistant message
     {
@@ -3035,7 +3064,6 @@ LRESULT CMFCApplication1Dlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam
             if (m_aiHistory[i].first == _T("assistant"))
             {
                 insertPos = i + 1;
-                // Skip past any system results that already follow this assistant
                 while (insertPos < (int)m_aiHistory.size() && m_aiHistory[insertPos].first == _T("system"))
                     insertPos++;
                 break;

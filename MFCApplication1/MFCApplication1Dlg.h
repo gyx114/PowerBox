@@ -351,6 +351,7 @@ public:
     afx_msg LRESULT OnAiStreamChunk(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnAiStreamDone(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnAiExecuteCommand(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnAiCommandResult(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnQLChanged(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnQLClosed(WPARAM wParam, LPARAM lParam);
     afx_msg void OnTimer(UINT_PTR nIDEvent);
