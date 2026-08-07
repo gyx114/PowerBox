@@ -481,17 +481,20 @@
 #define IDC_BTN_TERMINAL_CLEAR           1404
 #define IDC_TERMINAL_SPLITTER            1405
 #define IDC_TERMINAL_LABEL               1406
+#define IDC_TERMINAL_TABS                1407
 #define ID_TERMINAL_COPY                 32855
 #define ID_TERMINAL_PASTE                32856
 #define ID_TERMINAL_RESTART              32857
+#define ID_TERMINAL_NEW                  32858
+#define ID_TERMINAL_CLOSE_TAB            32859
 
 // Next default values for new objects
 //
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        159
-#define _APS_NEXT_COMMAND_VALUE         32858
-#define _APS_NEXT_CONTROL_VALUE         1407
+#define _APS_NEXT_COMMAND_VALUE         32860
+#define _APS_NEXT_CONTROL_VALUE         1408
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

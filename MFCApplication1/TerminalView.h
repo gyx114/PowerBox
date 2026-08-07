@@ -7,7 +7,9 @@
 #include <vector>
 #include <thread>
 #include <atomic>
+#include <memory>
 
+#include "TerminalSession.h"
 #include "resource.h"
 
 class CTerminalView : public CWnd
@@ -19,6 +21,8 @@ public:
     BOOL CreateTerminal(CWnd* pParent, UINT nID, const CRect& rc);
     BOOL AttachToPlaceholder(UINT nID, CWnd* pParent);
     BOOL StartShell(const CString& shellName);
+    BOOL StartCommandSession(const CString& cmdLine, const CString& shellName);
+    bool AdoptSession(std::unique_ptr<CTerminalSession> session, const CString& shellName);
     void StopSession();
     void ClearScreen();
     void RestartShell();
@@ -27,11 +31,20 @@ public:
     void ContinueSelectionFromScreen(CPoint screenPt);
     void FinishSelection();
     void ShowContextMenu(CPoint screenPt);
+    void StartAiCapture(UINT_PTR id, const CString& startMarker, const CString& endMarker, HWND notifyHwnd);
+    void StopAiCapture();
+    void WriteString(const std::wstring& text);
+    void WriteUtf8(const std::string& text);
 
-    bool IsRunning() const { return m_hPC != nullptr; }
-
-    static constexpr UINT WM_TERM_OUTPUT = WM_APP + 30;
-    static constexpr UINT WM_TERM_EXITED = WM_APP + 31;
+    bool IsRunning() const { return m_session && m_session->IsRunning(); }
+    CString GetShellName() const { return m_shellName; }
+    static constexpr UINT WM_AI_CAPTURE_DONE = WM_APP + 50;
+    struct AiCaptureResult
+    {
+        UINT_PTR id = 0;
+        std::string output;
+        DWORD exitCode = 0;
+    };
 
 protected:
     struct TermCell
@@ -68,16 +81,7 @@ protected:
     DECLARE_MESSAGE_MAP()
 
 private:
-    // ConPTY session
-    HPCON m_hPC = nullptr;
-    HANDLE m_hInputWrite = nullptr;
-    HANDLE m_hInputRead = nullptr;
-    HANDLE m_hOutputWrite = nullptr;
-    HANDLE m_hOutputRead = nullptr;
-    HANDLE m_hProcess = nullptr;
-    HANDLE m_hThreadHandle = nullptr;
-    std::thread m_readerThread;
-    std::atomic<bool> m_closing{false};
+    std::unique_ptr<CTerminalSession> m_session;
     CString m_shellName;
 
     // Screen buffer
@@ -98,6 +102,14 @@ private:
     EscState m_escState = EscState::Text;
     std::wstring m_escParam;
     std::string m_byteBuffer;
+
+    // AI command capture between start/end markers
+    bool m_bAiCapturing = false;
+    UINT_PTR m_aiCaptureId = 0;
+    std::string m_aiCaptureBuffer;
+    std::string m_aiStartMarker;
+    std::string m_aiEndMarker;
+    HWND m_aiNotifyHwnd = nullptr;
 
     // Rendering
     CFont m_font;
@@ -131,13 +143,11 @@ private:
     void ResetScreen();
     void ResizeGrid();
     void RebuildFont();
-    void WriteString(const std::wstring& text);
-    void WriteUtf8(const std::string& text);
-    void ReadLoop();
-    void CleanupHandles();
     void SetSelectionFromPoint(CPoint point);
     void UpdateSelectionEnd(CPoint point);
     void ClearSelection();
+    void CheckAiCapture(const std::string& data);
+    void FinishAiCapture(DWORD exitCode);
     void CopySelection();
     void PasteClipboard();
     std::wstring GetSelectedText() const;

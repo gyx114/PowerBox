@@ -1257,5 +1257,7 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("Terminal"), _T("Copy"))] = _T("复制");
     m_defaults[MakeKey(_T("Terminal"), _T("Paste"))] = _T("粘贴");
     m_defaults[MakeKey(_T("Terminal"), _T("Restart"))] = _T("重启终端");
+    m_defaults[MakeKey(_T("Terminal"), _T("New"))] = _T("新建终端");
+    m_defaults[MakeKey(_T("Terminal"), _T("CloseTab"))] = _T("关闭终端");
     m_defaults[MakeKey(_T("Terminal"), _T("Exited"))] = _T("[进程已退出]");
 }

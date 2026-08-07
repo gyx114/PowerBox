@@ -353,6 +353,21 @@ public:
     afx_msg LRESULT OnAiStreamDone(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnAiExecuteCommand(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnAiCommandResult(WPARAM wParam, LPARAM lParam);
+    struct AiCommandContext
+    {
+        CString command;
+        CString exeDir;
+        std::string output;
+    };
+    std::vector<std::unique_ptr<CTerminalSession>> m_aiSessions;
+    std::map<CTerminalSession*, AiCommandContext> m_aiCommandContexts;
+    std::map<UINT_PTR, CString> m_aiCommandById;
+    UINT_PTR m_aiNextCommandId = 1;
+    afx_msg LRESULT OnAiSessionOutput(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnAiSessionExited(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnAiCaptureDone(WPARAM wParam, LPARAM lParam);
+    void AddAiCommandTab(const CString& command);
+    void FinishAiCommand(CTerminalSession* session);
     afx_msg LRESULT OnQLChanged(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnQLClosed(WPARAM wParam, LPARAM lParam);
     afx_msg void OnTimer(UINT_PTR nIDEvent);
@@ -383,8 +398,19 @@ public:
     CStatic m_terminalLabel;
     CButton m_terminalClear;
     CStatic m_terminalSplitter;
+    CTabCtrl m_terminalTabs;
+    std::vector<std::unique_ptr<CTerminalView>> m_extraTerminalViews;
+    std::vector<CTerminalView*> m_terminalTabsList;
+    CTerminalView* m_pActiveTerminal = nullptr;
     CString m_strTerminalShell;
     void InitTerminal();
+    void AddTerminalTab(const CString& shellName);
+    void AddTerminalTabWithCommand(const CString& shellName, const CString& cmdLine);
+    void CloseTerminalTab(int index);
+    void ActivateTerminalTab(int index);
+    CTerminalView* ActiveTerminal();
+    afx_msg void OnTcnSelchangeTerminalTabs(NMHDR* pNMHDR, LRESULT* pResult);
+    afx_msg void OnNMRclickTerminalTabs(NMHDR* pNMHDR, LRESULT* pResult);
     afx_msg void OnBnClickedTerminalClear();
     afx_msg void OnCbnSelchangeTerminalShell();
 };

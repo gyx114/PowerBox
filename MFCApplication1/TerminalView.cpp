@@ -260,8 +260,8 @@ void CTerminalView::ResizeGrid()
         m_cols = cols;
         m_rowsCount = rows;
 
-        if (m_hPC)
-            ::ResizePseudoConsole(m_hPC, COORD{ static_cast<SHORT>(cols), static_cast<SHORT>(rows) });
+        if (m_session)
+            m_session->Resize(cols, rows);
 
         for (auto& row : m_rows)
         {
@@ -834,73 +834,19 @@ void CTerminalView::Feed(const char* data, size_t len)
 
 void CTerminalView::WriteUtf8(const std::string& text)
 {
-    if (!m_hPC || !m_hInputWrite || text.empty())
-        return;
-
-    DWORD written = 0;
-    ::WriteFile(m_hInputWrite, text.data(), static_cast<DWORD>(text.size()), &written, nullptr);
+    if (m_session)
+        m_session->Write(text);
 }
 
 void CTerminalView::WriteString(const std::wstring& text)
 {
-    if (!m_hPC || !m_hInputWrite || text.empty())
-        return;
-
-    int utf8Len = ::WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()),
-        nullptr, 0, nullptr, nullptr);
-    std::string utf8(static_cast<size_t>(utf8Len), 0);
-    ::WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()),
-        &utf8[0], utf8Len, nullptr, nullptr);
-    WriteUtf8(utf8);
+    if (m_session)
+        m_session->WriteString(text);
 }
 
 BOOL CTerminalView::StartShell(const CString& shellName)
 {
-    StopSession();
-    m_shellName = shellName;
-
-    if (m_cols < 20)
-        m_cols = 80;
-    if (m_rowsCount < 3)
-        m_rowsCount = 24;
-
-    SECURITY_ATTRIBUTES sa{ sizeof(sa), nullptr, TRUE };
-    if (!::CreatePipe(&m_hInputRead, &m_hInputWrite, &sa, 0))
-    {
-        ResetScreen();
-        FeedText(L"\r\n[CreatePipe failed]\r\n");
-        Invalidate(FALSE);
-        return FALSE;
-    }
-    if (!::CreatePipe(&m_hOutputRead, &m_hOutputWrite, &sa, 0))
-    {
-        CleanupHandles();
-        ResetScreen();
-        FeedText(L"\r\n[CreatePipe failed]\r\n");
-        Invalidate(FALSE);
-        return FALSE;
-    }
-
-    ::SetHandleInformation(m_hInputWrite, HANDLE_FLAG_INHERIT, 0);
-    ::SetHandleInformation(m_hOutputRead, HANDLE_FLAG_INHERIT, 0);
-
-    COORD size{ static_cast<SHORT>(m_cols), static_cast<SHORT>(m_rowsCount) };
-    HRESULT hr = ::CreatePseudoConsole(size, m_hInputRead, m_hOutputWrite, 0, &m_hPC);
-    if (FAILED(hr))
-    {
-        CleanupHandles();
-        ResetScreen();
-        FeedText(L"\r\n[CreatePseudoConsole failed]\r\n");
-        Invalidate(FALSE);
-        return FALSE;
-    }
-
     CString cmdLine;
-    CString workDir;
-    TCHAR envBuf[MAX_PATH]{};
-    if (::GetEnvironmentVariable(_T("USERPROFILE"), envBuf, MAX_PATH) > 0)
-        workDir = envBuf;
-
     if (shellName.CompareNoCase(_T("CMD")) == 0)
     {
         cmdLine = _T("cmd.exe /K chcp 65001 >nul");
@@ -919,123 +865,57 @@ BOOL CTerminalView::StartShell(const CString& shellName)
         cmdLine = _T("powershell.exe -NoLogo -NoExit -Command \"$OutputEncoding=[Console]::OutputEncoding=[Text.Encoding]::UTF8; chcp 65001 > $null\"");
     }
 
-    STARTUPINFOEXW siEx{};
-    siEx.StartupInfo.cb = sizeof(siEx);
-    SIZE_T attrSize = 0;
-    ::InitializeProcThreadAttributeList(nullptr, 1, 0, &attrSize);
-    siEx.lpAttributeList = static_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(
-        ::HeapAlloc(::GetProcessHeap(), 0, attrSize));
+    return StartCommandSession(cmdLine, shellName);
+}
 
-    if (!siEx.lpAttributeList)
+BOOL CTerminalView::StartCommandSession(const CString& cmdLine, const CString& shellName)
+{
+    StopSession();
+    m_shellName = shellName;
+
+    CString workDir;
+    TCHAR envBuf[MAX_PATH]{};
+    if (::GetEnvironmentVariable(_T("USERPROFILE"), envBuf, MAX_PATH) > 0)
+        workDir = envBuf;
+
+    m_session = std::make_unique<CTerminalSession>(m_hWnd);
+    if (!m_session->Start(cmdLine, workDir, m_cols, m_rowsCount))
     {
-        CleanupHandles();
+        m_session.reset();
         ResetScreen();
-        FeedText(L"\r\n[StartShell failed: no memory]\r\n");
-        Invalidate(FALSE);
-        return FALSE;
-    }
-
-    BOOL attrOk = ::InitializeProcThreadAttributeList(siEx.lpAttributeList, 1, 0, &attrSize);
-    if (!attrOk)
-    {
-        ::HeapFree(::GetProcessHeap(), 0, siEx.lpAttributeList);
-        CleanupHandles();
-        ResetScreen();
-        FeedText(L"\r\n[StartShell failed: attribute list]\r\n");
-        Invalidate(FALSE);
-        return FALSE;
-    }
-
-    BOOL setOk = ::UpdateProcThreadAttribute(siEx.lpAttributeList, 0,
-        PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, m_hPC, sizeof(m_hPC), nullptr, nullptr);
-
-    PROCESS_INFORMATION pi{};
-    BOOL created = FALSE;
-    if (setOk)
-    {
-        siEx.StartupInfo.dwFlags = EXTENDED_STARTUPINFO_PRESENT;
-        LPTSTR pCmdLine = cmdLine.GetBuffer(cmdLine.GetLength() + 1);
-        created = ::CreateProcessW(nullptr, pCmdLine, nullptr, nullptr, TRUE,
-            EXTENDED_STARTUPINFO_PRESENT, nullptr,
-            workDir.IsEmpty() ? nullptr : workDir.GetString(),
-            &siEx.StartupInfo, &pi);
-        cmdLine.ReleaseBuffer();
-    }
-
-    ::DeleteProcThreadAttributeList(siEx.lpAttributeList);
-    ::HeapFree(::GetProcessHeap(), 0, siEx.lpAttributeList);
-
-    if (!created)
-    {
-        CleanupHandles();
         FeedText(L"\r\n[Failed to start shell]\r\n");
         Invalidate(FALSE);
         return FALSE;
     }
 
-    m_hProcess = pi.hProcess;
-    m_hThreadHandle = pi.hThread;
-    m_closing = false;
     ResetScreen();
     FeedText(L"\r\nPowerBox Terminal: " + std::wstring(m_shellName.GetString()) + L"\r\n");
     Invalidate(FALSE);
-    m_readerThread = std::thread([this] { ReadLoop(); });
     return TRUE;
-}
-
-void CTerminalView::ReadLoop()
-{
-    char buf[8192];
-    while (!m_closing)
-    {
-        DWORD bytesRead = 0;
-        if (!::ReadFile(m_hOutputRead, buf, sizeof(buf), &bytesRead, nullptr) || bytesRead == 0)
-            break;
-
-        auto* p = new std::string(buf, bytesRead);
-        if (!::PostMessage(m_hWnd, WM_TERM_OUTPUT, 0, reinterpret_cast<LPARAM>(p)))
-            delete p;
-    }
-
-    if (!m_closing)
-        ::PostMessage(m_hWnd, WM_TERM_EXITED, 0, 0);
 }
 
 void CTerminalView::StopSession()
 {
-    m_closing = true;
-
-    if (m_hProcess)
+    if (m_session)
     {
-        ::TerminateProcess(m_hProcess, 1);
-        ::WaitForSingleObject(m_hProcess, 3000);
+        m_session->Stop();
+        m_session.reset();
     }
-
-    if (m_readerThread.joinable())
-    {
-        HANDLE hNative = m_readerThread.native_handle();
-        if (hNative)
-            ::CancelSynchronousIo(hNative);
-        m_readerThread.join();
-    }
-
-    CleanupHandles();
-    m_closing = false;
 }
 
-void CTerminalView::CleanupHandles()
+bool CTerminalView::AdoptSession(std::unique_ptr<CTerminalSession> session,
+    const CString& shellName)
 {
-    if (m_hPC)
-    {
-        ::ClosePseudoConsole(m_hPC);
-        m_hPC = nullptr;
-    }
-    if (m_hInputWrite) { ::CloseHandle(m_hInputWrite); m_hInputWrite = nullptr; }
-    if (m_hInputRead) { ::CloseHandle(m_hInputRead); m_hInputRead = nullptr; }
-    if (m_hOutputWrite) { ::CloseHandle(m_hOutputWrite); m_hOutputWrite = nullptr; }
-    if (m_hOutputRead) { ::CloseHandle(m_hOutputRead); m_hOutputRead = nullptr; }
-    if (m_hProcess) { ::CloseHandle(m_hProcess); m_hProcess = nullptr; }
-    if (m_hThreadHandle) { ::CloseHandle(m_hThreadHandle); m_hThreadHandle = nullptr; }
+    StopSession();
+    m_shellName = shellName;
+    m_session = std::move(session);
+    if (m_session)
+        m_session->SetNotifyWindow(m_hWnd);
+
+    ResetScreen();
+    FeedText(L"\r\nPowerBox Terminal: " + std::wstring(m_shellName.GetString()) + L"\r\n");
+    Invalidate(FALSE);
+    return m_session != nullptr;
 }
 
 void CTerminalView::ClearScreen()
@@ -1239,6 +1119,8 @@ void CTerminalView::OnKillFocus(CWnd* pNewWnd)
 
 void CTerminalView::OnDestroy()
 {
+    if (m_bAiCapturing)
+        FinishAiCapture(m_session ? m_session->ExitCode() : 0);
     StopSession();
     CWnd::OnDestroy();
 }
@@ -1290,6 +1172,70 @@ void CTerminalView::ClearSelection()
     m_selStartRow = m_selStartCol = -1;
     m_selEndRow = m_selEndCol = -1;
     Invalidate(FALSE);
+}
+
+void CTerminalView::StartAiCapture(UINT_PTR id, const CString& startMarker,
+    const CString& endMarker, HWND notifyHwnd)
+{
+    m_aiCaptureId = id;
+    m_aiStartMarker = std::string(CT2A(startMarker, CP_UTF8));
+    m_aiEndMarker = std::string(CT2A(endMarker, CP_UTF8));
+    m_aiNotifyHwnd = notifyHwnd;
+    m_aiCaptureBuffer.clear();
+    m_bAiCapturing = true;
+}
+
+void CTerminalView::StopAiCapture()
+{
+    m_bAiCapturing = false;
+    m_aiCaptureBuffer.clear();
+}
+
+void CTerminalView::CheckAiCapture(const std::string& data)
+{
+    if (!m_bAiCapturing)
+        return;
+
+    m_aiCaptureBuffer.append(data);
+    DWORD exitCode = m_session ? m_session->ExitCode() : 0;
+    size_t startPos = m_aiCaptureBuffer.find(m_aiStartMarker);
+    size_t endPos = m_aiCaptureBuffer.find(m_aiEndMarker);
+    if (startPos == std::string::npos || endPos == std::string::npos ||
+        endPos <= startPos)
+    {
+        return;
+    }
+
+    size_t begin = startPos + m_aiStartMarker.size();
+    auto* pResult = new AiCaptureResult;
+    pResult->id = m_aiCaptureId;
+    pResult->output = m_aiCaptureBuffer.substr(begin, endPos - begin);
+    pResult->exitCode = exitCode;
+    if (m_aiNotifyHwnd)
+        ::PostMessage(m_aiNotifyHwnd, WM_AI_CAPTURE_DONE, 0, reinterpret_cast<LPARAM>(pResult));
+    else
+        delete pResult;
+
+    m_bAiCapturing = false;
+    m_aiCaptureBuffer.clear();
+}
+
+void CTerminalView::FinishAiCapture(DWORD exitCode)
+{
+    if (!m_bAiCapturing)
+        return;
+
+    auto* pResult = new AiCaptureResult;
+    pResult->id = m_aiCaptureId;
+    pResult->output = m_aiCaptureBuffer;
+    pResult->exitCode = exitCode;
+    if (m_aiNotifyHwnd)
+        ::PostMessage(m_aiNotifyHwnd, WM_AI_CAPTURE_DONE, 0, reinterpret_cast<LPARAM>(pResult));
+    else
+        delete pResult;
+
+    m_bAiCapturing = false;
+    m_aiCaptureBuffer.clear();
 }
 
 void CTerminalView::OnLButtonDown(UINT, CPoint point)
@@ -1495,7 +1441,7 @@ void CTerminalView::OnKeyDown(UINT nChar, UINT, UINT)
 {
     ClearSelection();
 
-    if (!m_hPC)
+    if (!m_session || !m_session->IsRunning())
         return;
 
     bool ctrl = (::GetKeyState(VK_CONTROL) & 0x8000) != 0;
@@ -1555,27 +1501,39 @@ void CTerminalView::OnChar(UINT nChar, UINT, UINT)
 {
     ClearSelection();
 
-    if (!m_hPC)
+    if (!m_session || !m_session->IsRunning())
         return;
     wchar_t ch = static_cast<wchar_t>(nChar);
     if (ch >= 0x20 && ch != 0x7F)
         WriteString(std::wstring(1, ch));
 }
 
-LRESULT CTerminalView::OnTermOutput(WPARAM, LPARAM lParam)
+LRESULT CTerminalView::OnTermOutput(WPARAM wParam, LPARAM lParam)
 {
     auto* p = reinterpret_cast<std::string*>(lParam);
+    auto* session = reinterpret_cast<CTerminalSession*>(wParam);
+    if (session != m_session.get())
+    {
+        delete p;
+        return 0;
+    }
     if (p)
     {
-        Feed(p->data(), p->size());
+        std::string data = *p;
+        Feed(data.data(), data.size());
+        CheckAiCapture(data);
         delete p;
     }
     Invalidate(FALSE);
     return 0;
 }
 
-LRESULT CTerminalView::OnTermExited(WPARAM, LPARAM)
+LRESULT CTerminalView::OnTermExited(WPARAM wParam, LPARAM)
 {
+    if (reinterpret_cast<CTerminalSession*>(wParam) != m_session.get())
+        return 0;
+    if (m_bAiCapturing)
+        FinishAiCapture(m_session ? m_session->ExitCode() : 0);
     CString exited = CLocalizationManager::GetInstance().GetString(_T("Terminal"), _T("Exited"));
     std::wstring msg = L"\r\n" + std::wstring(exited.GetString());
     FeedText(msg);

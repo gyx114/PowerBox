@@ -379,11 +379,16 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_MESSAGE(WM_AI_STREAM_DONE, &CMFCApplication1Dlg::OnAiStreamDone)
     ON_MESSAGE(WM_AI_EXECUTE_COMMAND, &CMFCApplication1Dlg::OnAiExecuteCommand)
     ON_MESSAGE(WM_AI_COMMAND_RESULT, &CMFCApplication1Dlg::OnAiCommandResult)
+    ON_MESSAGE(WM_TERM_OUTPUT, &CMFCApplication1Dlg::OnAiSessionOutput)
+    ON_MESSAGE(WM_TERM_EXITED, &CMFCApplication1Dlg::OnAiSessionExited)
+    ON_MESSAGE(CTerminalView::WM_AI_CAPTURE_DONE, &CMFCApplication1Dlg::OnAiCaptureDone)
     ON_MESSAGE(WM_PROCESS_SCAN_START, &CMFCApplication1Dlg::OnProcessScanStart)
     ON_REGISTERED_MESSAGE(WM_QL_CHANGED, &CMFCApplication1Dlg::OnQLChanged)
     ON_REGISTERED_MESSAGE(WM_QL_CLOSED, &CMFCApplication1Dlg::OnQLClosed)
     ON_BN_CLICKED(IDC_BTN_TERMINAL_CLEAR, &CMFCApplication1Dlg::OnBnClickedTerminalClear)
     ON_CBN_SELCHANGE(IDC_TERMINAL_SHELL, &CMFCApplication1Dlg::OnCbnSelchangeTerminalShell)
+    ON_NOTIFY(TCN_SELCHANGE, IDC_TERMINAL_TABS, &CMFCApplication1Dlg::OnTcnSelchangeTerminalTabs)
+    ON_NOTIFY(NM_RCLICK, IDC_TERMINAL_TABS, &CMFCApplication1Dlg::OnNMRclickTerminalTabs)
     ON_WM_TIMER()
 END_MESSAGE_MAP()
 
@@ -608,9 +613,9 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 
 	// Global hotkey
 	TranslateUI();
-	if (m_terminalView.m_hWnd)
+	if (m_pActiveTerminal && m_pActiveTerminal->m_hWnd)
 	{
-		m_terminalView.SetFocus();
+		m_pActiveTerminal->SetFocus();
 		return FALSE;
 	}
 	return TRUE;
@@ -666,15 +671,31 @@ void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
         IDC_STATIC_AI_LABEL, IDC_COMBO_AI_VENDOR,
         IDC_EDIT_AI_INPUT, IDC_BUTTON_AI_SEND, IDC_BUTTON_AI_STOP, IDC_BUTTON_AI_CLEAR,
         IDC_BUTTON_AI_HISTORY,
-        IDC_TERMINAL_VIEW, IDC_TERMINAL_SHELL, IDC_TERMINAL_LABEL,
-        IDC_BTN_TERMINAL_CLEAR, IDC_TERMINAL_SPLITTER
+        IDC_TERMINAL_SHELL, IDC_TERMINAL_LABEL,
+        IDC_BTN_TERMINAL_CLEAR, IDC_TERMINAL_SPLITTER, IDC_TERMINAL_TABS
     };
     showGroup(kAiIds, _countof(kAiIds), nTab == 0);
-    if (nTab == 0 && m_terminalView.m_hWnd)
+    if (nTab == 0)
     {
-        m_terminalView.SetWindowPos(&wndTop, 0, 0, 0, 0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
-        m_terminalView.Invalidate(TRUE);
+        for (CTerminalView* v : m_terminalTabsList)
+        {
+            if (v && v->m_hWnd)
+                v->ShowWindow(v == m_pActiveTerminal ? SW_SHOW : SW_HIDE);
+        }
+        if (m_pActiveTerminal && m_pActiveTerminal->m_hWnd)
+        {
+            m_pActiveTerminal->SetWindowPos(&wndTop, 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+            m_pActiveTerminal->Invalidate(TRUE);
+        }
+    }
+    else
+    {
+        for (CTerminalView* v : m_terminalTabsList)
+        {
+            if (v && v->m_hWnd)
+                v->ShowWindow(SW_HIDE);
+        }
     }
 
     // WebBrowser: move off-screen instead of hiding to preserve internal state
@@ -892,12 +913,12 @@ BOOL CMFCApplication1Dlg::PreTranslateMessage(MSG* pMsg)
 {
     // Route mouse interaction over the terminal area at the dialog level so
     // selection works even if the tab control is above the terminal window.
-    if (m_terminalView.m_hWnd)
+    if (m_pActiveTerminal && m_pActiveTerminal->m_hWnd)
     {
         CPoint pt;
         ::GetCursorPos(&pt);
         CRect rcTerm;
-        m_terminalView.GetWindowRect(&rcTerm);
+        m_pActiveTerminal->GetWindowRect(&rcTerm);
         if (rcTerm.PtInRect(pt) && pMsg->hwnd != m_terminalShell.m_hWnd)
         {
             TCHAR szClass[64]{};
@@ -906,33 +927,34 @@ BOOL CMFCApplication1Dlg::PreTranslateMessage(MSG* pMsg)
 
             if (!isShellDropdown && pMsg->message == WM_LBUTTONDOWN)
             {
-                m_terminalView.StartSelectionFromScreen(pt);
+                m_pActiveTerminal->StartSelectionFromScreen(pt);
                 SetCapture();
                 return TRUE;
             }
             if (!isShellDropdown && pMsg->message == WM_MOUSEMOVE && GetCapture() == this)
             {
-                m_terminalView.ContinueSelectionFromScreen(pt);
+                m_pActiveTerminal->ContinueSelectionFromScreen(pt);
                 return TRUE;
             }
             if (!isShellDropdown && pMsg->message == WM_LBUTTONUP && GetCapture() == this)
             {
-                m_terminalView.FinishSelection();
+                m_pActiveTerminal->FinishSelection();
                 if (GetCapture() == this)
                     ReleaseCapture();
                 return TRUE;
             }
             if (!isShellDropdown && pMsg->message == WM_RBUTTONUP)
             {
-                m_terminalView.ShowContextMenu(pt);
+                m_pActiveTerminal->ShowContextMenu(pt);
                 return TRUE;
             }
         }
     }
 
     // Alt+1..6 must still switch tabs while the terminal has keyboard focus.
-    if (pMsg->message == WM_SYSKEYDOWN && m_terminalView.m_hWnd &&
-        pMsg->hwnd == m_terminalView.m_hWnd &&
+    if (pMsg->message == WM_SYSKEYDOWN && m_pActiveTerminal &&
+        m_pActiveTerminal->m_hWnd &&
+        pMsg->hwnd == m_pActiveTerminal->m_hWnd &&
         pMsg->wParam >= '1' && pMsg->wParam <= '6')
     {
         int nTab = static_cast<int>(pMsg->wParam - '1');
@@ -947,7 +969,8 @@ BOOL CMFCApplication1Dlg::PreTranslateMessage(MSG* pMsg)
 
     // The terminal view handles its own keyboard input. Returning FALSE here
     // keeps the dialog's Enter/accelerator handling from closing the app.
-    if (m_terminalView.m_hWnd && pMsg->hwnd == m_terminalView.m_hWnd)
+    if (m_pActiveTerminal && m_pActiveTerminal->m_hWnd &&
+        pMsg->hwnd == m_pActiveTerminal->m_hWnd)
         return FALSE;
 
     // Enter inside the terminal shell dropdown should only move focus back
@@ -957,23 +980,24 @@ BOOL CMFCApplication1Dlg::PreTranslateMessage(MSG* pMsg)
         CWnd* pFocus = CWnd::FromHandle(::GetFocus());
         if (pFocus && pFocus->GetDlgCtrlID() == IDC_TERMINAL_SHELL)
         {
-            if (m_terminalView.m_hWnd)
-                m_terminalView.SetFocus();
+            if (m_pActiveTerminal && m_pActiveTerminal->m_hWnd)
+                m_pActiveTerminal->SetFocus();
             return TRUE;
         }
     }
 
     // Let the mouse wheel scroll the terminal even when it does not have focus.
-    if (pMsg->message == WM_MOUSEWHEEL && m_terminalView.m_hWnd)
+    if (pMsg->message == WM_MOUSEWHEEL && m_pActiveTerminal &&
+        m_pActiveTerminal->m_hWnd)
     {
         CPoint pt;
         ::GetCursorPos(&pt);
         CRect rcTerm;
-        m_terminalView.GetWindowRect(&rcTerm);
+        m_pActiveTerminal->GetWindowRect(&rcTerm);
         if (rcTerm.PtInRect(pt))
         {
             short zDelta = GET_WHEEL_DELTA_WPARAM(pMsg->wParam);
-            m_terminalView.ScrollLines(zDelta);
+            m_pActiveTerminal->ScrollLines(zDelta);
             return TRUE;
         }
     }
@@ -2122,6 +2146,10 @@ CString CMFCApplication1Dlg::BuildSystemPrompt()
         _T("- high：高危操作（如删除文件、修改注册表、格式化磁盘）\n\n")
         _T("注意：包含 del、format、reg delete、net user 等关键词的命令会自动升级为高风险。\n")
         _T("高风险命令需要用户输入\"确认执行\"才能执行。\n\n")
+        _T("命令格式规则：\n")
+        _T("- 控制台程序、交互程序、可执行文件（.exe/.bat/.cmd/.ps1 等）直接给出命令或带引号的完整路径，不要使用 start，因为程序会在终端 tab 中运行并支持输入输出。\n")
+        _T("- 打开文件、文件夹、网址、媒体文件（mp3/mp4/文档/URL 等）使用 start \"\" \"路径\"，由系统默认程序打开。\n")
+        _T("- 需要用户输入的控制台程序绝对不要用 start，否则输入输出无法回传。\n\n")
         _T("命令执行结果反馈：\n")
         _T("- 命令执行后，stdout/stderr 输出会被捕获并在 WebBrowser 中显示\n")
         _T("- 输出内容包括：命令的标准输出、标准错误输出、退出代码\n")
@@ -2192,6 +2220,13 @@ void CMFCApplication1Dlg::OnBnClickedAiClear()
 
 void CMFCApplication1Dlg::OnBnClickedAiStop()
 {
+    // If AI commands are still running in terminal tabs, send Ctrl+C there.
+    if (!m_aiCommandById.empty() && m_pActiveTerminal &&
+        m_pActiveTerminal->m_hWnd)
+    {
+        m_pActiveTerminal->WriteUtf8("\x03");
+    }
+
     CAIApiClient::Cancel();
     CWnd* pStop = GetDlgItem(IDC_BUTTON_AI_STOP);
     if (pStop) pStop->EnableWindow(FALSE);
@@ -3139,13 +3174,9 @@ LRESULT CMFCApplication1Dlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam
         return 0;
     }
 
-    // Launch background thread to execute command (non-blocking)
-    CString exeDir = GetExeDir();
-    struct ThreadParam { CString command; CString exeDir; HWND hTarget; }* pParam = new ThreadParam;
-    pParam->command = command;
-    pParam->exeDir = exeDir;
-    pParam->hTarget = m_hWnd;
-    AfxBeginThread(CommandExecThread, pParam, THREAD_PRIORITY_NORMAL, 0, 0, nullptr);
+    // Run every AI command in a fresh terminal tab. Commands execute
+    // concurrently in their own ConPTY session and the tab is interactive.
+    AddAiCommandTab(command);
 
     return 0;
 }
@@ -3183,6 +3214,259 @@ LRESULT CMFCApplication1Dlg::OnAiCommandResult(WPARAM /*wParam*/, LPARAM lParam)
     CWnd* pSend = GetDlgItem(IDC_BUTTON_AI_SEND);
     if (pSend) pSend->EnableWindow(TRUE);
 
+    return 0;
+}
+
+LRESULT CMFCApplication1Dlg::OnAiSessionOutput(WPARAM wParam, LPARAM lParam)
+{
+    auto* session = reinterpret_cast<CTerminalSession*>(wParam);
+    auto* p = reinterpret_cast<std::string*>(lParam);
+    auto it = m_aiCommandContexts.find(session);
+    if (p)
+    {
+        if (it != m_aiCommandContexts.end())
+            it->second.output.append(*p);
+        delete p;
+    }
+    return 0;
+}
+
+LRESULT CMFCApplication1Dlg::OnAiSessionExited(WPARAM wParam, LPARAM)
+{
+    auto* session = reinterpret_cast<CTerminalSession*>(wParam);
+    if (m_aiCommandContexts.find(session) == m_aiCommandContexts.end())
+        return 0;
+    FinishAiCommand(session);
+    return 0;
+}
+
+void CMFCApplication1Dlg::FinishAiCommand(CTerminalSession* session)
+{
+    auto it = m_aiCommandContexts.find(session);
+    if (it == m_aiCommandContexts.end())
+        return;
+
+    CString command = it->second.command;
+    CString outputStr;
+    const std::string& output = it->second.output;
+
+    int wlen = ::MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
+        output.data(), static_cast<int>(output.size()), nullptr, 0);
+    if (wlen > 0)
+    {
+        std::wstring wstr(static_cast<size_t>(wlen), 0);
+        ::MultiByteToWideChar(CP_UTF8, 0, output.data(),
+            static_cast<int>(output.size()), &wstr[0], wlen);
+        outputStr = wstr.c_str();
+    }
+    else if (!output.empty())
+    {
+        int ansiLen = ::MultiByteToWideChar(CP_ACP, 0,
+            output.data(), static_cast<int>(output.size()), nullptr, 0);
+        if (ansiLen > 0)
+        {
+            std::wstring wstr(static_cast<size_t>(ansiLen), 0);
+            ::MultiByteToWideChar(CP_ACP, 0, output.data(),
+                static_cast<int>(output.size()), &wstr[0], ansiLen);
+            outputStr = wstr.c_str();
+        }
+        else
+        {
+            outputStr = CString(output.c_str());
+        }
+    }
+    outputStr.Trim();
+
+    DWORD exitCode = session->ExitCode();
+
+    CString resultMsg;
+    resultMsg.Format(_T("【命令执行结果】\n命令：%s\n状态：已执行\n\n"), command.GetString());
+    if (!outputStr.IsEmpty())
+        resultMsg += _T("输出：\n```\n") + outputStr + _T("\n```\n\n");
+    CString exitStr;
+    exitStr.Format(_T("退出码：%lu"), exitCode);
+    resultMsg += exitStr;
+
+    int insertPos = (int)m_aiHistory.size();
+    for (int i = (int)m_aiHistory.size() - 1; i >= 0; i--)
+    {
+        if (m_aiHistory[i].first == _T("assistant"))
+        {
+            insertPos = i + 1;
+            while (insertPos < (int)m_aiHistory.size() && m_aiHistory[insertPos].first == _T("system"))
+                insertPos++;
+            break;
+        }
+    }
+    m_aiHistory.insert(m_aiHistory.begin() + insertPos, { _T("system"), resultMsg });
+    SetAiBrowserHtml(BuildAiHtmlPage(BuildAiBodyFromHistory(CString(), command)));
+
+    m_aiCommandContexts.erase(it);
+    for (auto i = m_aiSessions.begin(); i != m_aiSessions.end(); ++i)
+    {
+        if (i->get() == session)
+        {
+            m_aiSessions.erase(i);
+            break;
+        }
+    }
+}
+
+void CMFCApplication1Dlg::AddAiCommandTab(const CString& command)
+{
+    CString cmdTrimmed = command;
+    cmdTrimmed.Trim();
+
+    if (cmdTrimmed.Left(6).CompareNoCase(_T("start ")) == 0)
+    {
+        CString rest = cmdTrimmed.Mid(6).Trim();
+        // Remove the optional quoted window title (`start "Title" ...`).
+        if (rest.Left(1) == _T('"'))
+        {
+            int end = rest.Find(_T('"'), 1);
+            if (end > 0)
+                rest = rest.Mid(end + 1).Trim();
+        }
+
+        CString target = rest;
+        if (target.Left(1) == _T('"'))
+        {
+            int end = target.Find(_T('"'), 1);
+            if (end > 1)
+                target = target.Mid(1, end - 1);
+        }
+        else
+        {
+            int sp = target.Find(_T(' '));
+            if (sp > 0)
+                target = target.Left(sp);
+        }
+
+        bool executable = false;
+        DWORD attrs = ::GetFileAttributes(target);
+        if (attrs != INVALID_FILE_ATTRIBUTES)
+        {
+            if ((attrs & FILE_ATTRIBUTE_DIRECTORY) == 0)
+            {
+                CString ext = target.Right(4);
+                ext.MakeLower();
+                executable = ext == _T(".exe") || ext == _T(".com") ||
+                    ext == _T(".bat") || ext == _T(".cmd") || ext == _T(".ps1") ||
+                    ext == _T(".vbs") || ext == _T(".msi");
+            }
+        }
+        // Executables run inside the terminal tab; everything else (files,
+        // folders, URLs, media) keeps `start` so the system opens it.
+        if (executable && !rest.IsEmpty())
+            cmdTrimmed = rest;
+        else
+            cmdTrimmed = command;
+    }
+
+    bool bPowerShell = (cmdTrimmed.Find(_T("powershell ")) == 0 ||
+        cmdTrimmed.Find(_T("PowerShell ")) == 0);
+    CString shellName = bPowerShell ? _T("PowerShell") : _T("CMD");
+
+    CString cmdLine;
+    if (bPowerShell)
+        cmdLine = _T("powershell.exe -NoLogo -Command \"") + cmdTrimmed + _T("\"");
+    else
+        cmdLine = _T("cmd.exe /c ") + cmdTrimmed;
+
+    AddTerminalTabWithCommand(shellName, cmdLine);
+    CTerminalView* view = m_pActiveTerminal;
+    if (!view)
+        return;
+
+    UINT_PTR id = m_aiNextCommandId++;
+    m_aiCommandById[id] = command;
+    view->StartAiCapture(id, CString(), CString(), m_hWnd);
+
+    CString runningMsg;
+    runningMsg.Format(_T("【命令执行中】\n命令：%s\n\n已在新终端 tab 中运行，可直接在终端里交互。"),
+        command.GetString());
+    int insertPos = (int)m_aiHistory.size();
+    for (int i = (int)m_aiHistory.size() - 1; i >= 0; i--)
+    {
+        if (m_aiHistory[i].first == _T("assistant"))
+        {
+            insertPos = i + 1;
+            while (insertPos < (int)m_aiHistory.size() && m_aiHistory[insertPos].first == _T("system"))
+                insertPos++;
+            break;
+        }
+    }
+    m_aiHistory.insert(m_aiHistory.begin() + insertPos, { _T("system"), runningMsg });
+    SetAiBrowserHtml(BuildAiHtmlPage(BuildAiBodyFromHistory(CString(), command)));
+}
+
+LRESULT CMFCApplication1Dlg::OnAiCaptureDone(WPARAM, LPARAM lParam)
+{
+    auto* pResult = reinterpret_cast<CTerminalView::AiCaptureResult*>(lParam);
+    if (!pResult)
+        return 0;
+
+    UINT_PTR id = pResult->id;
+    std::string output = std::move(pResult->output);
+    DWORD exitCode = pResult->exitCode;
+    delete pResult;
+
+    auto it = m_aiCommandById.find(id);
+    if (it == m_aiCommandById.end())
+        return 0;
+
+    CString command = it->second;
+    m_aiCommandById.erase(it);
+
+    CString outputStr;
+    int wlen = ::MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
+        output.data(), static_cast<int>(output.size()), nullptr, 0);
+    if (wlen > 0)
+    {
+        std::wstring wstr(static_cast<size_t>(wlen), 0);
+        ::MultiByteToWideChar(CP_UTF8, 0, output.data(),
+            static_cast<int>(output.size()), &wstr[0], wlen);
+        outputStr = wstr.c_str();
+    }
+    else if (!output.empty())
+    {
+        int ansiLen = ::MultiByteToWideChar(CP_ACP, 0,
+            output.data(), static_cast<int>(output.size()), nullptr, 0);
+        if (ansiLen > 0)
+        {
+            std::wstring wstr(static_cast<size_t>(ansiLen), 0);
+            ::MultiByteToWideChar(CP_ACP, 0, output.data(),
+                static_cast<int>(output.size()), &wstr[0], ansiLen);
+            outputStr = wstr.c_str();
+        }
+        else
+        {
+            outputStr = CString(output.c_str());
+        }
+    }
+    outputStr.Trim();
+
+    CString resultMsg;
+    resultMsg.Format(_T("【命令执行结果】\n命令：%s\n状态：已执行\n\n"), command.GetString());
+    if (!outputStr.IsEmpty())
+        resultMsg += _T("输出：\n```\n") + outputStr + _T("\n```\n\n");
+    CString exitStr;
+    exitStr.Format(_T("退出码：%lu"), exitCode);
+    resultMsg += exitStr;
+
+    int insertPos = (int)m_aiHistory.size();
+    for (int i = (int)m_aiHistory.size() - 1; i >= 0; i--)
+    {
+        if (m_aiHistory[i].first == _T("assistant"))
+        {
+            insertPos = i + 1;
+            while (insertPos < (int)m_aiHistory.size() && m_aiHistory[insertPos].first == _T("system"))
+                insertPos++;
+            break;
+        }
+    }
+    m_aiHistory.insert(m_aiHistory.begin() + insertPos, { _T("system"), resultMsg });
+    SetAiBrowserHtml(BuildAiHtmlPage(BuildAiBodyFromHistory(CString(), command)));
     return 0;
 }
 
