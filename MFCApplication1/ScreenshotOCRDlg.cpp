@@ -844,14 +844,15 @@ CString CScreenshotOCRDlg::CallAITranslateAPI(const CString& text, const CString
     CString targetLang = (pipePos > 0) ? LangCodeToName(langPair.Mid(pipePos + 1)) : CString(_T("English"));
 
     // Build translation prompt
+    // Use code block markers to clearly show the AI the original line structure
     CString userPrompt;
     userPrompt.Format(
-        _T("Translate the following text from %s to %s. Only output the translated text, nothing else, no explanations, no notes:\n\n%s"),
+        _T("Translate the following text from %s to %s. Only output the translated text, nothing else, no explanations, no notes:\n\n```\n%s\n```\n\nPreserve the original line breaks and paragraph structure exactly as shown in the code block above."),
         sourceLang, targetLang, text);
 
     // Build messages
     std::vector<std::pair<CString, CString>> messages;
-    messages.push_back({ _T("system"), _T("You are a professional translator. Translate the text accurately and naturally. Output only the translation, no additional text.") });
+    messages.push_back({ _T("system"), _T("You are a professional translator. Translate the text accurately and naturally. Preserve the original line breaks, paragraph structure, and indentation. Output only the translation, no additional text.") });
     messages.push_back({ _T("user"), userPrompt });
 
     // Build request body
@@ -875,7 +876,20 @@ CString CScreenshotOCRDlg::CallAITranslateAPI(const CString& text, const CString
             return _T("[Error] Empty response from AI server");
 
         CString content = CAIApiClient::ExtractContent(CString(CA2T(response.c_str(), CP_UTF8)));
-        return content;
+
+        // AI API returns \n line breaks, but Windows CEdit requires \r\n.
+        // Convert standalone \n to \r\n (skip \n that already follows \r)
+        CString normalized;
+        normalized.Preallocate(content.GetLength() * 2);
+        for (int i = 0; i < content.GetLength(); i++)
+        {
+            TCHAR ch = content[i];
+            if (ch == _T('\n') && (i == 0 || content[i - 1] != _T('\r')))
+                normalized += _T('\r');
+            normalized += ch;
+        }
+
+        return normalized;
     }
     catch (const AiApiKeyError& e)
     {

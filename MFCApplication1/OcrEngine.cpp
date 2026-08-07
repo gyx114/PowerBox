@@ -297,6 +297,77 @@ static void CleanupPunctuationSpaces(std::wstring& text)
     }
 }
 
+// Correct common OCR character confusions in English words.
+// The OCR engine (especially the Chinese engine on English text) often confuses
+// visually-similar characters:
+//   '0' ↔ 'o'  (e.g., "PowerP0int" → "PowerPoint")
+//   '1' ↔ 'l'  (e.g., "fi1e" → "file")
+//   'I' ↔ 'l'  (e.g., "ExceI" → "Excel")
+//
+// Rules (conservative — only apply in clear letter contexts):
+//   - '0' → 'o' when between two ASCII letters
+//   - '1' → 'l' when between two ASCII letters (but NOT in ordinals like "1st")
+//   - 'I' → 'l' when preceded by a lowercase ASCII letter
+static void CorrectCharConfusions(std::wstring& text)
+{
+    size_t i = 0;
+    while (i < text.size())
+    {
+        // Find start of a word (non-space, non-newline)
+        if (text[i] == L' ' || text[i] == L'\r' || text[i] == L'\n')
+        {
+            i++;
+            continue;
+        }
+
+        size_t wordStart = i;
+        while (i < text.size() && text[i] != L' ' && text[i] != L'\r' && text[i] != L'\n')
+            i++;
+        std::wstring word = text.substr(wordStart, i - wordStart);
+
+        // Check if word has both letters and digits (potential 0/o, 1/l confusion)
+        bool hasLetter = false, hasDigit = false;
+        for (auto c : word)
+        {
+            if (IsAsciiLetter(c)) hasLetter = true;
+            if (c >= L'0' && c <= L'9') hasDigit = true;
+        }
+
+        if (hasLetter && hasDigit)
+        {
+            for (size_t j = 0; j < word.size(); j++)
+            {
+                // '0' → 'o' when between two ASCII letters
+                if (word[j] == L'0' && j > 0 && j + 1 < word.size() &&
+                    IsAsciiLetter(word[j - 1]) && IsAsciiLetter(word[j + 1]))
+                {
+                    word[j] = L'o';
+                }
+                // '1' → 'l' when between two ASCII letters
+                // (skip ordinals like "1st", "1nd", "1rd", "1th" — those start with '1')
+                if (word[j] == L'1' && j > 0 && j + 1 < word.size() &&
+                    IsAsciiLetter(word[j - 1]) && IsAsciiLetter(word[j + 1]))
+                {
+                    word[j] = L'l';
+                }
+            }
+        }
+
+        // 'I' → 'l' when preceded by a lowercase ASCII letter
+        // (covers "ExceI" → "Excel", "fiIe" → "file"; preserves "AI", "IT", "API")
+        for (size_t j = 1; j < word.size(); j++)
+        {
+            if (word[j] == L'I' && word[j - 1] >= L'a' && word[j - 1] <= L'z')
+            {
+                word[j] = L'l';
+            }
+        }
+
+        // Write corrected word back
+        text.replace(wordStart, word.size(), word);
+    }
+}
+
 bool OcrRecognizeFromFile(const wchar_t* filePath, wchar_t* output, int outputSize, bool preferChinese)
 {
     if (!filePath || !output || outputSize <= 0) return false;
@@ -344,11 +415,12 @@ bool OcrRecognizeFromFile(const wchar_t* filePath, wchar_t* output, int outputSi
 
         // Step 4: Apply adaptive scaling — try progressively higher factors for small text.
         // Small text (e.g. 8px font) needs more scaling to bring characters above the
-        // OCR engine's recognition threshold. Try 3.0x → 2.5x → 2.0x → 1.5x → 1.0x (no scale).
+        // OCR engine's recognition threshold. Try 4.0x → 3.0x → 2.5x → 2.0x → 1.5x → 1.0x.
+        // 4.0x helps disambiguate similar characters (o/0, l/1/I) in small English text.
         // NOTE: No sharpening is applied — Laplacian sharpening emphasizes internal character
         // edges (e.g. 亻/乍 in 作) which causes the OCR engine to split Chinese characters.
         uint32_t maxDim = OcrEngine::MaxImageDimension();
-        double scaleCandidates[] = { 3.0, 2.5, 2.0, 1.5 };
+        double scaleCandidates[] = { 4.0, 3.0, 2.5, 2.0, 1.5 };
         double scale = 1.0;
 
         for (auto s : scaleCandidates)
@@ -430,6 +502,10 @@ bool OcrRecognizeFromFile(const wchar_t* filePath, wchar_t* output, int outputSi
 
         // Clean up spaces around punctuation (e.g. "10 . 0" → "10.0", "2 , 23" → "2,23")
         CleanupPunctuationSpaces(text);
+
+        // Correct common OCR character confusions (e.g. "PowerP0int" → "PowerPoint",
+        // "ExceI" → "Excel") — especially when Chinese engine processes English text
+        CorrectCharConfusions(text);
 
         wcsncpy_s(output, outputSize, text.c_str(), _TRUNCATE);
         return true;
