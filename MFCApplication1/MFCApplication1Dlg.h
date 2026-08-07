@@ -16,6 +16,7 @@
 #include "AIApiClient.h"
 #include "ConversationHistoryDlg.h"
 #include "HotkeyCaptureDlg.h"
+#include "TerminalView.h"
 
 // Forward declarations for menu-launched dialogs
 class CQRCodeGenDlg;
@@ -375,4 +376,15 @@ public:
     afx_msg void OnGetInfoTipQuickLaunch(NMHDR* pNMHDR, LRESULT* pResult);
     CQuickLaunchDlg* m_pQuickLaunchDlg{nullptr};
     CString m_strShortcutText; // Dynamic shortcut text for Help > Shortcuts menu
+
+    // ConPTY terminal embedded in the AI assistant tab
+    CTerminalView m_terminalView;
+    CComboBox m_terminalShell;
+    CStatic m_terminalLabel;
+    CButton m_terminalClear;
+    CStatic m_terminalSplitter;
+    CString m_strTerminalShell;
+    void InitTerminal();
+    afx_msg void OnBnClickedTerminalClear();
+    afx_msg void OnCbnSelchangeTerminalShell();
 };

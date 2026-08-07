@@ -1249,4 +1249,13 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("QuickLaunch"), _T("BtnChangeIcon"))] = _T("更改图标");
     m_defaults[MakeKey(_T("QuickLaunch"), _T("BtnResetIcon"))] = _T("恢复默认");
     m_defaults[MakeKey(_T("QuickLaunch"), _T("SelectIconFile"))] = _T("选择图标文件");
+
+    // ===== Terminal =====
+    m_defaults[MakeKey(_T("Terminal"), _T("Title"))] = _T("终端");
+    m_defaults[MakeKey(_T("Terminal"), _T("Shell"))] = _T("Shell");
+    m_defaults[MakeKey(_T("Terminal"), _T("Clear"))] = _T("清空");
+    m_defaults[MakeKey(_T("Terminal"), _T("Copy"))] = _T("复制");
+    m_defaults[MakeKey(_T("Terminal"), _T("Paste"))] = _T("粘贴");
+    m_defaults[MakeKey(_T("Terminal"), _T("Restart"))] = _T("重启终端");
+    m_defaults[MakeKey(_T("Terminal"), _T("Exited"))] = _T("[进程已退出]");
 }

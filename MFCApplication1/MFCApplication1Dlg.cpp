@@ -382,6 +382,8 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_MESSAGE(WM_PROCESS_SCAN_START, &CMFCApplication1Dlg::OnProcessScanStart)
     ON_REGISTERED_MESSAGE(WM_QL_CHANGED, &CMFCApplication1Dlg::OnQLChanged)
     ON_REGISTERED_MESSAGE(WM_QL_CLOSED, &CMFCApplication1Dlg::OnQLClosed)
+    ON_BN_CLICKED(IDC_BTN_TERMINAL_CLEAR, &CMFCApplication1Dlg::OnBnClickedTerminalClear)
+    ON_CBN_SELCHANGE(IDC_TERMINAL_SHELL, &CMFCApplication1Dlg::OnCbnSelchangeTerminalShell)
     ON_WM_TIMER()
 END_MESSAGE_MAP()
 
@@ -449,6 +451,7 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 	InitGitTab();
 	InitQuickTab();
 	InitAIControls();
+	InitTerminal();
 
 	// Update control visibility based on current selected tab
 	int nCur = 0;
@@ -605,6 +608,11 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 
 	// Global hotkey
 	TranslateUI();
+	if (m_terminalView.m_hWnd)
+	{
+		m_terminalView.SetFocus();
+		return FALSE;
+	}
 	return TRUE;
 }
 
@@ -657,9 +665,17 @@ void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
     static const int kAiIds[] = {
         IDC_STATIC_AI_LABEL, IDC_COMBO_AI_VENDOR,
         IDC_EDIT_AI_INPUT, IDC_BUTTON_AI_SEND, IDC_BUTTON_AI_STOP, IDC_BUTTON_AI_CLEAR,
-        IDC_BUTTON_AI_HISTORY
+        IDC_BUTTON_AI_HISTORY,
+        IDC_TERMINAL_VIEW, IDC_TERMINAL_SHELL, IDC_TERMINAL_LABEL,
+        IDC_BTN_TERMINAL_CLEAR, IDC_TERMINAL_SPLITTER
     };
     showGroup(kAiIds, _countof(kAiIds), nTab == 0);
+    if (nTab == 0 && m_terminalView.m_hWnd)
+    {
+        m_terminalView.SetWindowPos(&wndTop, 0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+        m_terminalView.Invalidate(TRUE);
+    }
 
     // WebBrowser: move off-screen instead of hiding to preserve internal state
     if (m_aiBrowser.m_hWnd && ::IsWindow(m_aiBrowser.m_hWnd))
@@ -874,6 +890,94 @@ HCURSOR CMFCApplication1Dlg::OnQueryDragIcon()
 
 BOOL CMFCApplication1Dlg::PreTranslateMessage(MSG* pMsg)
 {
+    // Route mouse interaction over the terminal area at the dialog level so
+    // selection works even if the tab control is above the terminal window.
+    if (m_terminalView.m_hWnd)
+    {
+        CPoint pt;
+        ::GetCursorPos(&pt);
+        CRect rcTerm;
+        m_terminalView.GetWindowRect(&rcTerm);
+        if (rcTerm.PtInRect(pt) && pMsg->hwnd != m_terminalShell.m_hWnd)
+        {
+            TCHAR szClass[64]{};
+            ::GetClassName(pMsg->hwnd, szClass, _countof(szClass));
+            bool isShellDropdown = _tcsicmp(szClass, _T("ComboLBox")) == 0;
+
+            if (!isShellDropdown && pMsg->message == WM_LBUTTONDOWN)
+            {
+                m_terminalView.StartSelectionFromScreen(pt);
+                SetCapture();
+                return TRUE;
+            }
+            if (!isShellDropdown && pMsg->message == WM_MOUSEMOVE && GetCapture() == this)
+            {
+                m_terminalView.ContinueSelectionFromScreen(pt);
+                return TRUE;
+            }
+            if (!isShellDropdown && pMsg->message == WM_LBUTTONUP && GetCapture() == this)
+            {
+                m_terminalView.FinishSelection();
+                if (GetCapture() == this)
+                    ReleaseCapture();
+                return TRUE;
+            }
+            if (!isShellDropdown && pMsg->message == WM_RBUTTONUP)
+            {
+                m_terminalView.ShowContextMenu(pt);
+                return TRUE;
+            }
+        }
+    }
+
+    // Alt+1..6 must still switch tabs while the terminal has keyboard focus.
+    if (pMsg->message == WM_SYSKEYDOWN && m_terminalView.m_hWnd &&
+        pMsg->hwnd == m_terminalView.m_hWnd &&
+        pMsg->wParam >= '1' && pMsg->wParam <= '6')
+    {
+        int nTab = static_cast<int>(pMsg->wParam - '1');
+        CTabCtrl* pTab = static_cast<CTabCtrl*>(GetDlgItem(IDC_TAB1));
+        if (pTab)
+        {
+            pTab->SetCurSel(nTab);
+            UpdateTabVisibility(nTab);
+        }
+        return TRUE;
+    }
+
+    // The terminal view handles its own keyboard input. Returning FALSE here
+    // keeps the dialog's Enter/accelerator handling from closing the app.
+    if (m_terminalView.m_hWnd && pMsg->hwnd == m_terminalView.m_hWnd)
+        return FALSE;
+
+    // Enter inside the terminal shell dropdown should only move focus back
+    // to the terminal, never trigger the dialog's default close behavior.
+    if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_RETURN)
+    {
+        CWnd* pFocus = CWnd::FromHandle(::GetFocus());
+        if (pFocus && pFocus->GetDlgCtrlID() == IDC_TERMINAL_SHELL)
+        {
+            if (m_terminalView.m_hWnd)
+                m_terminalView.SetFocus();
+            return TRUE;
+        }
+    }
+
+    // Let the mouse wheel scroll the terminal even when it does not have focus.
+    if (pMsg->message == WM_MOUSEWHEEL && m_terminalView.m_hWnd)
+    {
+        CPoint pt;
+        ::GetCursorPos(&pt);
+        CRect rcTerm;
+        m_terminalView.GetWindowRect(&rcTerm);
+        if (rcTerm.PtInRect(pt))
+        {
+            short zDelta = GET_WHEEL_DELTA_WPARAM(pMsg->wParam);
+            m_terminalView.ScrollLines(zDelta);
+            return TRUE;
+        }
+    }
+
     // ===== Global hotkeys =====
 
     if (pMsg->message == WM_KEYDOWN)

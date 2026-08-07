@@ -229,6 +229,7 @@ xcopy /y /e /i "$(ProjectDir)lang" "$(OutDir)lang"</Command>
     <ClInclude Include="ProcessScanDlg.h" />
     <ClInclude Include="ProcessAiResultDlg.h" />
     <ClInclude Include="Resource.h" />
+    <ClInclude Include="TerminalView.h" />
     <ClInclude Include="ScreenshotOCRDlg.h" />
     <ClInclude Include="OcrEngine.h" />
     <ClInclude Include="SettingsDlg.h" />
@@ -258,6 +259,7 @@ xcopy /y /e /i "$(ProjectDir)lang" "$(OutDir)lang"</Command>
     <ClCompile Include="MFCApplication1Dlg_Process.cpp" />
     <ClCompile Include="MFCApplication1Dlg_Startup.cpp" />
     <ClCompile Include="MFCApplication1Dlg_Tabs.cpp" />
+    <ClCompile Include="MFCApplication1Dlg_Terminal.cpp" />
     <ClCompile Include="MFCApplication1Dlg_Tray.cpp" />
     <ClCompile Include="MFCApplication1Dlg_Window.cpp" />
     <ClCompile Include="qrcodegen.cpp" />
@@ -284,6 +286,7 @@ xcopy /y /e /i "$(ProjectDir)lang" "$(OutDir)lang"</Command>
     <ClCompile Include="ProcessAiResultDlg.cpp" />
     <ClCompile Include="StickyNoteDlg.cpp" />
     <ClCompile Include="MarkdownDlg.cpp" />
+    <ClCompile Include="TerminalView.cpp" />
     <ClCompile Include="EncodingConverterDlg.cpp" />
     <ClCompile Include="ContextMenuDlg.cpp" />
     <ClCompile Include="ConversationHistoryDlg.cpp" />

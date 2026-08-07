@@ -54,6 +54,9 @@
     <ClInclude Include="ScreenshotOCRDlg.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="TerminalView.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
     <ClInclude Include="AutoClickerSpeedDlg.h">
       <Filter>头文件</Filter>
     </ClInclude>
@@ -86,6 +89,9 @@
     <ClCompile Include="ScreenshotOCRDlg.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="TerminalView.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
     <ClCompile Include="MFCApplication1Dlg.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
@@ -102,6 +108,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="MFCApplication1Dlg_Tabs.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="MFCApplication1Dlg_Terminal.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="MFCApplication1Dlg_Tray.cpp">

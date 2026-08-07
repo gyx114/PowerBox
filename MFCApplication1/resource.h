@@ -475,13 +475,23 @@
 // OCR dialog - AI translation checkbox
 #define IDC_CHECK_USE_AI_TRANSLATE       1401
 
+// ConPTY terminal embedded in the AI assistant tab
+#define IDC_TERMINAL_VIEW                1402
+#define IDC_TERMINAL_SHELL               1403
+#define IDC_BTN_TERMINAL_CLEAR           1404
+#define IDC_TERMINAL_SPLITTER            1405
+#define IDC_TERMINAL_LABEL               1406
+#define ID_TERMINAL_COPY                 32855
+#define ID_TERMINAL_PASTE                32856
+#define ID_TERMINAL_RESTART              32857
+
 // Next default values for new objects
 //
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        159
-#define _APS_NEXT_COMMAND_VALUE         32855
-#define _APS_NEXT_CONTROL_VALUE         1402
+#define _APS_NEXT_COMMAND_VALUE         32858
+#define _APS_NEXT_CONTROL_VALUE         1407
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
