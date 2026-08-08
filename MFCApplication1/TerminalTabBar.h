@@ -22,6 +22,7 @@ public:
     int GetTabCount() const { return static_cast<int>(m_titles.size()); }
     void HandleClick(CPoint clientPt);
     void HandleRightClick(CPoint clientPt);
+    void Relayout();
 
 protected:
     afx_msg void OnPaint();

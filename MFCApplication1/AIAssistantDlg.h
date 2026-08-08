@@ -77,6 +77,21 @@ private:
     std::vector<CTerminalView*> m_terminalTabsList;
     CTerminalView* m_pActiveTerminal = nullptr;
     CString m_strTerminalShell;
+    bool m_bLayoutReady = false;
+
+    // Initial static layout captured at startup; resize only applies anchors.
+    CRect m_rcClientInit;
+    CRect m_rcBrowserInit;
+    CRect m_rcInputInit;
+    CRect m_rcVendorInit;
+    CRect m_rcButtonsInit[4];
+    CRect m_rcSplitterInit;
+    CRect m_rcTermLabelInit;
+    CRect m_rcTermTabsInit;
+    CRect m_rcTermShellInit;
+    CRect m_rcTermClearInit;
+    CRect m_rcTermViewInit;
+    void CaptureInitialLayout();
 
     // Initialization
     void InitAIAssistant();
@@ -116,6 +131,7 @@ private:
     afx_msg void OnCbnSelchangeTerminalShell();
     afx_msg void OnTimer(UINT_PTR nIDEvent);
     afx_msg void OnSize(UINT nType, int cx, int cy);
+    afx_msg void OnGetMinMaxInfo(MINMAXINFO* lpMMI);
 
     // Custom message handlers
     afx_msg LRESULT OnAiResponse(WPARAM wParam, LPARAM lParam);

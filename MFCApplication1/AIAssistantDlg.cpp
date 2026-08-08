@@ -318,6 +318,7 @@ BEGIN_MESSAGE_MAP(CAIAssistantDlg, CDialogEx)
     ON_WM_CLOSE()
     ON_WM_DESTROY()
     ON_WM_SIZE()
+    ON_WM_GETMINMAXINFO()
     ON_BN_CLICKED(IDC_BUTTON_AI_SEND, &CAIAssistantDlg::OnBnClickedAiSend)
     ON_BN_CLICKED(IDC_BUTTON_AI_STOP, &CAIAssistantDlg::OnBnClickedAiStop)
     ON_BN_CLICKED(IDC_BUTTON_AI_CLEAR, &CAIAssistantDlg::OnBnClickedAiClear)
@@ -355,6 +356,9 @@ BOOL CAIAssistantDlg::OnInitDialog()
     InitAIAssistant();
     InitTerminal();
 
+    CaptureInitialLayout();
+    m_bLayoutReady = true;
+
     return TRUE;
 }
 
@@ -378,56 +382,149 @@ void CAIAssistantDlg::OnDestroy()
 void CAIAssistantDlg::OnSize(UINT nType, int cx, int cy)
 {
     CDialogEx::OnSize(nType, cx, cy);
-
-    if (!m_aiBrowser.m_hWnd)
+    if (nType == SIZE_MINIMIZED || !m_bLayoutReady || !m_aiBrowser.m_hWnd)
         return;
 
-    // Layout: browser area takes remaining space above terminal
-    const int margin = 7;
-    const int browserBottom = 207;
-    const int termTop = 254;
-    const int termViewTop = 276;
-    const int termViewBottom = cy - margin;
+    if (m_rcClientInit.IsRectEmpty())
+        return;
 
-    // AI browser: width stretches, height fixed at browserBottom
-    CRect rcBrowser(margin, margin, cx - margin, browserBottom);
+    int dy = cy - m_rcClientInit.Height();
+    int margin = m_rcBrowserInit.left;
+    int gap = m_rcTermTabsInit.left - m_rcTermLabelInit.right;
+    if (gap <= 0)
+        gap = 4;
+
+    // Vertical stack: keep static gaps, only the terminal view grows/shrinks.
+    int termViewBottom = cy - margin;
+    int termViewH = std::max(110, m_rcTermViewInit.Height() + dy);
+    int termViewTop = termViewBottom - termViewH;
+    int headerTop = termViewTop - (m_rcTermViewInit.top - m_rcTermTabsInit.top);
+    int splitterTop = headerTop - (m_rcTermTabsInit.top - m_rcSplitterInit.top);
+    int buttonsTop = splitterTop - (m_rcSplitterInit.top - m_rcButtonsInit[0].top);
+    int inputTop = buttonsTop - (m_rcButtonsInit[0].top - m_rcInputInit.top);
+    int browserBottom = inputTop - (m_rcInputInit.top - m_rcBrowserInit.bottom);
+    int browserTop = m_rcBrowserInit.top;
+
+    // Vendor placement depends on the static layout captured at startup:
+    // if it sits above the browser, keep it top-left and let the browser use
+    // the full width below; otherwise keep it top-right beside the browser.
+    int vendorW = m_rcVendorInit.Width();
+    int vendorH = m_rcVendorInit.Height();
+    int vendorVisibleH = m_rcButtonsInit[0].Height();
+    bool vendorAboveBrowser =
+        (m_rcVendorInit.top + vendorVisibleH <= m_rcBrowserInit.top + 4);
+
+    CRect rcVendor;
+    CRect rcBrowser;
+    if (vendorAboveBrowser)
+    {
+        rcVendor = CRect(margin, m_rcVendorInit.top,
+            margin + vendorW, m_rcVendorInit.top + vendorH);
+        rcBrowser = CRect(margin, m_rcBrowserInit.top,
+            cx - margin, browserBottom);
+    }
+    else
+    {
+        rcVendor = CRect(cx - margin - vendorW, m_rcVendorInit.top,
+            cx - margin, m_rcVendorInit.top + vendorH);
+        rcBrowser = CRect(margin, browserTop, rcVendor.left - gap, browserBottom);
+    }
     m_aiBrowser.SetWindowPos(nullptr, rcBrowser.left, rcBrowser.top,
         rcBrowser.Width(), rcBrowser.Height(), SWP_NOZORDER);
+    m_aiBrowserRect = rcBrowser;
 
-    // AI input edit box: width stretches
+    CWnd* pVendor = GetDlgItem(IDC_COMBO_AI_VENDOR);
+    if (pVendor)
+        pVendor->MoveWindow(rcVendor);
+
     CWnd* pInput = GetDlgItem(IDC_EDIT_AI_INPUT);
     if (pInput)
-        pInput->SetWindowPos(nullptr, margin, 213, cx - margin - 7 - 120, 14, SWP_NOZORDER);
+        pInput->MoveWindow(margin, inputTop, cx - margin * 2, m_rcInputInit.Height());
 
-    // Vendor combo box: fixed position, right edge
-    CWnd* pCombo = GetDlgItem(IDC_COMBO_AI_VENDOR);
-    if (pCombo)
-        pCombo->SetWindowPos(nullptr, cx - margin - 120, 7, 120, 90, SWP_NOZORDER);
+    UINT btnIds[4] = {
+        IDC_BUTTON_AI_SEND,
+        IDC_BUTTON_AI_STOP,
+        IDC_BUTTON_AI_CLEAR,
+        IDC_BUTTON_AI_HISTORY
+    };
+    int bx = margin;
+    for (int i = 0; i < 4; i++)
+    {
+        CWnd* pBtn = GetDlgItem(btnIds[i]);
+        if (pBtn)
+            pBtn->MoveWindow(bx, buttonsTop,
+                m_rcButtonsInit[i].Width(), m_rcButtonsInit[i].Height());
+        bx += m_rcButtonsInit[i].Width() + gap;
+    }
 
-    // Buttons: fixed position, bottom of AI area
-    // (send, stop, clear, history stay at y=233)
-
-    // Terminal splitter: width stretches
     CWnd* pSplitter = GetDlgItem(IDC_TERMINAL_SPLITTER);
     if (pSplitter)
-        pSplitter->SetWindowPos(nullptr, margin, termTop, cx - margin * 2, 2, SWP_NOZORDER);
+        pSplitter->MoveWindow(margin, splitterTop, cx - margin * 2, m_rcSplitterInit.Height());
 
-    // Terminal view: width stretches, height stretches to bottom
-    CWnd* pTermView = GetDlgItem(IDC_TERMINAL_VIEW);
-    if (pTermView)
-        pTermView->SetWindowPos(nullptr, margin, termViewTop,
-            cx - margin * 2, termViewBottom - termViewTop, SWP_NOZORDER);
+    CWnd* pLabel = GetDlgItem(IDC_TERMINAL_LABEL);
+    if (pLabel)
+        pLabel->MoveWindow(margin, headerTop,
+            m_rcTermLabelInit.Width(), m_rcTermLabelInit.Height());
 
-    // Terminal tab bar: width stretches
+    int clearW = m_rcTermClearInit.Width();
+    int clearLeft = cx - margin - clearW;
+    CWnd* pClear = GetDlgItem(IDC_BTN_TERMINAL_CLEAR);
+    if (pClear)
+        pClear->MoveWindow(clearLeft, headerTop, clearW, m_rcTermClearInit.Height());
+
+    int shellW = m_rcTermShellInit.Width();
+    int shellLeft = clearLeft - gap - shellW;
+    CWnd* pShell = GetDlgItem(IDC_TERMINAL_SHELL);
+    if (pShell)
+        pShell->MoveWindow(shellLeft, headerTop, shellW, m_rcTermShellInit.Height());
+
     if (m_terminalTabs.m_hWnd)
     {
-        CRect rcTabs;
-        m_terminalTabs.GetWindowRect(&rcTabs);
-        ScreenToClient(&rcTabs);
-        // Width from right of label to right of shell combo
-        m_terminalTabs.SetWindowPos(nullptr, rcTabs.left, rcTabs.top,
-            cx - margin - rcTabs.left - 120 - 50, rcTabs.Height(), SWP_NOZORDER);
+        int tabsLeft = m_rcTermTabsInit.left;
+        int tabsRight = shellLeft - gap;
+        m_terminalTabs.MoveWindow(tabsLeft, headerTop,
+            std::max(40, tabsRight - tabsLeft), m_rcTermTabsInit.Height());
+        m_terminalTabs.Relayout();
     }
+
+    CWnd* pTermView = GetDlgItem(IDC_TERMINAL_VIEW);
+    if (pTermView)
+        pTermView->MoveWindow(margin, termViewTop, cx - margin * 2, termViewH);
+}
+
+void CAIAssistantDlg::CaptureInitialLayout()
+{
+    GetClientRect(&m_rcClientInit);
+
+    auto capture = [&](UINT id, CRect& out) {
+        CWnd* w = GetDlgItem(id);
+        if (w)
+        {
+            w->GetWindowRect(&out);
+            ScreenToClient(&out);
+        }
+    };
+
+    capture(IDC_AI_BROWSER, m_rcBrowserInit);
+    capture(IDC_EDIT_AI_INPUT, m_rcInputInit);
+    capture(IDC_COMBO_AI_VENDOR, m_rcVendorInit);
+    capture(IDC_TERMINAL_SPLITTER, m_rcSplitterInit);
+    capture(IDC_TERMINAL_LABEL, m_rcTermLabelInit);
+    capture(IDC_TERMINAL_TABS, m_rcTermTabsInit);
+    capture(IDC_TERMINAL_SHELL, m_rcTermShellInit);
+    capture(IDC_BTN_TERMINAL_CLEAR, m_rcTermClearInit);
+    capture(IDC_TERMINAL_VIEW, m_rcTermViewInit);
+    capture(IDC_BUTTON_AI_SEND, m_rcButtonsInit[0]);
+    capture(IDC_BUTTON_AI_STOP, m_rcButtonsInit[1]);
+    capture(IDC_BUTTON_AI_CLEAR, m_rcButtonsInit[2]);
+    capture(IDC_BUTTON_AI_HISTORY, m_rcButtonsInit[3]);
+}
+
+void CAIAssistantDlg::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
+{
+    lpMMI->ptMinTrackSize.x = 640;
+    lpMMI->ptMinTrackSize.y = 520;
+    CDialogEx::OnGetMinMaxInfo(lpMMI);
 }
 
 BOOL CAIAssistantDlg::PreTranslateMessage(MSG* pMsg)

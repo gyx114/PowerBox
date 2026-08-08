@@ -69,6 +69,12 @@ void CTerminalTabBar::SetTabTitle(int index, const CString& title)
     Invalidate(FALSE);
 }
 
+void CTerminalTabBar::Relayout()
+{
+    Layout();
+    Invalidate(FALSE);
+}
+
 void CTerminalTabBar::Layout()
 {
     CRect rc;
