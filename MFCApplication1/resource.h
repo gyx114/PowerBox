@@ -482,6 +482,10 @@
 #define IDC_TERMINAL_SPLITTER            1405
 #define IDC_TERMINAL_LABEL               1406
 #define IDC_TERMINAL_TABS                1407
+
+// Standalone AI Assistant dialog
+#define IDD_AI_ASSISTANT_DLG            159
+#define IDC_BTN_AI_STANDALONE          1408
 #define ID_TERMINAL_COPY                 32855
 #define ID_TERMINAL_PASTE                32856
 #define ID_TERMINAL_RESTART              32857
@@ -492,9 +496,9 @@
 //
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        159
+#define _APS_NEXT_RESOURCE_VALUE        160
 #define _APS_NEXT_COMMAND_VALUE         32860
-#define _APS_NEXT_CONTROL_VALUE         1408
+#define _APS_NEXT_CONTROL_VALUE         1409
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

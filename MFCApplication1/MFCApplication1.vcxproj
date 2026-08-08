@@ -250,6 +250,7 @@ xcopy /y /e /i "$(ProjectDir)lang" "$(OutDir)lang"</Command>
   <ItemGroup>
     <ClCompile Include="AboutDlg.cpp" />
     <ClCompile Include="AIApiClient.cpp" />
+    <ClCompile Include="AIAssistantDlg.cpp" />
     <ClCompile Include="AutoClickerSpeedDlg.cpp" />
     <ClCompile Include="BatchRenameDlg.cpp" />
     <ClCompile Include="BatchRenameAIDlg.cpp" />

@@ -26,6 +26,7 @@
 #include "GitCmdResultDlg.h"
 #include "ProcessScanDlg.h"
 #include "ConversationHistoryDlg.h"
+#include "AIAssistantDlg.h"
 #include "QuickLaunchDlg.h"
 #include "LocalizationManager.h"
 #include "json.hpp"
@@ -373,6 +374,7 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_BN_CLICKED(IDC_BUTTON_AI_STOP, &CMFCApplication1Dlg::OnBnClickedAiStop)
     ON_BN_CLICKED(IDC_BUTTON_AI_CLEAR, &CMFCApplication1Dlg::OnBnClickedAiClear)
     ON_BN_CLICKED(IDC_BUTTON_AI_HISTORY, &CMFCApplication1Dlg::OnBnClickedAiHistory)
+    ON_BN_CLICKED(IDC_BTN_AI_STANDALONE, &CMFCApplication1Dlg::OnBnClickedAiStandalone)
     ON_MESSAGE(WM_CONV_LOADED, &CMFCApplication1Dlg::OnConvLoaded)
     ON_MESSAGE(WM_AI_RESPONSE, &CMFCApplication1Dlg::OnAiResponse)
     ON_MESSAGE(WM_AI_STREAM_CHUNK, &CMFCApplication1Dlg::OnAiStreamChunk)
@@ -671,7 +673,7 @@ void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
     static const int kAiIds[] = {
         IDC_STATIC_AI_LABEL, IDC_COMBO_AI_VENDOR,
         IDC_EDIT_AI_INPUT, IDC_BUTTON_AI_SEND, IDC_BUTTON_AI_STOP, IDC_BUTTON_AI_CLEAR,
-        IDC_BUTTON_AI_HISTORY,
+        IDC_BUTTON_AI_HISTORY, IDC_BTN_AI_STANDALONE,
         IDC_TERMINAL_SHELL, IDC_TERMINAL_LABEL,
         IDC_BTN_TERMINAL_CLEAR, IDC_TERMINAL_SPLITTER, IDC_TERMINAL_TABS
     };
@@ -1925,6 +1927,7 @@ void CMFCApplication1Dlg::TranslateUI()
     SetDlgItemText(IDC_BUTTON_AI_STOP, loc.GetString(_T("MainCtrl"), _T("BtnStop")));
     SetDlgItemText(IDC_BUTTON_AI_CLEAR, loc.GetString(_T("MainCtrl"), _T("BtnNewChat")));
     SetDlgItemText(IDC_BUTTON_AI_HISTORY, loc.GetString(_T("MainCtrl"), _T("BtnHistory")));
+    SetDlgItemText(IDC_BTN_AI_STANDALONE, loc.GetString(_T("MainCtrl"), _T("BtnStandalone")));
 }
 
 CString CMFCApplication1Dlg::BuildSystemPrompt()
@@ -2709,6 +2712,20 @@ void CMFCApplication1Dlg::OnBnClickedAiHistory()
     if (!pDlg->Create(IDD_CONVERSATION_HISTORY_DLG, this))
     {
         delete pDlg;
+        return;
+    }
+    pDlg->ShowWindow(SW_SHOW);
+}
+
+void CMFCApplication1Dlg::OnBnClickedAiStandalone()
+{
+    auto& loc = CLocalizationManager::GetInstance();
+    CAIAssistantDlg* pDlg = new CAIAssistantDlg(this);
+    if (!pDlg->Create(IDD_AI_ASSISTANT_DLG, this))
+    {
+        delete pDlg;
+        MessageBox(loc.GetString(_T("Msg"), _T("CreateDlgFailed")),
+            loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
         return;
     }
     pDlg->ShowWindow(SW_SHOW);

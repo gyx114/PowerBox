@@ -344,6 +344,7 @@ public:
     afx_msg void OnBnClickedAiClear();
     afx_msg void OnBnClickedAiStop();
     afx_msg void OnBnClickedAiHistory();
+    afx_msg void OnBnClickedAiStandalone();
     void SaveCurrentConversation();
     void LoadConversation(const CString& filePath);
     afx_msg LRESULT OnConvLoaded(WPARAM wParam, LPARAM lParam);
