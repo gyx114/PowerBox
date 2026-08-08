@@ -29,6 +29,55 @@ bool IsWideChar(wchar_t ch)
         (ch >= 0x30000 && ch <= 0x3FFFD)));
 }
 
+std::string StripAnsiEscapes(const std::string& in)
+{
+    std::string out;
+    out.reserve(in.size());
+
+    enum class EscState { Text, Esc, Csi, Osc, OscEsc };
+    EscState state = EscState::Text;
+
+    for (unsigned char b : in)
+    {
+        switch (state)
+        {
+        case EscState::Text:
+            if (b == 0x1B)
+                state = EscState::Esc;
+            else
+                out.push_back(static_cast<char>(b));
+            break;
+
+        case EscState::Esc:
+            if (b == '[')
+                state = EscState::Csi;
+            else if (b == ']')
+                state = EscState::Osc;
+            else
+                state = EscState::Text;
+            break;
+
+        case EscState::Csi:
+            if (b >= 0x40 && b <= 0x7E)
+                state = EscState::Text;
+            break;
+
+        case EscState::Osc:
+            if (b == 0x07)
+                state = EscState::Text;
+            else if (b == 0x1B)
+                state = EscState::OscEsc;
+            break;
+
+        case EscState::OscEsc:
+            state = EscState::Text;
+            break;
+        }
+    }
+
+    return out;
+}
+
 bool FileExists(const CString& path)
 {
     return ::GetFileAttributes(path) != INVALID_FILE_ATTRIBUTES;
@@ -1240,7 +1289,8 @@ void CTerminalView::CheckAiCapture(const std::string& data)
     size_t begin = startPos + m_aiStartMarker.size();
     auto* pResult = new AiCaptureResult;
     pResult->id = m_aiCaptureId;
-    pResult->output = m_aiCaptureBuffer.substr(begin, endPos - begin);
+    pResult->output = StripAnsiEscapes(
+        m_aiCaptureBuffer.substr(begin, endPos - begin));
     pResult->exitCode = exitCode;
     if (m_aiNotifyHwnd)
         ::PostMessage(m_aiNotifyHwnd, WM_AI_CAPTURE_DONE, 0, reinterpret_cast<LPARAM>(pResult));
@@ -1258,7 +1308,7 @@ void CTerminalView::FinishAiCapture(DWORD exitCode)
 
     auto* pResult = new AiCaptureResult;
     pResult->id = m_aiCaptureId;
-    pResult->output = m_aiCaptureBuffer;
+    pResult->output = StripAnsiEscapes(m_aiCaptureBuffer);
     pResult->exitCode = exitCode;
     if (m_aiNotifyHwnd)
         ::PostMessage(m_aiNotifyHwnd, WM_AI_CAPTURE_DONE, 0, reinterpret_cast<LPARAM>(pResult));
