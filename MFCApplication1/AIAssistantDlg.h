@@ -11,6 +11,7 @@
 #include "ConversationHistoryDlg.h"
 #include "TerminalView.h"
 #include "TerminalTabBar.h"
+#include "TerminalSplitter.h"
 
 class CWebBrowserEventSink; // Forward declaration
 
@@ -71,13 +72,15 @@ private:
     CComboBox m_terminalShell;
     CStatic m_terminalLabel;
     CButton m_terminalClear;
-    CStatic m_terminalSplitter;
+    CTerminalSplitter m_terminalSplitter;
     CTerminalTabBar m_terminalTabs;
     std::vector<std::unique_ptr<CTerminalView>> m_extraTerminalViews;
     std::vector<CTerminalView*> m_terminalTabsList;
     CTerminalView* m_pActiveTerminal = nullptr;
     CString m_strTerminalShell;
     bool m_bLayoutReady = false;
+    int m_terminalViewHeight = 0;
+    bool m_bTerminalResizing = false;
 
     // Initial static layout captured at startup; resize only applies anchors.
     CRect m_rcClientInit;

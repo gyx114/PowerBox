@@ -18,6 +18,7 @@
 #include "HotkeyCaptureDlg.h"
 #include "TerminalView.h"
 #include "TerminalTabBar.h"
+#include "TerminalSplitter.h"
 
 // Forward declarations for menu-launched dialogs
 class CQRCodeGenDlg;
@@ -399,15 +400,30 @@ public:
     CComboBox m_terminalShell;
     CStatic m_terminalLabel;
     CButton m_terminalClear;
-    CStatic m_terminalSplitter;
+    CTerminalSplitter m_terminalSplitter;
     CTerminalTabBar m_terminalTabs;
     std::vector<std::unique_ptr<CTerminalView>> m_extraTerminalViews;
     std::vector<CTerminalView*> m_terminalTabsList;
     CTerminalView* m_pActiveTerminal = nullptr;
     CString m_strTerminalShell;
+    int m_terminalHeight = 140;
+    bool m_bTerminalResizing = false;
+    CRect m_rcAiVendorInit;
+    CRect m_rcAiBrowserInit;
+    CRect m_rcAiInputInit;
+    CRect m_rcAiButtonsInit[4];
+    CRect m_rcAiStandaloneInit;
+    CRect m_rcAiSplitterInit;
+    CRect m_rcAiTermLabelInit;
+    CRect m_rcAiTermTabsInit;
+    CRect m_rcAiTermShellInit;
+    CRect m_rcAiTermClearInit;
+    CRect m_rcAiTermViewInit;
+    void CaptureAiLayout();
     void InitTerminal();
     void AddTerminalTab(const CString& shellName);
     void AddTerminalTabWithCommand(const CString& shellName, const CString& cmdLine);
+    void LayoutAiTabControls();
     void CloseTerminalTab(int index);
     void ActivateTerminalTab(int index);
     CTerminalView* ActiveTerminal();

@@ -687,8 +687,6 @@ void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
         }
         if (m_pActiveTerminal && m_pActiveTerminal->m_hWnd)
         {
-            m_pActiveTerminal->SetWindowPos(&wndTop, 0, 0, 0, 0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
             m_pActiveTerminal->Invalidate(TRUE);
         }
         if (m_terminalTabs.m_hWnd)
@@ -920,6 +918,61 @@ HCURSOR CMFCApplication1Dlg::OnQueryDragIcon()
 
 BOOL CMFCApplication1Dlg::PreTranslateMessage(MSG* pMsg)
 {
+    // AI tab splitter: same bottom-anchored model as the standalone window.
+    // The hit zone is a bit wider than the visible bar, and the cursor turns
+    // into the resize arrows while the mouse is near it.
+    if (m_terminalSplitter.m_hWnd)
+    {
+        CPoint pt;
+        ::GetCursorPos(&pt);
+        ScreenToClient(&pt);
+        CRect rcSplit;
+        m_terminalSplitter.GetWindowRect(&rcSplit);
+        ScreenToClient(&rcSplit);
+        CRect rcHit = rcSplit;
+        rcHit.InflateRect(0, 5, 0, 5);
+
+        if (pMsg->message == WM_SETCURSOR && rcHit.PtInRect(pt))
+        {
+            ::SetCursor(::LoadCursor(nullptr, IDC_SIZENS));
+            return TRUE;
+        }
+        if (pMsg->message == WM_MOUSEMOVE && !m_bTerminalResizing &&
+            rcHit.PtInRect(pt))
+        {
+            ::SetCursor(::LoadCursor(nullptr, IDC_SIZENS));
+            return TRUE;
+        }
+
+        if (pMsg->message == WM_LBUTTONDOWN && rcHit.PtInRect(pt))
+        {
+            m_bTerminalResizing = true;
+            m_terminalSplitter.SetDragging(true);
+            SetCapture();
+            return TRUE;
+        }
+        else if (pMsg->message == WM_MOUSEMOVE && m_bTerminalResizing)
+        {
+            int offset = m_rcAiTermViewInit.top - m_rcAiSplitterInit.top;
+            int desired = (static_cast<int>(m_rcAiTermViewInit.bottom) - 4) -
+                (pt.y + offset);
+            int maxH = std::max(60,
+                static_cast<int>(m_rcAiTermViewInit.bottom) -
+                static_cast<int>(m_rcAiBrowserInit.top) - 220);
+            m_terminalHeight = std::clamp(desired, 60, maxH);
+            LayoutAiTabControls();
+            return TRUE;
+        }
+        else if (pMsg->message == WM_LBUTTONUP && m_bTerminalResizing)
+        {
+            m_bTerminalResizing = false;
+            m_terminalSplitter.SetDragging(false);
+            if (GetCapture() == this)
+                ReleaseCapture();
+            return TRUE;
+        }
+    }
+
     // Route mouse interaction over the terminal area at the dialog level so
     // selection works even if the tab control is above the terminal window.
     if (m_pActiveTerminal && m_pActiveTerminal->m_hWnd)

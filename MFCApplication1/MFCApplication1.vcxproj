@@ -232,6 +232,7 @@ xcopy /y /e /i "$(ProjectDir)lang" "$(OutDir)lang"</Command>
     <ClInclude Include="TerminalView.h" />
     <ClInclude Include="TerminalSession.h" />
     <ClInclude Include="TerminalTabBar.h" />
+    <ClInclude Include="TerminalSplitter.h" />
     <ClInclude Include="ScreenshotOCRDlg.h" />
     <ClInclude Include="OcrEngine.h" />
     <ClInclude Include="SettingsDlg.h" />
@@ -292,6 +293,7 @@ xcopy /y /e /i "$(ProjectDir)lang" "$(OutDir)lang"</Command>
     <ClCompile Include="TerminalView.cpp" />
     <ClCompile Include="TerminalSession.cpp" />
     <ClCompile Include="TerminalTabBar.cpp" />
+    <ClCompile Include="TerminalSplitter.cpp" />
     <ClCompile Include="EncodingConverterDlg.cpp" />
     <ClCompile Include="ContextMenuDlg.cpp" />
     <ClCompile Include="ConversationHistoryDlg.cpp" />

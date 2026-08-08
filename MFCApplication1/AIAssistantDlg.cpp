@@ -388,7 +388,6 @@ void CAIAssistantDlg::OnSize(UINT nType, int cx, int cy)
     if (m_rcClientInit.IsRectEmpty())
         return;
 
-    int dy = cy - m_rcClientInit.Height();
     int margin = m_rcBrowserInit.left;
     int gap = m_rcTermTabsInit.left - m_rcTermLabelInit.right;
     if (gap <= 0)
@@ -396,7 +395,8 @@ void CAIAssistantDlg::OnSize(UINT nType, int cx, int cy)
 
     // Vertical stack: keep static gaps, only the terminal view grows/shrinks.
     int termViewBottom = cy - margin;
-    int termViewH = std::max(110, m_rcTermViewInit.Height() + dy);
+    int termViewH = std::clamp(m_terminalViewHeight, 110,
+        std::max(110, cy - 300));
     int termViewTop = termViewBottom - termViewH;
     int headerTop = termViewTop - (m_rcTermViewInit.top - m_rcTermTabsInit.top);
     int splitterTop = headerTop - (m_rcTermTabsInit.top - m_rcSplitterInit.top);
@@ -459,7 +459,7 @@ void CAIAssistantDlg::OnSize(UINT nType, int cx, int cy)
 
     CWnd* pSplitter = GetDlgItem(IDC_TERMINAL_SPLITTER);
     if (pSplitter)
-        pSplitter->MoveWindow(margin, splitterTop, cx - margin * 2, m_rcSplitterInit.Height());
+        pSplitter->MoveWindow(margin, splitterTop, cx - margin * 2, 6);
 
     CWnd* pLabel = GetDlgItem(IDC_TERMINAL_LABEL);
     if (pLabel)
@@ -518,6 +518,9 @@ void CAIAssistantDlg::CaptureInitialLayout()
     capture(IDC_BUTTON_AI_STOP, m_rcButtonsInit[1]);
     capture(IDC_BUTTON_AI_CLEAR, m_rcButtonsInit[2]);
     capture(IDC_BUTTON_AI_HISTORY, m_rcButtonsInit[3]);
+
+    if (m_rcTermViewInit.Height() > 0)
+        m_terminalViewHeight = m_rcTermViewInit.Height();
 }
 
 void CAIAssistantDlg::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
@@ -529,6 +532,66 @@ void CAIAssistantDlg::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
 
 BOOL CAIAssistantDlg::PreTranslateMessage(MSG* pMsg)
 {
+    // Splitter drag between the chat area and the terminal panel.
+    if (m_bLayoutReady)
+    {
+        CPoint pt;
+        ::GetCursorPos(&pt);
+        ScreenToClient(&pt);
+        CRect rcSplit;
+        CWnd* pSplit = GetDlgItem(IDC_TERMINAL_SPLITTER);
+        if (pSplit)
+        {
+            pSplit->GetWindowRect(&rcSplit);
+            ScreenToClient(&rcSplit);
+        }
+        CRect rcHit = rcSplit;
+        rcHit.InflateRect(0, 5, 0, 5);
+
+        if (pMsg->message == WM_SETCURSOR && rcHit.PtInRect(pt))
+        {
+            ::SetCursor(::LoadCursor(nullptr, IDC_SIZENS));
+            return TRUE;
+        }
+        if (pMsg->message == WM_MOUSEMOVE && !m_bTerminalResizing &&
+            rcHit.PtInRect(pt))
+        {
+            ::SetCursor(::LoadCursor(nullptr, IDC_SIZENS));
+            return TRUE;
+        }
+
+        if (pMsg->message == WM_LBUTTONDOWN && rcHit.PtInRect(pt))
+        {
+            m_bTerminalResizing = true;
+            m_terminalSplitter.SetDragging(true);
+            SetCapture();
+            return TRUE;
+        }
+        else if (pMsg->message == WM_MOUSEMOVE && m_bTerminalResizing)
+        {
+            CRect rcClient;
+            GetClientRect(&rcClient);
+
+            int margin = m_rcBrowserInit.left;
+            int offset = m_rcTermViewInit.top - m_rcSplitterInit.top;
+            int desired = (rcClient.bottom - margin) - (pt.y + offset);
+            int minH = 110;
+            int maxH = std::max(minH, rcClient.Height() - 300);
+            m_terminalViewHeight = std::clamp(desired, minH, maxH);
+
+            OnSize(SIZE_RESTORED, rcClient.Width(), rcClient.Height());
+            return TRUE;
+        }
+        else if (pMsg->message == WM_LBUTTONUP && m_bTerminalResizing)
+        {
+            m_bTerminalResizing = false;
+            m_terminalSplitter.SetDragging(false);
+            if (GetCapture() == this)
+                ReleaseCapture();
+            return TRUE;
+        }
+    }
+
     // Enter key in AI input sends the message
     if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_RETURN)
     {
@@ -765,8 +828,6 @@ void CAIAssistantDlg::InitTerminal()
         m_terminalView.StartShell(m_strTerminalShell);
         m_pActiveTerminal = &m_terminalView;
         m_terminalTabsList.push_back(&m_terminalView);
-        m_terminalView.SetWindowPos(&wndTop, 0, 0, 0, 0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
         m_terminalView.Invalidate(TRUE);
     }
 
@@ -2051,8 +2112,6 @@ void CAIAssistantDlg::ActivateTerminalTab(int index)
 
     if (m_pActiveTerminal)
     {
-        m_pActiveTerminal->SetWindowPos(&wndTop, 0, 0, 0, 0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
         m_pActiveTerminal->SetFocus();
 
         CString shell = m_pActiveTerminal->GetShellName();

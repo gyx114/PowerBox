@@ -63,6 +63,9 @@
     <ClInclude Include="TerminalTabBar.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="TerminalSplitter.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
     <ClInclude Include="AutoClickerSpeedDlg.h">
       <Filter>头文件</Filter>
     </ClInclude>
@@ -102,6 +105,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="TerminalTabBar.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="TerminalSplitter.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="MFCApplication1Dlg.cpp">

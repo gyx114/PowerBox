@@ -12,6 +12,9 @@
 void CMFCApplication1Dlg::OnSize(UINT nType, int cx, int cy)
 {
     CDialogEx::OnSize(nType, cx, cy);
+    if (nType != SIZE_MINIMIZED)
+        LayoutAiTabControls();
+
     // When window is minimized, hide main window and show tray icon
     if (nType == SIZE_MINIMIZED)
     {
