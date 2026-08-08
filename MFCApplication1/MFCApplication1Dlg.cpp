@@ -688,6 +688,12 @@ void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
                 SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
             m_pActiveTerminal->Invalidate(TRUE);
         }
+        if (m_terminalTabs.m_hWnd)
+        {
+            m_terminalTabs.SetWindowPos(&wndTop, 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+            m_terminalTabs.Invalidate(TRUE);
+        }
     }
     else
     {
@@ -948,6 +954,21 @@ BOOL CMFCApplication1Dlg::PreTranslateMessage(MSG* pMsg)
                 m_pActiveTerminal->ShowContextMenu(pt);
                 return TRUE;
             }
+        }
+    }
+
+    // Right-click anywhere on the terminal tab strip (including blank space)
+    // must open the tab context menu.
+    if (pMsg->message == WM_RBUTTONUP && m_terminalTabs.m_hWnd)
+    {
+        CPoint pt;
+        ::GetCursorPos(&pt);
+        CRect rcTabs;
+        m_terminalTabs.GetWindowRect(&rcTabs);
+        if (rcTabs.PtInRect(pt))
+        {
+            ShowTerminalTabMenu(pt);
+            return TRUE;
         }
     }
 
@@ -2094,6 +2115,12 @@ CString CMFCApplication1Dlg::BuildSystemPrompt()
 
         _T("位于系统托盘区\n\n")
         _T("   - 系统托盘：双击图标恢复窗口；右键菜单\"显示窗口\"或\"退出\"\n\n")
+
+        _T("=== 终端 ===\n\n")
+        _T("   - AI 助手右侧面板内置 ConPTY 终端，支持多个终端 tab\n")
+        _T("   - 右键终端 tab 标签可\"新建终端\"或\"关闭终端\"；右键 tab 空白处可\"新建终端\"\n")
+        _T("   - AI 执行命令时会自动打开一个新终端 tab，命令在真实终端中运行，可交互输入输出\n")
+        _T("   - 命令结束后结果会回传到 AI 对话\n\n")
 
         _T("=== 快捷键 ===\n\n")
         _T("   - 可配置的全局热键（文件 > 设置 > 快捷键）：\n")

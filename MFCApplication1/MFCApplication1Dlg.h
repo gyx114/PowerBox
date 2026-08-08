@@ -409,6 +409,7 @@ public:
     void CloseTerminalTab(int index);
     void ActivateTerminalTab(int index);
     CTerminalView* ActiveTerminal();
+    void ShowTerminalTabMenu(CPoint screenPt);
     afx_msg void OnTcnSelchangeTerminalTabs(NMHDR* pNMHDR, LRESULT* pResult);
     afx_msg void OnNMRclickTerminalTabs(NMHDR* pNMHDR, LRESULT* pResult);
     afx_msg void OnBnClickedTerminalClear();

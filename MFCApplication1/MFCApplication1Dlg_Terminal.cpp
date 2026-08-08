@@ -40,9 +40,13 @@ void CMFCApplication1Dlg::InitTerminal()
     // fine-tuned in the resource editor.
     if (m_terminalTabs.SubclassDlgItem(IDC_TERMINAL_TABS, this))
     {
-        m_terminalTabs.SetItemSize(CSize(60, 14));
+        m_terminalTabs.SetItemSize(CSize(64, 20));
+        m_terminalTabs.SetPadding(CSize(6, 4));
         m_terminalTabs.InsertItem(0, m_strTerminalShell);
         m_terminalTabs.SetCurSel(0);
+        m_terminalTabs.SetWindowPos(&wndTop, 0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+        m_terminalTabs.Invalidate(TRUE);
     }
 }
 
@@ -79,6 +83,13 @@ void CMFCApplication1Dlg::ActivateTerminalTab(int index)
             if (idx != CB_ERR)
                 m_terminalShell.SetCurSel(idx);
         }
+    }
+
+    if (m_terminalTabs.m_hWnd)
+    {
+        m_terminalTabs.SetWindowPos(&wndTop, 0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+        m_terminalTabs.Invalidate(TRUE);
     }
 }
 
@@ -173,21 +184,33 @@ void CMFCApplication1Dlg::OnTcnSelchangeTerminalTabs(NMHDR*, LRESULT* pResult)
 
 void CMFCApplication1Dlg::OnNMRclickTerminalTabs(NMHDR*, LRESULT* pResult)
 {
+    CPoint pt;
+    ::GetCursorPos(&pt);
+    ShowTerminalTabMenu(pt);
+    *pResult = 0;
+}
+
+void CMFCApplication1Dlg::ShowTerminalTabMenu(CPoint screenPt)
+{
     auto& loc = CLocalizationManager::GetInstance();
+
+    CPoint hitPt = screenPt;
+    m_terminalTabs.ScreenToClient(&hitPt);
+    TCHITTESTINFO hti{};
+    hti.pt = hitPt;
+    int hitIndex = m_terminalTabs.HitTest(&hti);
+
     CMenu menu;
     menu.CreatePopupMenu();
     menu.AppendMenu(MF_STRING, ID_TERMINAL_NEW, loc.GetString(_T("Terminal"), _T("New")));
-    menu.AppendMenu(MF_STRING, ID_TERMINAL_CLOSE_TAB, loc.GetString(_T("Terminal"), _T("CloseTab")));
+    if (hitIndex != -1)
+        menu.AppendMenu(MF_STRING, ID_TERMINAL_CLOSE_TAB, loc.GetString(_T("Terminal"), _T("CloseTab")));
 
-    CPoint pt;
-    ::GetCursorPos(&pt);
-    UINT cmd = menu.TrackPopupMenu(TPM_RIGHTBUTTON | TPM_RETURNCMD, pt.x, pt.y, this);
+    UINT cmd = menu.TrackPopupMenu(TPM_RIGHTBUTTON | TPM_RETURNCMD, screenPt.x, screenPt.y, this);
     if (cmd == ID_TERMINAL_NEW)
         AddTerminalTab(m_strTerminalShell);
-    else if (cmd == ID_TERMINAL_CLOSE_TAB)
-        CloseTerminalTab(m_terminalTabs.GetCurSel());
-
-    *pResult = 0;
+    else if (cmd == ID_TERMINAL_CLOSE_TAB && hitIndex != -1)
+        CloseTerminalTab(hitIndex);
 }
 
 void CMFCApplication1Dlg::OnBnClickedTerminalClear()
