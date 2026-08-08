@@ -36,19 +36,11 @@ void CMFCApplication1Dlg::InitTerminal()
         m_terminalView.Invalidate(TRUE);
     }
 
-    // Tab strip lives between the shell dropdown and the clear button.
-    CRect rcCombo;
-    CRect rcClear;
-    m_terminalShell.GetWindowRect(&rcCombo);
-    ScreenToClient(&rcCombo);
-    m_terminalClear.GetWindowRect(&rcClear);
-    ScreenToClient(&rcClear);
-    CRect rcTabs(rcCombo.right + 6, rcCombo.top, rcClear.left - 6, rcCombo.bottom);
-    if (rcTabs.Width() > 40 && m_terminalTabs.Create(
-        WS_CHILD | WS_VISIBLE | TCS_FIXEDWIDTH | TCS_FORCELABELLEFT | WS_TABSTOP,
-        rcTabs, this, IDC_TERMINAL_TABS))
+    // Tab strip is defined statically in the resource file so it can be
+    // fine-tuned in the resource editor.
+    if (m_terminalTabs.SubclassDlgItem(IDC_TERMINAL_TABS, this))
     {
-        m_terminalTabs.SetItemSize(CSize(70, 16));
+        m_terminalTabs.SetItemSize(CSize(60, 14));
         m_terminalTabs.InsertItem(0, m_strTerminalShell);
         m_terminalTabs.SetCurSel(0);
     }

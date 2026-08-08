@@ -284,6 +284,8 @@ void CTerminalView::ResetScreen()
     m_cursorRow = 0;
     m_cursorCol = 0;
     m_pendingWrap = false;
+    m_redrawAfterUp = false;
+    m_redrawOldBottom = 0;
     m_scrollOffset = 0;
     m_curFg = 7;
     m_curBg = 0;
@@ -543,6 +545,8 @@ void CTerminalView::ExecuteCsi(wchar_t final, const std::wstring& params)
     if (final == L'A')
     {
         int n = std::max(1, getParam(0, 1));
+        m_redrawOldBottom = m_cursorRow;
+        m_redrawAfterUp = true;
         m_cursorRow = (m_cursorRow >= start + static_cast<size_t>(n))
             ? m_cursorRow - n : start;
     }
@@ -585,6 +589,11 @@ void CTerminalView::ExecuteCsi(wchar_t final, const std::wstring& params)
         size_t target = start + row - 1;
         if (target >= m_rows.size())
             EnsureRow(target);
+        if (target < m_cursorRow)
+        {
+            m_redrawOldBottom = m_cursorRow;
+            m_redrawAfterUp = true;
+        }
         m_cursorRow = std::min(target, m_rows.size() - 1);
         m_cursorCol = std::min(m_cols - 1, col - 1);
     }
@@ -598,6 +607,11 @@ void CTerminalView::ExecuteCsi(wchar_t final, const std::wstring& params)
         size_t target = start + row - 1;
         if (target >= m_rows.size())
             EnsureRow(target);
+        if (target < m_cursorRow)
+        {
+            m_redrawOldBottom = m_cursorRow;
+            m_redrawAfterUp = true;
+        }
         m_cursorRow = std::min(target, m_rows.size() - 1);
     }
     else if (final == L'J')
@@ -663,6 +677,13 @@ void CTerminalView::ProcessChar(wchar_t ch)
         }
         else if (ch == L'\r')
         {
+            if (m_redrawAfterUp)
+            {
+                size_t end = std::min(m_redrawOldBottom, m_rows.size() - 1);
+                for (size_t r = m_cursorRow; r <= end && r < m_rows.size(); r++)
+                    ClearRow(r, r == m_cursorRow ? m_cursorCol : 0, m_cols);
+                m_redrawAfterUp = false;
+            }
             m_cursorCol = 0;
             m_pendingWrap = false;
         }
@@ -679,6 +700,8 @@ void CTerminalView::ProcessChar(wchar_t ch)
                 m_cursorCol--;
             else if (m_cursorRow > start)
             {
+                m_redrawOldBottom = m_cursorRow;
+                m_redrawAfterUp = true;
                 m_cursorRow--;
                 m_cursorCol = m_cols - 1;
             }
@@ -701,6 +724,14 @@ void CTerminalView::ProcessChar(wchar_t ch)
         }
         else if (ch != L'\a')
         {
+            if (m_redrawAfterUp)
+            {
+                ClearRow(m_cursorRow, m_cursorCol, m_cols);
+                size_t end = std::min(m_redrawOldBottom, m_rows.size() - 1);
+                for (size_t r = m_cursorRow + 1; r <= end && r < m_rows.size(); r++)
+                    ClearRow(r, 0, m_cols);
+                m_redrawAfterUp = false;
+            }
             PutChar(ch);
         }
         break;

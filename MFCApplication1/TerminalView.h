@@ -91,6 +91,8 @@ private:
     size_t m_cursorRow = 0;
     int m_cursorCol = 0;
     bool m_pendingWrap = false;
+    bool m_redrawAfterUp = false;
+    size_t m_redrawOldBottom = 0;
     int m_scrollOffset = 0;
     BYTE m_curFg = 7;
     BYTE m_curBg = 0;
