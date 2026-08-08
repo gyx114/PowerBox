@@ -38,12 +38,10 @@ void CMFCApplication1Dlg::InitTerminal()
 
     // Tab strip is defined statically in the resource file so it can be
     // fine-tuned in the resource editor.
-    if (m_terminalTabs.SubclassDlgItem(IDC_TERMINAL_TABS, this))
+    if (m_terminalTabs.AttachToPlaceholder(IDC_TERMINAL_TABS, this))
     {
-        m_terminalTabs.SetItemSize(CSize(64, 20));
-        m_terminalTabs.SetPadding(CSize(6, 4));
-        m_terminalTabs.InsertItem(0, m_strTerminalShell);
-        m_terminalTabs.SetCurSel(0);
+        m_terminalTabs.AddTab(m_strTerminalShell);
+        m_terminalTabs.SetActive(0);
         m_terminalTabs.SetWindowPos(&wndTop, 0, 0, 0, 0,
             SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
         m_terminalTabs.Invalidate(TRUE);
@@ -68,7 +66,7 @@ void CMFCApplication1Dlg::ActivateTerminalTab(int index)
     }
 
     if (m_terminalTabs.m_hWnd)
-        m_terminalTabs.SetCurSel(index);
+        m_terminalTabs.SetActive(index);
 
     if (m_pActiveTerminal)
     {
@@ -115,7 +113,7 @@ void CMFCApplication1Dlg::AddTerminalTab(const CString& shellName)
 
     int idx = static_cast<int>(m_terminalTabsList.size()) - 1;
     if (m_terminalTabs.m_hWnd)
-        m_terminalTabs.InsertItem(idx, shellName);
+        m_terminalTabs.AddTab(shellName);
     ActivateTerminalTab(idx);
 }
 
@@ -142,7 +140,7 @@ void CMFCApplication1Dlg::AddTerminalTabWithCommand(const CString& shellName,
 
     int idx = static_cast<int>(m_terminalTabsList.size()) - 1;
     if (m_terminalTabs.m_hWnd)
-        m_terminalTabs.InsertItem(idx, shellName);
+        m_terminalTabs.AddTab(shellName);
     ActivateTerminalTab(idx);
 }
 
@@ -156,7 +154,7 @@ void CMFCApplication1Dlg::CloseTerminalTab(int index)
     CTerminalView* victim = m_terminalTabsList[index];
     m_terminalTabsList.erase(m_terminalTabsList.begin() + index);
     if (m_terminalTabs.m_hWnd)
-        m_terminalTabs.DeleteItem(index);
+        m_terminalTabs.RemoveTab(index);
 
     for (auto i = m_extraTerminalViews.begin(); i != m_extraTerminalViews.end(); ++i)
     {
@@ -176,41 +174,22 @@ void CMFCApplication1Dlg::CloseTerminalTab(int index)
         m_pActiveTerminal = nullptr;
 }
 
-void CMFCApplication1Dlg::OnTcnSelchangeTerminalTabs(NMHDR*, LRESULT* pResult)
+LRESULT CMFCApplication1Dlg::OnTermTabSelect(WPARAM wParam, LPARAM)
 {
-    ActivateTerminalTab(m_terminalTabs.GetCurSel());
-    *pResult = 0;
+    ActivateTerminalTab(static_cast<int>(wParam));
+    return 0;
 }
 
-void CMFCApplication1Dlg::OnNMRclickTerminalTabs(NMHDR*, LRESULT* pResult)
+LRESULT CMFCApplication1Dlg::OnTermTabClose(WPARAM wParam, LPARAM)
 {
-    CPoint pt;
-    ::GetCursorPos(&pt);
-    ShowTerminalTabMenu(pt);
-    *pResult = 0;
+    CloseTerminalTab(static_cast<int>(wParam));
+    return 0;
 }
 
-void CMFCApplication1Dlg::ShowTerminalTabMenu(CPoint screenPt)
+LRESULT CMFCApplication1Dlg::OnTermTabNew(WPARAM, LPARAM)
 {
-    auto& loc = CLocalizationManager::GetInstance();
-
-    CPoint hitPt = screenPt;
-    m_terminalTabs.ScreenToClient(&hitPt);
-    TCHITTESTINFO hti{};
-    hti.pt = hitPt;
-    int hitIndex = m_terminalTabs.HitTest(&hti);
-
-    CMenu menu;
-    menu.CreatePopupMenu();
-    menu.AppendMenu(MF_STRING, ID_TERMINAL_NEW, loc.GetString(_T("Terminal"), _T("New")));
-    if (hitIndex != -1)
-        menu.AppendMenu(MF_STRING, ID_TERMINAL_CLOSE_TAB, loc.GetString(_T("Terminal"), _T("CloseTab")));
-
-    UINT cmd = menu.TrackPopupMenu(TPM_RIGHTBUTTON | TPM_RETURNCMD, screenPt.x, screenPt.y, this);
-    if (cmd == ID_TERMINAL_NEW)
-        AddTerminalTab(m_strTerminalShell);
-    else if (cmd == ID_TERMINAL_CLOSE_TAB && hitIndex != -1)
-        CloseTerminalTab(hitIndex);
+    AddTerminalTab(m_strTerminalShell);
+    return 0;
 }
 
 void CMFCApplication1Dlg::OnBnClickedTerminalClear()
@@ -242,13 +221,8 @@ void CMFCApplication1Dlg::OnCbnSelchangeTerminalShell()
 
     if (m_terminalTabs.m_hWnd && m_pActiveTerminal)
     {
-        int tabIdx = m_terminalTabs.GetCurSel();
-        if (tabIdx != CB_ERR)
-        {
-            TCITEM item{};
-            item.mask = TCIF_TEXT;
-            item.pszText = const_cast<LPTSTR>(shell.GetString());
-            m_terminalTabs.SetItem(tabIdx, &item);
-        }
+        int tabIdx = m_terminalTabs.GetActive();
+        if (tabIdx >= 0)
+            m_terminalTabs.SetTabTitle(tabIdx, shell);
     }
 }

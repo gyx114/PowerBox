@@ -387,8 +387,9 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_REGISTERED_MESSAGE(WM_QL_CLOSED, &CMFCApplication1Dlg::OnQLClosed)
     ON_BN_CLICKED(IDC_BTN_TERMINAL_CLEAR, &CMFCApplication1Dlg::OnBnClickedTerminalClear)
     ON_CBN_SELCHANGE(IDC_TERMINAL_SHELL, &CMFCApplication1Dlg::OnCbnSelchangeTerminalShell)
-    ON_NOTIFY(TCN_SELCHANGE, IDC_TERMINAL_TABS, &CMFCApplication1Dlg::OnTcnSelchangeTerminalTabs)
-    ON_NOTIFY(NM_RCLICK, IDC_TERMINAL_TABS, &CMFCApplication1Dlg::OnNMRclickTerminalTabs)
+    ON_MESSAGE(WM_TERM_TAB_SELECT, &CMFCApplication1Dlg::OnTermTabSelect)
+    ON_MESSAGE(WM_TERM_TAB_CLOSE, &CMFCApplication1Dlg::OnTermTabClose)
+    ON_MESSAGE(WM_TERM_TAB_NEW, &CMFCApplication1Dlg::OnTermTabNew)
     ON_WM_TIMER()
 END_MESSAGE_MAP()
 
@@ -957,9 +958,9 @@ BOOL CMFCApplication1Dlg::PreTranslateMessage(MSG* pMsg)
         }
     }
 
-    // Right-click anywhere on the terminal tab strip (including blank space)
-    // must open the tab context menu.
-    if (pMsg->message == WM_RBUTTONUP && m_terminalTabs.m_hWnd)
+    // Route terminal tab bar mouse clicks at the dialog level so they always
+    // reach the custom hit-testing, even if IsDialogMessage would swallow them.
+    if (m_terminalTabs.m_hWnd)
     {
         CPoint pt;
         ::GetCursorPos(&pt);
@@ -967,9 +968,21 @@ BOOL CMFCApplication1Dlg::PreTranslateMessage(MSG* pMsg)
         m_terminalTabs.GetWindowRect(&rcTabs);
         if (rcTabs.PtInRect(pt))
         {
-            ShowTerminalTabMenu(pt);
-            return TRUE;
+            CPoint client = pt;
+            m_terminalTabs.ScreenToClient(&client);
+            if (pMsg->message == WM_LBUTTONDOWN)
+            {
+                m_terminalTabs.HandleClick(client);
+                return TRUE;
+            }
+            if (pMsg->message == WM_RBUTTONUP)
+            {
+                m_terminalTabs.HandleRightClick(client);
+                return TRUE;
+            }
         }
+        if (pMsg->hwnd == m_terminalTabs.m_hWnd)
+            return FALSE;
     }
 
     // Alt+1..6 must still switch tabs while the terminal has keyboard focus.

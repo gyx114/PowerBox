@@ -17,6 +17,7 @@
 #include "ConversationHistoryDlg.h"
 #include "HotkeyCaptureDlg.h"
 #include "TerminalView.h"
+#include "TerminalTabBar.h"
 
 // Forward declarations for menu-launched dialogs
 class CQRCodeGenDlg;
@@ -398,7 +399,7 @@ public:
     CStatic m_terminalLabel;
     CButton m_terminalClear;
     CStatic m_terminalSplitter;
-    CTabCtrl m_terminalTabs;
+    CTerminalTabBar m_terminalTabs;
     std::vector<std::unique_ptr<CTerminalView>> m_extraTerminalViews;
     std::vector<CTerminalView*> m_terminalTabsList;
     CTerminalView* m_pActiveTerminal = nullptr;
@@ -409,9 +410,9 @@ public:
     void CloseTerminalTab(int index);
     void ActivateTerminalTab(int index);
     CTerminalView* ActiveTerminal();
-    void ShowTerminalTabMenu(CPoint screenPt);
-    afx_msg void OnTcnSelchangeTerminalTabs(NMHDR* pNMHDR, LRESULT* pResult);
-    afx_msg void OnNMRclickTerminalTabs(NMHDR* pNMHDR, LRESULT* pResult);
+    afx_msg LRESULT OnTermTabSelect(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnTermTabClose(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnTermTabNew(WPARAM wParam, LPARAM lParam);
     afx_msg void OnBnClickedTerminalClear();
     afx_msg void OnCbnSelchangeTerminalShell();
 };
