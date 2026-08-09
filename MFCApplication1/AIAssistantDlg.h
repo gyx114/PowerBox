@@ -122,7 +122,7 @@ private:
     void CloseTerminalTab(int index);
     void ActivateTerminalTab(int index);
     CTerminalView* ActiveTerminal();
-    void AddAiCommandTab(const CString& command);
+    void AddAiCommandTab(const CString& command, const CString& terminal = CString());
     void FinishAiCommand(CTerminalSession* session);
 
     // Message handlers

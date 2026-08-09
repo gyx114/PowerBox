@@ -183,6 +183,158 @@ CString ResolveGitBashPath()
     return _T("C:\\Program Files\\Git\\bin\\bash.exe");
 }
 
+CString StripShellPrefix(const CString& shell, const CString& command)
+{
+    CString s = command;
+    s.Trim();
+
+    CString shellLower = shell;
+    shellLower.MakeLower();
+
+    static const CString kPowerShellPrefixes[] = {
+        _T("powershell.exe -NoProfile -Command "),
+        _T("powershell.exe -Command "),
+        _T("powershell -NoProfile -Command "),
+        _T("powershell -Command "),
+        _T("pwsh -NoProfile -Command "),
+        _T("pwsh -Command "),
+        _T("powershell.exe "),
+        _T("powershell "),
+        _T("pwsh ")
+    };
+    static const CString kCmdPrefixes[] = {
+        _T("cmd.exe /d /s /c "),
+        _T("cmd.exe /c "),
+        _T("cmd /c "),
+        _T("cmd /d /s /c ")
+    };
+    static const CString kWslPrefixes[] = {
+        _T("wsl.exe -e bash -lc "),
+        _T("wsl.exe bash -lc "),
+        _T("wsl.exe "),
+        _T("wsl ")
+    };
+    static const CString kBashPrefixes[] = {
+        _T("bash.exe -lc "), _T("bash.exe -c "), _T("bash -lc "),
+        _T("bash -c "), _T("bash ")
+    };
+
+    const CString* prefixes = nullptr;
+    int prefixCount = 0;
+    if (shellLower == _T("powershell"))
+    {
+        prefixes = kPowerShellPrefixes;
+        prefixCount = static_cast<int>(_countof(kPowerShellPrefixes));
+    }
+    else if (shellLower == _T("cmd"))
+    {
+        prefixes = kCmdPrefixes;
+        prefixCount = static_cast<int>(_countof(kCmdPrefixes));
+    }
+    else if (shellLower == _T("wsl"))
+    {
+        prefixes = kWslPrefixes;
+        prefixCount = static_cast<int>(_countof(kWslPrefixes));
+    }
+    else if (shellLower == _T("git bash"))
+    {
+        prefixes = kBashPrefixes;
+        prefixCount = static_cast<int>(_countof(kBashPrefixes));
+    }
+
+    if (prefixes)
+    {
+        for (int i = 0; i < prefixCount; i++)
+        {
+            if (s.Left(prefixes[i].GetLength()).CompareNoCase(prefixes[i]) == 0)
+            {
+                s = s.Mid(prefixes[i].GetLength()).Trim();
+                break;
+            }
+        }
+    }
+
+    s.Trim();
+    if (s.GetLength() >= 2 && s[0] == _T('"') &&
+        s[s.GetLength() - 1] == _T('"'))
+    {
+        s = s.Mid(1, s.GetLength() - 2);
+        s.Trim();
+    }
+
+    return s;
+}
+
+CString Base64Encode(const std::string& data)
+{
+    static const char table[] =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+    std::string out;
+    out.reserve(((data.size() + 2) / 3) * 4);
+
+    size_t i = 0;
+    while (i + 3 <= data.size())
+    {
+        unsigned int v = (static_cast<unsigned char>(data[i]) << 16) |
+            (static_cast<unsigned char>(data[i + 1]) << 8) |
+            static_cast<unsigned char>(data[i + 2]);
+        out.push_back(table[(v >> 18) & 0x3F]);
+        out.push_back(table[(v >> 12) & 0x3F]);
+        out.push_back(table[(v >> 6) & 0x3F]);
+        out.push_back(table[v & 0x3F]);
+        i += 3;
+    }
+
+    if (i + 1 == data.size())
+    {
+        unsigned int v = static_cast<unsigned char>(data[i]) << 16;
+        out.push_back(table[(v >> 18) & 0x3F]);
+        out.push_back(table[(v >> 12) & 0x3F]);
+        out.push_back('=');
+        out.push_back('=');
+    }
+    else if (i + 2 == data.size())
+    {
+        unsigned int v = (static_cast<unsigned char>(data[i]) << 16) |
+            (static_cast<unsigned char>(data[i + 1]) << 8);
+        out.push_back(table[(v >> 18) & 0x3F]);
+        out.push_back(table[(v >> 12) & 0x3F]);
+        out.push_back(table[(v >> 6) & 0x3F]);
+        out.push_back('=');
+    }
+
+    return CString(out.c_str());
+}
+
+CString EncodePowerShellCommand(const CString& command)
+{
+    std::wstring wide(command.GetString(), command.GetLength());
+    std::string utf16le;
+    utf16le.reserve(wide.size() * 2);
+    for (wchar_t ch : wide)
+    {
+        utf16le.push_back(static_cast<char>(ch & 0xFF));
+        utf16le.push_back(static_cast<char>((ch >> 8) & 0xFF));
+    }
+    return Base64Encode(utf16le);
+}
+
+CString BashSingleQuoted(const CString& command)
+{
+    CString out;
+    out += _T("'");
+    for (int i = 0; i < command.GetLength(); i++)
+    {
+        if (command[i] == _T('\''))
+            out += _T("'\\''");
+        else
+            out += command[i];
+    }
+    out += _T("'");
+    return out;
+}
+
 COLORREF TerminalPalette16[16] = {
     RGB(12, 12, 12), RGB(205, 49, 49), RGB(13, 188, 121), RGB(229, 229, 16),
     RGB(36, 114, 200), RGB(188, 63, 188), RGB(17, 168, 205), RGB(204, 204, 204),
@@ -946,6 +1098,64 @@ BOOL CTerminalView::StartShell(const CString& shellName)
     }
 
     return StartCommandSession(cmdLine, shellName);
+}
+
+CString CTerminalView::NormalizeShellName(const CString& shellName)
+{
+    CString s = shellName;
+    s.Trim();
+    s.MakeLower();
+
+    if (s.IsEmpty())
+        return CString();
+    if (s.Find(_T("powershell")) == 0 || s.Find(_T("pwsh")) == 0)
+        return _T("PowerShell");
+    if (s.Find(_T("cmd")) == 0 || s.Find(_T("command")) == 0)
+        return _T("CMD");
+    if (s.Find(_T("wsl")) == 0)
+        return _T("WSL");
+    if (s.Find(_T("git")) == 0 || s.Find(_T("bash")) == 0)
+        return _T("Git Bash");
+    return CString();
+}
+
+CString CTerminalView::BuildAiCommandLine(const CString& shellName, const CString& command)
+{
+    CString shell = NormalizeShellName(shellName);
+    CString cmd = command;
+    cmd.Trim();
+
+    if (shell.IsEmpty())
+    {
+        if (cmd.Left(14).CompareNoCase(_T("powershell.exe ")) == 0 ||
+            cmd.Left(11).CompareNoCase(_T("powershell ")) == 0 ||
+            cmd.Left(5).CompareNoCase(_T("pwsh ")) == 0)
+            shell = _T("PowerShell");
+        else if (cmd.Left(8).CompareNoCase(_T("wsl.exe ")) == 0 ||
+            cmd.Left(4).CompareNoCase(_T("wsl ")) == 0)
+            shell = _T("WSL");
+        else if (cmd.Left(9).CompareNoCase(_T("bash.exe ")) == 0 ||
+            cmd.Left(5).CompareNoCase(_T("bash ")) == 0)
+            shell = _T("Git Bash");
+        else
+            shell = _T("CMD");
+    }
+
+    cmd = StripShellPrefix(shell, cmd);
+
+    CString cmdLine;
+    if (shell.CompareNoCase(_T("PowerShell")) == 0)
+        cmdLine = _T("powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand ")
+            + EncodePowerShellCommand(cmd);
+    else if (shell.CompareNoCase(_T("WSL")) == 0)
+        cmdLine = _T("wsl.exe -e bash -lc ") + BashSingleQuoted(cmd);
+    else if (shell.CompareNoCase(_T("Git Bash")) == 0)
+        cmdLine.Format(_T("\"%s\" -lc %s"),
+            ResolveGitBashPath().GetString(), BashSingleQuoted(cmd).GetString());
+    else
+        cmdLine = _T("cmd.exe /d /s /c \"\"") + cmd + _T("\"\"");
+
+    return cmdLine;
 }
 
 BOOL CTerminalView::StartCommandSession(const CString& cmdLine, const CString& shellName)

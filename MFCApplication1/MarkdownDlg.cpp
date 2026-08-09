@@ -632,6 +632,13 @@ CString CMarkdownDlg::MarkdownToHtml(const CString& markdown)
 	html += _T("font-size:85%;background-color:rgba(175,184,193,0.2);padding:.2em .4em;border-radius:6px;}");
 	html += _T("pre{background-color:#f6f8fa;border-radius:6px;padding:16px;overflow:auto;margin-bottom:16px;}");
 	html += _T("pre code{background:transparent;padding:0;font-size:100%;}");
+	html += _T(".code-block{margin-bottom:16px;}");
+	html += _T(".code-header{display:flex;justify-content:space-between;align-items:center;gap:8px;");
+	html += _T("padding:4px 10px;background:#eaeef2;border-radius:6px 6px 0 0;font-size:12px;color:#57606a;}");
+	html += _T(".code-header + pre{margin-top:0;border-radius:0 0 6px 6px;}");
+	html += _T(".copy-code-btn{background:#fff;color:#24292f;border:1px solid #d0d7de;border-radius:6px;");
+	html += _T("padding:2px 8px;font-size:12px;cursor:pointer;}");
+	html += _T(".copy-code-btn:hover{background:#f6f8fa;}");
 	html += _T("blockquote{color:#57606a;border-left:.25em solid #d0d7de;padding:0 1em;margin:0 0 16px 0;}");
 	html += _T("blockquote p{margin-bottom:0;}");
 	html += _T("ul,ol{padding-left:2em;margin-bottom:16px;}");
@@ -651,6 +658,7 @@ CString CMarkdownDlg::MarkdownToHtml(const CString& markdown)
 	html += _T(".action-risk.level-low{color:#2da44e;}");
 	html += _T(".action-risk.level-medium{color:#d4a72c;}");
 	html += _T(".action-risk.level-high{color:#cf222e;}");
+	html += _T(".action-terminal{font-size:12px;color:#57606a;margin-bottom:6px;}");
 	html += _T(".action-btn{background:#2da44e;color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:13px;cursor:pointer;margin-bottom:6px;}");
 	html += _T(".action-btn:hover{background:#218838;}");
 	html += _T(".action-card.action-level-high .action-btn{background:#cf222e;}");
@@ -661,6 +669,9 @@ CString CMarkdownDlg::MarkdownToHtml(const CString& markdown)
 	html += _T("</style></head><body>");
 
 	CString body;
+	auto& loc = CLocalizationManager::GetInstance();
+	CString copyText = loc.GetString(_T("Markdown"), _T("CopyCode"));
+	CString copiedText = loc.GetString(_T("Markdown"), _T("CodeCopied"));
 	bool inCodeBlock = false;
 	bool inActionBlock = false;
 	CString actionJson;
@@ -690,7 +701,12 @@ CString CMarkdownDlg::MarkdownToHtml(const CString& markdown)
 
 	auto CloseBlocks = [&](bool keepParagraph)
 	{
-		if (inCodeBlock) { body += _T("</code></pre>"); inCodeBlock = false; }
+		if (inCodeBlock)
+		{
+			if (!inActionBlock)
+				body += _T("</code></pre></div>");
+			inCodeBlock = false;
+		}
 		if (inActionBlock) { inActionBlock = false; }
 		if (inList) { body += _T("</ul>"); inList = false; }
 		if (inQuote) { body += _T("</blockquote>"); inQuote = false; }
@@ -700,7 +716,7 @@ CString CMarkdownDlg::MarkdownToHtml(const CString& markdown)
 
 	auto RenderActionCard = [&](const CString& jsonStr)
 	{
-		CString command, purpose, risk;
+		CString command, purpose, risk, terminal;
 		try
 		{
 			std::string s = (LPCSTR)CT2A(jsonStr, CP_UTF8);
@@ -708,6 +724,8 @@ CString CMarkdownDlg::MarkdownToHtml(const CString& markdown)
 			command = CString(CA2T(j["command"].get<std::string>().c_str(), CP_UTF8));
 			purpose = CString(CA2T(j["purpose"].get<std::string>().c_str(), CP_UTF8));
 			risk = CString(CA2T(j["risk"].get<std::string>().c_str(), CP_UTF8));
+			if (j.contains("terminal") && j["terminal"].is_string())
+				terminal = CString(CA2T(j["terminal"].get<std::string>().c_str(), CP_UTF8));
 		}
 		catch (const nlohmann::json::parse_error&) { }
 		risk.MakeLower();
@@ -759,15 +777,20 @@ CString CMarkdownDlg::MarkdownToHtml(const CString& markdown)
 			j["command"] = (LPCSTR)CT2A(command, CP_UTF8);
 			j["purpose"] = (LPCSTR)CT2A(purpose, CP_UTF8);
 			j["risk"] = (LPCSTR)CT2A(risk, CP_UTF8);
+			j["terminal"] = (LPCSTR)CT2A(terminal, CP_UTF8);
 			jsonAttr = CString(CA2T(j.dump().c_str(), CP_UTF8));
 		}
 
 		CString escPurpose = EscapeHtml(purpose);
 		CString escCmd = EscapeHtml(command);
+		CString terminalDisplay = terminal;
+		if (terminalDisplay.IsEmpty())
+			terminalDisplay = loc.GetString(_T("Markdown"), _T("TerminalAuto"));
 
 		body += _T("<div class=\"action-card action-") + riskLevel + _T("\">");
 		body += _T("<div class=\"action-purpose\">") + loc.GetString(_T("Markdown"), _T("PurposeLabel")) + escPurpose + _T("</div>");
 		body += _T("<div class=\"action-risk ") + riskLevel + _T("\">") + loc.GetString(_T("Markdown"), _T("RiskLevelLabel")) + riskText + _T("</div>");
+		body += _T("<div class=\"action-terminal\">") + loc.GetString(_T("Markdown"), _T("TerminalLabel")) + EscapeHtml(terminalDisplay) + _T("</div>");
 		body += _T("<button class=\"action-btn\" data-cmd=\"") + EscapeHtml(jsonAttr) + _T("\" onclick=\"execCmd(this)\">") + loc.GetString(_T("Markdown"), _T("ExecuteBtn")) + _T("</button>");
 		body += _T("<div class=\"action-command\">$ ") + escCmd + _T("</div>");
 		body += _T("</div>");
@@ -789,7 +812,7 @@ CString CMarkdownDlg::MarkdownToHtml(const CString& markdown)
 			}
 			else if (inCodeBlock)
 			{
-				body += _T("</code></pre>");
+				body += _T("</code></pre></div>");
 				inCodeBlock = false;
 			}
 			else
@@ -804,7 +827,12 @@ CString CMarkdownDlg::MarkdownToHtml(const CString& markdown)
 				}
 				else
 				{
-					body += _T("<pre><code");
+					body += _T("<div class=\"code-block\"><div class=\"code-header\"><span>");
+					if (!lang.IsEmpty())
+						body += EscapeHtml(lang);
+					body += _T("</span><button class=\"copy-code-btn\" data-copied=\"")
+						+ EscapeHtml(copiedText) + _T("\" onclick=\"copyCode(this)\">")
+						+ EscapeHtml(copyText) + _T("</button></div><pre><code");
 					if (!lang.IsEmpty())
 						body += _T(" class=\"language-") + EscapeHtml(lang) + _T("\"");
 					body += _T(">");
@@ -1018,6 +1046,23 @@ CString CMarkdownDlg::MarkdownToHtml(const CString& markdown)
 	CloseBlocks(false);
 
 	html += body;
+	CString jsCopied = copiedText;
+	jsCopied.Replace(_T("\\"), _T("\\\\"));
+	jsCopied.Replace(_T("'"), _T("\\'"));
+	html += _T("<script>")
+		_T("function copyText(t){")
+		_T("if(window.clipboardData&&window.clipboardData.setData){window.clipboardData.setData('Text',t);return true;}")
+		_T("var ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';")
+		_T("document.body.appendChild(ta);ta.select();")
+		_T("try{return document.execCommand('copy');}catch(e){return false;}finally{document.body.removeChild(ta);}")
+		_T("}")
+		_T("function copyCode(btn){")
+		_T("var block=btn.parentNode.parentNode;var pre=block.querySelector('pre');")
+		_T("var text=pre?pre.innerText:'';")
+		_T("if(copyText(text)){var old=btn.textContent;btn.textContent='") + jsCopied + _T("';")
+		_T("setTimeout(function(){btn.textContent=old;},1200);}")
+		_T("}")
+		_T("</script>");
 	html += _T("</body></html>");
 	return html;
 }

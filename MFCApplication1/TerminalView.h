@@ -38,6 +38,8 @@ public:
 
     bool IsRunning() const { return m_session && m_session->IsRunning(); }
     CString GetShellName() const { return m_shellName; }
+    static CString NormalizeShellName(const CString& shellName);
+    static CString BuildAiCommandLine(const CString& shellName, const CString& command);
     static constexpr UINT WM_AI_CAPTURE_DONE = WM_APP + 50;
     struct AiCaptureResult
     {

@@ -961,9 +961,16 @@ void CAIAssistantDlg::OnBnClickedAiSend()
     pInput->SetWindowText(_T(""));
     pInput->SetSel(0, 0);
 
-    if (m_aiHistory.empty())
+    if (m_aiHistory.empty() || m_aiHistory.front().first == _T("system"))
     {
-        m_aiHistory.push_back({ _T("system"), BuildSystemPrompt() });
+        if (m_aiHistory.empty())
+            m_aiHistory.emplace_back(_T("system"), BuildSystemPrompt());
+        else
+            m_aiHistory.front() = { _T("system"), BuildSystemPrompt() };
+    }
+    else
+    {
+        m_aiHistory.insert(m_aiHistory.begin(), { _T("system"), BuildSystemPrompt() });
     }
 
     m_aiHistory.push_back({ _T("user"), userMsg });
@@ -1142,9 +1149,20 @@ CString CAIAssistantDlg::BuildSystemPrompt()
         _T("{\n")
         _T("  \"command\": \"要执行的命令\",\n")
         _T("  \"purpose\": \"用途说明\",\n")
-        _T("  \"risk\": \"low/medium/high\"\n")
+        _T("  \"risk\": \"low/medium/high\",\n")
+        _T("  \"terminal\": \"PowerShell/CMD/WSL/Git Bash\"\n")
         _T("}\n")
         _T("```\n\n")
+        _T("terminal 字段决定命令在哪个真实终端执行；command 字段只写命令本身，")
+        _T("严禁包含 powershell.exe、pwsh、cmd.exe /c、wsl.exe、bash -c 等启动前缀，否则程序会重复包装。\n")
+        _T("terminal 可省略；省略时程序根据命令自动推断，默认 CMD。\n")
+        _T("选择终端：\n")
+        _T("- PowerShell：PowerShell cmdlet，如 Get-Process、Get-Service、Select-Object、Where-Object、Sort-Object\n")
+        _T("- CMD：Windows 内置命令，如 dir、ipconfig、tasklist、findstr、reg、net\n")
+        _T("- WSL：Linux 命令，如 ls、grep、awk、sed、df、ps\n")
+        _T("- Git Bash：git 和 bash 风格命令，如 git log、grep、head、tail\n")
+        _T("管道 | 必须原样写在 command 字段内，程序会把它交给所选终端执行。\n")
+        _T("命令默认在 %USERPROFILE% 目录执行；涉及其他位置时使用完整路径。\n\n")
         _T("风险等级说明：\n")
         _T("- low：无害操作（如打开文件夹、显示信息）\n")
         _T("- medium：有潜在影响的操作（如修改文件、重启进程）\n")
@@ -1158,7 +1176,8 @@ CString CAIAssistantDlg::BuildSystemPrompt()
         _T("{\n")
         _T("  \"command\": \"dir\",\n")
         _T("  \"purpose\": \"查看当前目录的文件列表\",\n")
-        _T("  \"risk\": \"low\"\n")
+        _T("  \"risk\": \"low\",\n")
+        _T("  \"terminal\": \"CMD\"\n")
         _T("}\n")
         _T("```\n\n")
         _T("用户：打开计算器\n")
@@ -1167,7 +1186,38 @@ CString CAIAssistantDlg::BuildSystemPrompt()
         _T("{\n")
         _T("  \"command\": \"start calc.exe\",\n")
         _T("  \"purpose\": \"打开计算器程序\",\n")
-        _T("  \"risk\": \"low\"\n")
+        _T("  \"risk\": \"low\",\n")
+        _T("  \"terminal\": \"CMD\"\n")
+        _T("}\n")
+        _T("```\n\n")
+        _T("用户：查看占用 CPU 前 5 的进程\n")
+        _T("AI：\n")
+        _T("```action\n")
+        _T("{\n")
+        _T("  \"command\": \"Get-Process | Sort-Object CPU -Descending | Select-Object -First 5\",\n")
+        _T("  \"purpose\": \"查看占用 CPU 前 5 的进程\",\n")
+        _T("  \"risk\": \"low\",\n")
+        _T("  \"terminal\": \"PowerShell\"\n")
+        _T("}\n")
+        _T("```\n\n")
+        _T("用户：查看 WSL 里的磁盘空间\n")
+        _T("AI：\n")
+        _T("```action\n")
+        _T("{\n")
+        _T("  \"command\": \"df -h\",\n")
+        _T("  \"purpose\": \"查看 WSL 里的磁盘空间\",\n")
+        _T("  \"risk\": \"low\",\n")
+        _T("  \"terminal\": \"WSL\"\n")
+        _T("}\n")
+        _T("```\n\n")
+        _T("用户：查看最近 5 条 git 提交\n")
+        _T("AI：\n")
+        _T("```action\n")
+        _T("{\n")
+        _T("  \"command\": \"git log --oneline -5\",\n")
+        _T("  \"purpose\": \"查看最近 5 条 git 提交\",\n")
+        _T("  \"risk\": \"low\",\n")
+        _T("  \"terminal\": \"Git Bash\"\n")
         _T("}\n")
         _T("```\n\n")
         _T("用户：删除 C:\\temp 目录下的所有文件\n")
@@ -1176,13 +1226,19 @@ CString CAIAssistantDlg::BuildSystemPrompt()
         _T("{\n")
         _T("  \"command\": \"del /f /s /q C:\\temp\\*\",\n")
         _T("  \"purpose\": \"删除 C:\\temp 目录下的所有文件\",\n")
-        _T("  \"risk\": \"high\"\n")
+        _T("  \"risk\": \"high\",\n")
+        _T("  \"terminal\": \"CMD\"\n")
         _T("}\n")
         _T("```\n\n")
         _T("命令格式规则：\n")
+        _T("- command 字段严禁包含 shell 启动器或 -Command/-c 包装，例如不要写 \"powershell Get-Process\"、")
+        _T("\"cmd /c dir\"、\"wsl.exe ls\"、\"bash -c git status\"；终端类型由 terminal 字段决定。\n")
+        _T("- 命令参数、管道、重定向和引号必须完整保留，不要简化或丢失参数。\n")
+        _T("- PowerShell 命令必须配 terminal: \"PowerShell\"，不要配成 CMD。\n")
         _T("- 控制台程序、交互程序、可执行文件（.exe/.bat/.cmd/.ps1 等）直接给出命令或带引号的完整路径，不要使用 start，因为程序会在终端 tab 中运行并支持输入输出。\n")
         _T("- 打开文件、文件夹、网址、媒体文件（mp3/mp4/文档/URL 等）使用 start \"\" \"路径\"，由系统默认程序打开。\n")
-        _T("- 需要用户输入的控制台程序绝对不要用 start，否则输入输出无法回传。\n\n")
+        _T("- 需要用户输入的控制台程序绝对不要用 start，否则输入输出无法回传。\n")
+        _T("- 含空格的路径使用双引号包住；路径中的反斜杠按 Windows 风格保留。\n\n")
         _T("命令执行结果反馈：\n")
         _T("- 命令执行后，stdout/stderr 输出会被捕获并在 WebBrowser 中显示\n")
         _T("- 输出内容包括：命令的标准输出、标准错误输出、退出代码\n")
@@ -1296,7 +1352,7 @@ CString CAIAssistantDlg::BuildSystemPrompt()
         _T("   - 系统托盘：双击图标恢复窗口；右键菜单\"显示窗口\"或\"退出\"\n\n")
         _T("=== 终端 ===\n\n")
         _T("   - AI 助手右侧面板内置 ConPTY 终端，支持多个终端会话\n")
-        _T("   - 窄窗口使用终端切换器，宽窗口使用标签栏；Ctrl+Tab/滚轮切换，中键关闭，右键可新建或关闭\n")
+        _T("   - 终端会话使用横向标签栏；Ctrl+Tab/滚轮切换，中键关闭，右键可新建或关闭\n")
         _T("   - AI 执行命令时会自动打开一个新终端 tab，命令在真实终端中运行，可交互输入输出\n")
         _T("   - 命令结束后结果会回传到 AI 对话\n\n")
         _T("=== 快捷键 ===\n\n")
@@ -1339,6 +1395,13 @@ CString CAIAssistantDlg::BuildAiHtmlPage(const CString& bodyContent)
         _T("code{background:#2d2d2d;padding:1px 4px;border-radius:3px;font-family:Consolas,monospace;}")
         _T("pre{background:#2d2d2d;padding:8px;border-radius:4px;overflow-x:auto;}")
         _T("pre code{background:none;padding:0;}")
+        _T(".code-block{margin:8px 0;}")
+        _T(".code-header{display:flex;justify-content:space-between;align-items:center;gap:8px;")
+        _T("padding:4px 8px;background:#333;border-radius:4px 4px 0 0;font-size:13px;color:#888;}")
+        _T(".code-header + pre{margin:0;border-radius:0 0 4px 4px;}")
+        _T(".copy-code-btn{background:#3a3a3a;color:#d4d4d4;border:1px solid #555;border-radius:4px;")
+        _T("padding:2px 8px;font-size:13px;cursor:pointer;}")
+        _T(".copy-code-btn:hover{background:#444;}")
         _T("a{color:#569cd6;}")
         _T("h1,h2,h3{color:#dcdcaa;margin:8px 0 4px;}")
         _T("table{border-collapse:collapse;}")
@@ -1354,6 +1417,7 @@ CString CAIAssistantDlg::BuildAiHtmlPage(const CString& bodyContent)
         _T(".action-risk.level-low{color:#2da44e;}")
         _T(".action-risk.level-medium{color:#d4a72c;}")
         _T(".action-risk.level-high{color:#cf222e;}")
+        _T(".action-terminal{font-size:14px;color:#9cdcfe;margin-bottom:6px;}")
         _T(".action-btn{background:#2da44e;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:16px;cursor:pointer;margin-bottom:6px;}")
         _T(".action-btn:hover{background:#218838;}")
         _T(".action-card.action-level-high .action-btn{background:#cf222e;}")
@@ -1366,6 +1430,18 @@ CString CAIAssistantDlg::BuildAiHtmlPage(const CString& bodyContent)
         _T("var data=btn.getAttribute('data-cmd');")
         _T("if(!data)return;")
         _T("location.href='http://127.0.0.1:1/exec/'+encodeURIComponent(data);")
+        _T("}")
+        _T("function copyText(t){")
+        _T("if(window.clipboardData&&window.clipboardData.setData){window.clipboardData.setData('Text',t);return true;}")
+        _T("var ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';")
+        _T("document.body.appendChild(ta);ta.select();")
+        _T("try{return document.execCommand('copy');}catch(e){return false;}finally{document.body.removeChild(ta);}")
+        _T("}")
+        _T("function copyCode(btn){")
+        _T("var block=btn.parentNode.parentNode;var pre=block.querySelector('pre');")
+        _T("var text=pre?pre.innerText:'';")
+        _T("if(copyText(text)){var old=btn.textContent;btn.textContent=btn.getAttribute('data-copied')||'已复制';")
+        _T("setTimeout(function(){btn.textContent=old;},1200);}")
         _T("}")
         _T("</script></head><body>") + bodyContent + _T("</body></html>");
 }
@@ -1881,7 +1957,7 @@ LRESULT CAIAssistantDlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam)
     CString json = pJsonStr;
     free(pJsonStr);
 
-    CString command, purpose, risk;
+    CString command, purpose, risk, terminal;
     try
     {
         std::string s = (LPCSTR)CT2A(json, CP_UTF8);
@@ -1889,6 +1965,8 @@ LRESULT CAIAssistantDlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam)
         command = CString(CA2T(j["command"].get<std::string>().c_str(), CP_UTF8));
         purpose = CString(CA2T(j["purpose"].get<std::string>().c_str(), CP_UTF8));
         risk = CString(CA2T(j["risk"].get<std::string>().c_str(), CP_UTF8));
+        if (j.contains("terminal") && j["terminal"].is_string())
+            terminal = CString(CA2T(j["terminal"].get<std::string>().c_str(), CP_UTF8));
     }
     catch (const nlohmann::json::parse_error&)
     {
@@ -1965,7 +2043,7 @@ LRESULT CAIAssistantDlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam)
         return 0;
     }
 
-    AddAiCommandTab(command);
+    AddAiCommandTab(command, terminal);
     return 0;
 }
 
@@ -2096,7 +2174,7 @@ void CAIAssistantDlg::FinishAiCommand(CTerminalSession* session)
     }
 }
 
-void CAIAssistantDlg::AddAiCommandTab(const CString& command)
+void CAIAssistantDlg::AddAiCommandTab(const CString& command, const CString& terminal)
 {
     CString cmdTrimmed = command;
     cmdTrimmed.Trim();
@@ -2120,15 +2198,23 @@ void CAIAssistantDlg::AddAiCommandTab(const CString& command)
             cmdTrimmed = command;
     }
 
-    bool bPowerShell = (cmdTrimmed.Find(_T("powershell ")) == 0 ||
-        cmdTrimmed.Find(_T("PowerShell ")) == 0);
-    CString shellName = bPowerShell ? _T("PowerShell") : _T("CMD");
-
-    CString cmdLine;
-    if (bPowerShell)
-        cmdLine = _T("powershell.exe -NoLogo -Command \"") + cmdTrimmed + _T("\"");
-    else
-        cmdLine = _T("cmd.exe /c ") + cmdTrimmed;
+    CString shellName = CTerminalView::NormalizeShellName(terminal);
+    if (shellName.IsEmpty())
+    {
+        if (cmdTrimmed.Left(14).CompareNoCase(_T("powershell.exe ")) == 0 ||
+            cmdTrimmed.Left(11).CompareNoCase(_T("powershell ")) == 0 ||
+            cmdTrimmed.Left(5).CompareNoCase(_T("pwsh ")) == 0)
+            shellName = _T("PowerShell");
+        else if (cmdTrimmed.Left(8).CompareNoCase(_T("wsl.exe ")) == 0 ||
+            cmdTrimmed.Left(4).CompareNoCase(_T("wsl ")) == 0)
+            shellName = _T("WSL");
+        else if (cmdTrimmed.Left(9).CompareNoCase(_T("bash.exe ")) == 0 ||
+            cmdTrimmed.Left(5).CompareNoCase(_T("bash ")) == 0)
+            shellName = _T("Git Bash");
+        else
+            shellName = _T("CMD");
+    }
+    CString cmdLine = CTerminalView::BuildAiCommandLine(shellName, cmdTrimmed);
 
     AddTerminalTabWithCommand(shellName, cmdLine);
     CTerminalView* view = m_pActiveTerminal;
@@ -2140,8 +2226,8 @@ void CAIAssistantDlg::AddAiCommandTab(const CString& command)
     view->StartAiCapture(id, CString(), CString(), m_hWnd);
 
     CString runningMsg;
-    runningMsg.Format(_T("【命令执行中】\n命令：%s\n\n已在新终端 tab 中运行，可直接在终端里交互。"),
-        command.GetString());
+    runningMsg.Format(_T("【命令执行中】\n命令：%s\n终端：%s\n\n已在新终端 tab 中运行，可直接在终端里交互。"),
+        command.GetString(), shellName.GetString());
     int insertPos = (int)m_aiHistory.size();
     for (int i = (int)m_aiHistory.size() - 1; i >= 0; i--)
     {

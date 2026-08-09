@@ -369,7 +369,7 @@ public:
     afx_msg LRESULT OnAiSessionOutput(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnAiSessionExited(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnAiCaptureDone(WPARAM wParam, LPARAM lParam);
-    void AddAiCommandTab(const CString& command);
+    void AddAiCommandTab(const CString& command, const CString& terminal = CString());
     void FinishAiCommand(CTerminalSession* session);
     afx_msg LRESULT OnQLChanged(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnQLClosed(WPARAM wParam, LPARAM lParam);
