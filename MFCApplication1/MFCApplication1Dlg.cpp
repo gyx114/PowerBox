@@ -1056,6 +1056,11 @@ BOOL CMFCApplication1Dlg::PreTranslateMessage(MSG* pMsg)
                     m_terminalTabs.HandleClick(client);
                     return TRUE;
                 }
+                if (pMsg->message == WM_LBUTTONDBLCLK)
+                {
+                    m_terminalTabs.HandleDoubleClick(client);
+                    return TRUE;
+                }
                 if (pMsg->message == WM_RBUTTONUP)
                 {
                     m_terminalTabs.HandleRightClick(client);
@@ -1106,14 +1111,18 @@ BOOL CMFCApplication1Dlg::PreTranslateMessage(MSG* pMsg)
         return TRUE;
     }
 
-    // Ctrl+Tab / Ctrl+PageUp / Ctrl+PageDown cycle terminal sessions.
+    // Ctrl+Tab / Ctrl+PageUp / Ctrl+PageDown cycle terminal sessions
+    // while the AI assistant page is active, not only when the terminal
+    // itself has keyboard focus.
     if (pMsg->message == WM_KEYDOWN && m_pActiveTerminal &&
         m_pActiveTerminal->m_hWnd &&
-        pMsg->hwnd == m_pActiveTerminal->m_hWnd &&
+        m_terminalTabs.GetTabCount() > 1 &&
         (GetKeyState(VK_CONTROL) & 0x8000))
     {
-        if (pMsg->wParam == VK_TAB || pMsg->wParam == VK_PRIOR ||
-            pMsg->wParam == VK_NEXT)
+        CTabCtrl* pQuickTab = static_cast<CTabCtrl*>(GetDlgItem(IDC_TAB_QUICK));
+        if (pQuickTab && pQuickTab->GetCurSel() == 0 &&
+            (pMsg->wParam == VK_TAB || pMsg->wParam == VK_PRIOR ||
+             pMsg->wParam == VK_NEXT))
         {
             int count = static_cast<int>(m_terminalTabsList.size());
             if (count > 1)

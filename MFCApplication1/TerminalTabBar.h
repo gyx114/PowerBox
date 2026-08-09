@@ -23,6 +23,7 @@ public:
     void HandleClick(CPoint clientPt);
     void HandleMiddleClick(CPoint clientPt);
     void HandleRightClick(CPoint clientPt);
+    void HandleDoubleClick(CPoint clientPt);
     void HandleWheel(short zDelta);
     void Relayout();
 
@@ -30,6 +31,7 @@ protected:
     afx_msg void OnPaint();
     afx_msg BOOL OnEraseBkgnd(CDC* pDC);
     afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
+    afx_msg void OnLButtonDblClk(UINT nFlags, CPoint point);
     afx_msg void OnRButtonUp(UINT nFlags, CPoint point);
     afx_msg void OnMouseMove(UINT nFlags, CPoint point);
     afx_msg void OnMouseLeave();
@@ -45,6 +47,7 @@ private:
     CRect m_rcClose;
     int m_active = -1;
     int m_hover = -1;
+    int m_firstVisible = 0;
     int m_visibleCount = 0;
     CRect m_rcPlus;
     CRect m_rcOverflow;

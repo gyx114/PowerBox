@@ -10,6 +10,7 @@ BEGIN_MESSAGE_MAP(CTerminalTabBar, CWnd)
     ON_WM_PAINT()
     ON_WM_ERASEBKGND()
     ON_WM_LBUTTONDOWN()
+    ON_WM_LBUTTONDBLCLK()
     ON_WM_RBUTTONUP()
     ON_WM_MOUSEMOVE()
     ON_WM_MOUSELEAVE()
@@ -60,6 +61,7 @@ void CTerminalTabBar::RemoveTab(int index)
 void CTerminalTabBar::SetActive(int index)
 {
     m_active = index;
+    Layout();
     Invalidate(FALSE);
 }
 
@@ -116,14 +118,14 @@ void CTerminalTabBar::Layout()
     int h = std::max(12, rc.Height() - 4);
     m_tabH = h;
 
-    // The main window's AI pane is narrow; use a compact switcher there.
-    // Standalone AI windows are wide enough for a regular tab strip.
+    // The main window's AI pane should still use a real horizontal tab strip.
+    // Compact mode is only an extreme-narrow fallback for very small panels.
     CClientDC dc(this);
     int dpiX = dc.GetDeviceCaps(LOGPIXELSX);
     if (dpiX <= 0)
         dpiX = 96;
     m_dpiX = dpiX;
-    m_compact = MulDiv(rc.Width(), 96, dpiX) < 520;
+    m_compact = MulDiv(rc.Width(), 96, dpiX) < 220;
     int minTabW = MulDiv(m_minTabW, dpiX, 96);
     int maxTabW = MulDiv(m_maxTabW, dpiX, 96);
     minTabW = std::max(80, minTabW);
@@ -131,6 +133,7 @@ void CTerminalTabBar::Layout()
 
     if (m_compact)
     {
+        m_firstVisible = 0;
         int btnW = std::max(20, MulDiv(22, dpiX, 96));
         m_rcPlus = CRect(rc.right - btnW - 2, top, rc.right - 2, top + h);
         if (static_cast<int>(m_titles.size()) > 1)
@@ -143,13 +146,16 @@ void CTerminalTabBar::Layout()
 
     int btnW = std::max(20, MulDiv(22, dpiX, 96));
     int count = static_cast<int>(m_titles.size());
-    int availNoOverflow = std::max(0, rc.Width() - btnW - 6);
-    int avail = availNoOverflow;
-    m_visibleCount = std::min(count, avail / minTabW);
-    if (m_visibleCount < count)
+    int avail = std::max(0, rc.Width() - btnW - 6);
+    int overflowW = 0;
+    m_visibleCount = count;
+
+    if (count > 0 && avail / minTabW < count)
     {
-        avail = std::max(0, availNoOverflow - btnW - 2);
+        overflowW = btnW + 2;
+        avail = std::max(0, avail - overflowW);
         m_visibleCount = std::min(count, avail / minTabW);
+        m_visibleCount = std::max(1, m_visibleCount);
     }
 
     int tabW = minTabW;
@@ -158,6 +164,17 @@ void CTerminalTabBar::Layout()
         tabW = std::clamp(avail / m_visibleCount, minTabW, maxTabW);
     }
     m_tabW = tabW;
+
+    if (m_active >= 0 && m_active < count && m_visibleCount > 0)
+    {
+        int start = m_active - (m_visibleCount - 1) / 2;
+        start = std::clamp(start, 0, std::max(0, count - m_visibleCount));
+        m_firstVisible = start;
+    }
+    else
+    {
+        m_firstVisible = 0;
+    }
 
     int x = 2;
     for (int i = 0; i < m_visibleCount; i++)
@@ -168,7 +185,8 @@ void CTerminalTabBar::Layout()
 
     int buttonX = x + 2;
     m_rcPlus = CRect(buttonX, top, buttonX + btnW, top + h);
-    if (m_visibleCount < count)
+    if (m_visibleCount < count ||
+        (m_visibleCount > 0 && m_firstVisible > 0))
     {
         m_rcOverflow = CRect(m_rcPlus.right + 2, top,
             m_rcPlus.right + 2 + btnW, top + h);
@@ -186,7 +204,7 @@ int CTerminalTabBar::HitTest(CPoint pt) const
     for (int i = 0; i < static_cast<int>(m_rcTabs.size()); i++)
     {
         if (m_rcTabs[i].PtInRect(pt))
-            return i;
+            return m_firstVisible + i;
     }
     return -3;
 }
@@ -354,24 +372,27 @@ void CTerminalTabBar::OnPaint()
     }
     else
     {
-        int stripRight = m_rcOverflow.IsRectEmpty() ? m_rcPlus.right : m_rcOverflow.right;
-        memDC.FillSolidRect(CRect(0, 0, stripRight, rc.Height()), RGB(16, 16, 16));
+        memDC.FillSolidRect(rc, RGB(16, 16, 16));
 
         for (int i = 0; i < static_cast<int>(m_rcTabs.size()); i++)
         {
             const CRect& tab = m_rcTabs[i];
-            bool active = (i == m_active);
-            bool hover = (i == m_hover);
+            int titleIndex = m_firstVisible + i;
+            bool active = (titleIndex == m_active);
+            bool hover = (titleIndex == m_hover);
             COLORREF bg = active ? RGB(34, 34, 34) : (hover ? RGB(27, 27, 27) : RGB(20, 20, 20));
             memDC.FillSolidRect(tab, bg);
             if (active)
                 memDC.FillSolidRect(tab.left, tab.top, tab.Width(), 2, RGB(0, 122, 204));
+            if (i > 0)
+                memDC.FillSolidRect(tab.left, tab.top + 4, 1, tab.Height() - 8, RGB(55, 55, 55));
 
             int closePadRight = std::max(16, MulDiv(16, dpiX, 96));
             memDC.SetTextColor(active ? RGB(255, 255, 255) : RGB(170, 170, 170));
             CRect textRect = tab;
             textRect.DeflateRect(6, 1, closePadRight, 1);
-            memDC.DrawText(m_titles[i], textRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+            memDC.DrawText(m_titles[titleIndex], textRect,
+                DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
 
             if (active || hover)
             {
@@ -399,11 +420,15 @@ void CTerminalTabBar::HandleClick(CPoint point)
     int hit = HitTest(point);
     if (hit >= 0)
     {
-        int closePadRight = std::max(16, MulDiv(16, m_dpiX, 96));
-        if (point.x >= m_rcTabs[hit].right - closePadRight)
-            Notify(WM_TERM_TAB_CLOSE, static_cast<WPARAM>(hit));
-        else
-            Notify(WM_TERM_TAB_SELECT, static_cast<WPARAM>(hit));
+        int rectIndex = hit - m_firstVisible;
+        if (rectIndex >= 0 && rectIndex < static_cast<int>(m_rcTabs.size()))
+        {
+            int closePadRight = std::max(16, MulDiv(16, m_dpiX, 96));
+            if (point.x >= m_rcTabs[rectIndex].right - closePadRight)
+                Notify(WM_TERM_TAB_CLOSE, static_cast<WPARAM>(hit));
+            else
+                Notify(WM_TERM_TAB_SELECT, static_cast<WPARAM>(hit));
+        }
     }
     else if (hit == -1)
     {
@@ -442,6 +467,12 @@ void CTerminalTabBar::HandleRightClick(CPoint point)
     ShowContextMenu(pt, closeIndex);
 }
 
+void CTerminalTabBar::HandleDoubleClick(CPoint point)
+{
+    if (HitTest(point) == -3)
+        Notify(WM_TERM_TAB_NEW, 0);
+}
+
 void CTerminalTabBar::HandleWheel(short zDelta)
 {
     int count = static_cast<int>(m_titles.size());
@@ -470,6 +501,11 @@ void CTerminalTabBar::OnMButtonUp(UINT, CPoint point)
 void CTerminalTabBar::OnLButtonDown(UINT, CPoint point)
 {
     HandleClick(point);
+}
+
+void CTerminalTabBar::OnLButtonDblClk(UINT, CPoint point)
+{
+    HandleDoubleClick(point);
 }
 
 void CTerminalTabBar::OnRButtonUp(UINT, CPoint point)
@@ -502,6 +538,9 @@ void CTerminalTabBar::ShowOverflowMenu(CPoint screenPt)
     const int baseId = 2000;
     for (int i = 0; i < static_cast<int>(m_titles.size()); i++)
     {
+        if (i >= m_firstVisible && i < m_firstVisible + m_visibleCount)
+            continue;
+
         UINT flags = MF_STRING;
         if (i == m_active)
             flags |= MF_CHECKED;
