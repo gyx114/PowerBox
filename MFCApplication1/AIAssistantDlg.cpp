@@ -487,9 +487,20 @@ void CAIAssistantDlg::OnSize(UINT nType, int cx, int cy)
         m_terminalTabs.Relayout();
     }
 
-    CWnd* pTermView = GetDlgItem(IDC_TERMINAL_VIEW);
-    if (pTermView)
-        pTermView->MoveWindow(margin, termViewTop, cx - margin * 2, termViewH);
+    CRect rcView(margin, termViewTop, cx - margin, termViewTop + termViewH);
+    for (CTerminalView* v : m_terminalTabsList)
+    {
+        if (v && v->m_hWnd)
+            v->MoveWindow(rcView);
+    }
+    if (m_pActiveTerminal && m_pActiveTerminal->m_hWnd)
+    {
+        for (CTerminalView* v : m_terminalTabsList)
+        {
+            if (v && v->m_hWnd)
+                v->ShowWindow(v == m_pActiveTerminal ? SW_SHOW : SW_HIDE);
+        }
+    }
 }
 
 void CAIAssistantDlg::CaptureInitialLayout()
@@ -2112,6 +2123,10 @@ void CAIAssistantDlg::ActivateTerminalTab(int index)
 
     if (m_pActiveTerminal)
     {
+        m_pActiveTerminal->SetWindowPos(&wndTop, 0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+        m_pActiveTerminal->Invalidate(TRUE);
+        m_pActiveTerminal->RedrawWindow();
         m_pActiveTerminal->SetFocus();
 
         CString shell = m_pActiveTerminal->GetShellName();
@@ -2155,6 +2170,9 @@ void CAIAssistantDlg::AddTerminalTab(const CString& shellName)
     if (m_terminalTabs.m_hWnd)
         m_terminalTabs.AddTab(shellName);
     ActivateTerminalTab(idx);
+    CRect rcClient;
+    GetClientRect(&rcClient);
+    OnSize(SIZE_RESTORED, rcClient.Width(), rcClient.Height());
 }
 
 void CAIAssistantDlg::AddTerminalTabWithCommand(const CString& shellName,
@@ -2182,6 +2200,9 @@ void CAIAssistantDlg::AddTerminalTabWithCommand(const CString& shellName,
     if (m_terminalTabs.m_hWnd)
         m_terminalTabs.AddTab(shellName);
     ActivateTerminalTab(idx);
+    CRect rcClient;
+    GetClientRect(&rcClient);
+    OnSize(SIZE_RESTORED, rcClient.Width(), rcClient.Height());
 }
 
 void CAIAssistantDlg::CloseTerminalTab(int index)

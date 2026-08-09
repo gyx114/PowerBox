@@ -145,13 +145,26 @@ void CMFCApplication1Dlg::LayoutAiTabControls()
         m_terminalTabs.Relayout();
     }
 
-    CWnd* pView = GetDlgItem(IDC_TERMINAL_VIEW);
-    if (pView)
-        pView->MoveWindow(left, termViewTop, right - left, termH);
+    // All terminal tabs share the same panel rect; move every view so the
+    // active one never stays at a stale position.
+    CRect rcView(left, termViewTop, right, termViewTop + termH);
+    for (CTerminalView* v : m_terminalTabsList)
+    {
+        if (v && v->m_hWnd)
+            v->MoveWindow(rcView);
+    }
+
+    if (m_pActiveTerminal && m_pActiveTerminal->m_hWnd)
+    {
+        for (CTerminalView* v : m_terminalTabsList)
+        {
+            if (v && v->m_hWnd)
+                v->ShowWindow(v == m_pActiveTerminal ? SW_SHOW : SW_HIDE);
+        }
+    }
 
     // Give the interactive AI-tab controls top z-order so nothing covers them.
     UINT topIds[] = {
-        IDC_TERMINAL_VIEW,
         IDC_TERMINAL_SPLITTER,
         IDC_TERMINAL_LABEL,
         IDC_TERMINAL_SHELL,
@@ -172,6 +185,11 @@ void CMFCApplication1Dlg::LayoutAiTabControls()
             w->SetWindowPos(&wndTop, 0, 0, 0, 0,
                 SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
         }
+    }
+    if (m_pActiveTerminal && m_pActiveTerminal->m_hWnd)
+    {
+        m_pActiveTerminal->SetWindowPos(&wndTop, 0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
     }
     if (m_terminalTabs.m_hWnd)
     {
@@ -229,6 +247,10 @@ void CMFCApplication1Dlg::ActivateTerminalTab(int index)
 
     if (m_pActiveTerminal)
     {
+        m_pActiveTerminal->SetWindowPos(&wndTop, 0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+        m_pActiveTerminal->Invalidate(TRUE);
+        m_pActiveTerminal->RedrawWindow();
         m_pActiveTerminal->SetFocus();
 
         CString shell = m_pActiveTerminal->GetShellName();
@@ -272,6 +294,7 @@ void CMFCApplication1Dlg::AddTerminalTab(const CString& shellName)
     if (m_terminalTabs.m_hWnd)
         m_terminalTabs.AddTab(shellName);
     ActivateTerminalTab(idx);
+    LayoutAiTabControls();
 }
 
 void CMFCApplication1Dlg::AddTerminalTabWithCommand(const CString& shellName,
@@ -299,6 +322,7 @@ void CMFCApplication1Dlg::AddTerminalTabWithCommand(const CString& shellName,
     if (m_terminalTabs.m_hWnd)
         m_terminalTabs.AddTab(shellName);
     ActivateTerminalTab(idx);
+    LayoutAiTabControls();
 }
 
 void CMFCApplication1Dlg::CloseTerminalTab(int index)
