@@ -1,4 +1,4 @@
-// TerminalTabBar.cpp: flat custom tab strip for terminal sessions
+// TerminalTabBar.cpp: adaptive session switcher for terminal views
 #include "pch.h"
 #include "framework.h"
 #include "TerminalTabBar.h"
@@ -13,6 +13,8 @@ BEGIN_MESSAGE_MAP(CTerminalTabBar, CWnd)
     ON_WM_RBUTTONUP()
     ON_WM_MOUSEMOVE()
     ON_WM_MOUSELEAVE()
+    ON_WM_MOUSEWHEEL()
+    ON_WM_MBUTTONUP()
 END_MESSAGE_MAP()
 
 BOOL CTerminalTabBar::AttachToPlaceholder(UINT nID, CWnd* pParent)
@@ -37,7 +39,7 @@ BOOL CTerminalTabBar::AttachToPlaceholder(UINT nID, CWnd* pParent)
 
 void CTerminalTabBar::AddTab(const CString& title)
 {
-    m_titles.push_back(title);
+    m_titles.push_back(MakeUniqueTitle(title));
     Layout();
     Invalidate(FALSE);
 }
@@ -65,8 +67,33 @@ void CTerminalTabBar::SetTabTitle(int index, const CString& title)
 {
     if (index < 0 || index >= static_cast<int>(m_titles.size()))
         return;
-    m_titles[index] = title;
+    m_titles[index] = MakeUniqueTitle(title, index);
     Invalidate(FALSE);
+}
+
+CString CTerminalTabBar::MakeUniqueTitle(const CString& base, int ignoreIndex) const
+{
+    CString prefix = base;
+    if (prefix.IsEmpty())
+        prefix = _T("Terminal");
+    CString display = prefix;
+
+    int suffix = 1;
+    auto exists = [&](const CString& candidate) {
+        for (int i = 0; i < static_cast<int>(m_titles.size()); i++)
+        {
+            if (i != ignoreIndex && m_titles[i] == candidate)
+                return true;
+        }
+        return false;
+    };
+
+    while (exists(display))
+    {
+        suffix++;
+        display.Format(_T("%s %d"), prefix, suffix);
+    }
+    return display;
 }
 
 void CTerminalTabBar::Relayout()
@@ -80,21 +107,57 @@ void CTerminalTabBar::Layout()
     CRect rc;
     GetClientRect(&rc);
     m_rcTabs.clear();
+    m_rcSwitcher = CRect(0, 0, 0, 0);
+    m_rcClose = CRect(0, 0, 0, 0);
     m_rcPlus = CRect(0, 0, 0, 0);
     m_rcOverflow = CRect(0, 0, 0, 0);
 
     int top = 2;
-    int h = std::max(14, rc.Height() - 4);
+    int h = std::max(12, rc.Height() - 4);
     m_tabH = h;
 
-    int avail = std::max(0, rc.Width() - 44);
-    int canFit = 0;
-    while (canFit < static_cast<int>(m_titles.size()) &&
-        (canFit + 1) * m_tabW <= avail)
+    // The main window's AI pane is narrow; use a compact switcher there.
+    // Standalone AI windows are wide enough for a regular tab strip.
+    CClientDC dc(this);
+    int dpiX = dc.GetDeviceCaps(LOGPIXELSX);
+    if (dpiX <= 0)
+        dpiX = 96;
+    m_dpiX = dpiX;
+    m_compact = MulDiv(rc.Width(), 96, dpiX) < 520;
+    int minTabW = MulDiv(m_minTabW, dpiX, 96);
+    int maxTabW = MulDiv(m_maxTabW, dpiX, 96);
+    minTabW = std::max(80, minTabW);
+    maxTabW = std::max(minTabW, maxTabW);
+
+    if (m_compact)
     {
-        canFit++;
+        int btnW = std::max(20, MulDiv(22, dpiX, 96));
+        m_rcPlus = CRect(rc.right - btnW - 2, top, rc.right - 2, top + h);
+        if (static_cast<int>(m_titles.size()) > 1)
+            m_rcClose = CRect(m_rcPlus.left - btnW - 2, top, m_rcPlus.left - 2, top + h);
+        int switcherRight = m_rcClose.IsRectEmpty() ? m_rcPlus.left : m_rcClose.left;
+        m_rcSwitcher = CRect(2, top, switcherRight - 2, top + h);
+        m_visibleCount = 0;
+        return;
     }
-    m_visibleCount = canFit;
+
+    int btnW = std::max(20, MulDiv(22, dpiX, 96));
+    int count = static_cast<int>(m_titles.size());
+    int availNoOverflow = std::max(0, rc.Width() - btnW - 6);
+    int avail = availNoOverflow;
+    m_visibleCount = std::min(count, avail / minTabW);
+    if (m_visibleCount < count)
+    {
+        avail = std::max(0, availNoOverflow - btnW - 2);
+        m_visibleCount = std::min(count, avail / minTabW);
+    }
+
+    int tabW = minTabW;
+    if (m_visibleCount > 0)
+    {
+        tabW = std::clamp(avail / m_visibleCount, minTabW, maxTabW);
+    }
+    m_tabW = tabW;
 
     int x = 2;
     for (int i = 0; i < m_visibleCount; i++)
@@ -102,11 +165,13 @@ void CTerminalTabBar::Layout()
         m_rcTabs.push_back(CRect(x, top, x + m_tabW, top + h));
         x += m_tabW;
     }
-    m_rcPlus = CRect(x + 2, top, x + 2 + 18, top + h);
-    if (m_visibleCount < static_cast<int>(m_titles.size()))
+
+    int buttonX = x + 2;
+    m_rcPlus = CRect(buttonX, top, buttonX + btnW, top + h);
+    if (m_visibleCount < count)
     {
-        int ox = m_rcPlus.right + 2;
-        m_rcOverflow = CRect(ox, top, ox + 18, top + h);
+        m_rcOverflow = CRect(m_rcPlus.right + 2, top,
+            m_rcPlus.right + 2 + btnW, top + h);
     }
 }
 
@@ -114,7 +179,9 @@ int CTerminalTabBar::HitTest(CPoint pt) const
 {
     if (m_rcPlus.PtInRect(pt))
         return -1;
-    if (m_rcOverflow.PtInRect(pt))
+    if (m_rcClose.PtInRect(pt))
+        return -4;
+    if (m_rcSwitcher.PtInRect(pt) || m_rcOverflow.PtInRect(pt))
         return -2;
     for (int i = 0; i < static_cast<int>(m_rcTabs.size()); i++)
     {
@@ -144,52 +211,183 @@ void CTerminalTabBar::OnPaint()
     if (rc.Width() <= 0 || rc.Height() <= 0)
         return;
 
+    int dpiX = m_dpiX;
+    if (dpiX <= 0)
+        dpiX = 96;
+
     CDC memDC;
     memDC.CreateCompatibleDC(&dc);
     CBitmap memBmp;
     memBmp.CreateCompatibleBitmap(&dc, rc.Width(), rc.Height());
     CBitmap* pOld = memDC.SelectObject(&memBmp);
 
-    memDC.FillSolidRect(rc, RGB(16, 16, 16));
+    memDC.FillSolidRect(rc, ::GetSysColor(COLOR_BTNFACE));
     CFont* pOldFont = memDC.SelectObject(&m_font);
     memDC.SetBkMode(TRANSPARENT);
 
-    for (int i = 0; i < static_cast<int>(m_rcTabs.size()); i++)
-    {
-        const CRect& tab = m_rcTabs[i];
-        bool active = (i == m_active);
-        bool hover = (i == m_hover);
-        COLORREF bg = active ? RGB(48, 48, 48) : (hover ? RGB(36, 36, 36) : RGB(24, 24, 24));
-        memDC.FillSolidRect(tab, bg);
-
-        RECT rcBorder = tab;
-        ::DrawEdge(memDC.GetSafeHdc(), &rcBorder, EDGE_ETCHED, BF_RECT);
-
-        memDC.SetTextColor(active ? RGB(255, 255, 255) : RGB(190, 190, 190));
-        CRect textRect = tab;
-        textRect.DeflateRect(4, 1, 16, 1);
-        memDC.DrawText(m_titles[i], textRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-
-        // Close button
-        CRect closeRect(tab.right - 14, tab.top + 3, tab.right - 3, tab.bottom - 3);
-        if (active || hover)
-        {
-            memDC.SetTextColor(RGB(220, 220, 220));
-            memDC.DrawText(_T("x"), closeRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        }
-    }
-
-    auto drawSmallButton = [&](const CRect& r, LPCTSTR text, bool hover) {
-        RECT rc = r;
-        memDC.FillSolidRect(r, hover ? RGB(40, 40, 40) : RGB(24, 24, 24));
-        ::DrawEdge(memDC.GetSafeHdc(), &rc, EDGE_ETCHED, BF_RECT);
-        memDC.SetTextColor(RGB(210, 210, 210));
-        memDC.DrawText(text, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    auto drawPlus = [&](const CRect& r, bool hover) {
+        COLORREF bg = hover ? RGB(40, 40, 40) : RGB(24, 24, 24);
+        memDC.FillSolidRect(r, bg);
+        COLORREF fg = RGB(220, 220, 220);
+        int cx = r.CenterPoint().x;
+        int cy = r.CenterPoint().y;
+        int s = std::max(4, MulDiv(5, dpiX, 96));
+        int t = std::max(2, MulDiv(2, dpiX, 96));
+        s = std::min(s, std::min(r.Width(), r.Height()) / 2);
+        memDC.FillSolidRect(cx - s, cy - t / 2, s * 2, t, fg);
+        memDC.FillSolidRect(cx - t / 2, cy - s, t, s * 2, fg);
     };
 
-    drawSmallButton(m_rcPlus, _T("+"), m_hover == -1);
-    if (!m_rcOverflow.IsRectEmpty())
-        drawSmallButton(m_rcOverflow, _T("v"), m_hover == -2);
+    auto drawChevron = [&](const CRect& r) {
+        int cx = r.CenterPoint().x;
+        int cy = r.CenterPoint().y;
+        int w = std::max(4, MulDiv(5, dpiX, 96));
+        int h = std::max(3, MulDiv(4, dpiX, 96));
+        POINT pts[3] = {
+            { cx - w, cy - h / 2 },
+            { cx + w, cy - h / 2 },
+            { cx, cy + h / 2 }
+        };
+        CBrush brush(RGB(210, 210, 210));
+        CBrush* pOldBrush = memDC.SelectObject(&brush);
+        CGdiObject* pOldPen = memDC.SelectStockObject(NULL_PEN);
+        memDC.Polygon(pts, 3);
+        memDC.SelectObject(pOldBrush);
+        memDC.SelectObject(pOldPen);
+    };
+
+    auto drawOverflow = [&](const CRect& r, bool hover) {
+        memDC.FillSolidRect(r, hover ? RGB(40, 40, 40) : RGB(24, 24, 24));
+        int cx = r.CenterPoint().x;
+        int cy = r.CenterPoint().y;
+        int dot = std::max(2, MulDiv(2, dpiX, 96));
+        int gap = std::max(3, MulDiv(3, dpiX, 96));
+        CBrush brush(RGB(210, 210, 210));
+        CBrush* pOldBrush = memDC.SelectObject(&brush);
+        CGdiObject* pOldPen = memDC.SelectStockObject(NULL_PEN);
+        memDC.Ellipse(cx - gap - dot, cy - dot, cx - gap + dot, cy + dot);
+        memDC.Ellipse(cx - dot, cy - dot, cx + dot, cy + dot);
+        memDC.Ellipse(cx + gap - dot, cy - dot, cx + gap + dot, cy + dot);
+        memDC.SelectObject(pOldBrush);
+        memDC.SelectObject(pOldPen);
+    };
+
+    auto drawClose = [&](const CRect& r) {
+        int cx = r.CenterPoint().x;
+        int cy = r.CenterPoint().y;
+        int s = std::max(3, MulDiv(4, dpiX, 96));
+        int line = std::max(1, MulDiv(2, dpiX, 96));
+        s = std::min(s, std::min(r.Width(), r.Height()) / 2);
+        CPen pen(PS_SOLID, line, RGB(235, 235, 235));
+        CPen* pOldPen = memDC.SelectObject(&pen);
+        memDC.MoveTo(cx - s, cy - s);
+        memDC.LineTo(cx + s, cy + s);
+        memDC.MoveTo(cx + s, cy - s);
+        memDC.LineTo(cx - s, cy + s);
+        memDC.SelectObject(pOldPen);
+    };
+
+    auto drawCloseBadge = [&](const CRect& r, bool hover) {
+        CRect circle = r;
+        circle.DeflateRect(2, 2);
+        CBrush brush(hover ? RGB(195, 62, 62) : RGB(165, 52, 52));
+        CBrush* pOldBrush = memDC.SelectObject(&brush);
+        CGdiObject* pOldPen = memDC.SelectStockObject(NULL_PEN);
+        memDC.Ellipse(circle);
+        memDC.SelectObject(pOldBrush);
+        memDC.SelectObject(pOldPen);
+
+        int line = std::max(1, MulDiv(2, dpiX, 96));
+        int s = std::max(3, MulDiv(4, dpiX, 96));
+        s = std::min(s, std::min(r.Width(), r.Height()) / 2);
+        int cx = r.CenterPoint().x;
+        int cy = r.CenterPoint().y;
+
+        CPen pen(PS_SOLID, line, RGB(255, 255, 255));
+        CPen* pOldLinePen = memDC.SelectObject(&pen);
+        memDC.MoveTo(cx - s, cy - s);
+        memDC.LineTo(cx + s, cy + s);
+        memDC.MoveTo(cx + s, cy - s);
+        memDC.LineTo(cx - s, cy + s);
+        memDC.SelectObject(pOldLinePen);
+    };
+
+    if (m_compact)
+    {
+        memDC.FillSolidRect(rc, RGB(16, 16, 16));
+        if (!m_rcSwitcher.IsRectEmpty())
+        {
+            COLORREF bg = (m_hover == -2) ? RGB(32, 32, 32) : RGB(24, 24, 24);
+            memDC.FillSolidRect(m_rcSwitcher, bg);
+            memDC.FillSolidRect(m_rcSwitcher.left, m_rcSwitcher.top, 2,
+                m_rcSwitcher.Height(), RGB(0, 122, 204));
+
+            CString label;
+            int count = static_cast<int>(m_titles.size());
+            if (m_active >= 0 && m_active < count)
+                label = m_titles[m_active];
+            if (count > 1 && m_active >= 0)
+                label.AppendFormat(_T("  [%d/%d]"), m_active + 1, count);
+
+            int chevronW = std::max(16, MulDiv(16, dpiX, 96));
+            CRect textRect = m_rcSwitcher;
+            textRect.DeflateRect(6, 1, chevronW + 2, 1);
+            memDC.SetTextColor(RGB(235, 235, 235));
+            memDC.DrawText(label, textRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+
+            int chevronPad = std::max(4, MulDiv(4, dpiX, 96));
+            CRect chevronRect(m_rcSwitcher.right - chevronW, m_rcSwitcher.top,
+                m_rcSwitcher.right - chevronPad, m_rcSwitcher.bottom);
+            drawChevron(chevronRect);
+        }
+        if (!m_rcClose.IsRectEmpty())
+        {
+            memDC.FillSolidRect(m_rcClose, RGB(16, 16, 16));
+            CRect closeRect = m_rcClose;
+            closeRect.DeflateRect(2, 1, 2, 1);
+            if (m_hover == -4)
+                drawCloseBadge(closeRect, true);
+            else
+                drawClose(closeRect);
+        }
+        drawPlus(m_rcPlus, m_hover == -1);
+    }
+    else
+    {
+        int stripRight = m_rcOverflow.IsRectEmpty() ? m_rcPlus.right : m_rcOverflow.right;
+        memDC.FillSolidRect(CRect(0, 0, stripRight, rc.Height()), RGB(16, 16, 16));
+
+        for (int i = 0; i < static_cast<int>(m_rcTabs.size()); i++)
+        {
+            const CRect& tab = m_rcTabs[i];
+            bool active = (i == m_active);
+            bool hover = (i == m_hover);
+            COLORREF bg = active ? RGB(34, 34, 34) : (hover ? RGB(27, 27, 27) : RGB(20, 20, 20));
+            memDC.FillSolidRect(tab, bg);
+            if (active)
+                memDC.FillSolidRect(tab.left, tab.top, tab.Width(), 2, RGB(0, 122, 204));
+
+            int closePadRight = std::max(16, MulDiv(16, dpiX, 96));
+            memDC.SetTextColor(active ? RGB(255, 255, 255) : RGB(170, 170, 170));
+            CRect textRect = tab;
+            textRect.DeflateRect(6, 1, closePadRight, 1);
+            memDC.DrawText(m_titles[i], textRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+
+            if (active || hover)
+            {
+                int closePadLeft = std::max(3, MulDiv(3, dpiX, 96));
+                int closePadTop = std::max(3, MulDiv(3, dpiX, 96));
+                int closePadBottom = std::max(3, MulDiv(3, dpiX, 96));
+                CRect closeRect(tab.right - closePadRight, tab.top + closePadTop,
+                    tab.right - closePadLeft, tab.bottom - closePadBottom);
+                drawClose(closeRect);
+            }
+        }
+
+        drawPlus(m_rcPlus, m_hover == -1);
+        if (!m_rcOverflow.IsRectEmpty())
+            drawOverflow(m_rcOverflow, m_hover == -2);
+    }
 
     memDC.SelectObject(pOldFont);
     dc.BitBlt(0, 0, rc.Width(), rc.Height(), &memDC, 0, 0, SRCCOPY);
@@ -201,7 +399,8 @@ void CTerminalTabBar::HandleClick(CPoint point)
     int hit = HitTest(point);
     if (hit >= 0)
     {
-        if (point.x >= m_rcTabs[hit].right - 16)
+        int closePadRight = std::max(16, MulDiv(16, m_dpiX, 96));
+        if (point.x >= m_rcTabs[hit].right - closePadRight)
             Notify(WM_TERM_TAB_CLOSE, static_cast<WPARAM>(hit));
         else
             Notify(WM_TERM_TAB_SELECT, static_cast<WPARAM>(hit));
@@ -209,6 +408,10 @@ void CTerminalTabBar::HandleClick(CPoint point)
     else if (hit == -1)
     {
         Notify(WM_TERM_TAB_NEW, 0);
+    }
+    else if (hit == -4 && m_active >= 0)
+    {
+        Notify(WM_TERM_TAB_CLOSE, static_cast<WPARAM>(m_active));
     }
     else if (hit == -2)
     {
@@ -218,12 +421,50 @@ void CTerminalTabBar::HandleClick(CPoint point)
     }
 }
 
+void CTerminalTabBar::HandleMiddleClick(CPoint point)
+{
+    int hit = HitTest(point);
+    if (hit >= 0)
+        Notify(WM_TERM_TAB_CLOSE, static_cast<WPARAM>(hit));
+    else if (m_compact && (hit == -2 || hit == -4) && m_active >= 0)
+        Notify(WM_TERM_TAB_CLOSE, static_cast<WPARAM>(m_active));
+}
+
 void CTerminalTabBar::HandleRightClick(CPoint point)
 {
     int hit = HitTest(point);
     CPoint pt = point;
     ClientToScreen(&pt);
-    ShowContextMenu(pt, hit >= 0 ? hit : -1);
+    int closeIndex = hit;
+    if (hit < 0 && static_cast<int>(m_titles.size()) > 1 &&
+        (m_compact || hit == -2))
+        closeIndex = m_active;
+    ShowContextMenu(pt, closeIndex);
+}
+
+void CTerminalTabBar::HandleWheel(short zDelta)
+{
+    int count = static_cast<int>(m_titles.size());
+    if (count == 0)
+        return;
+
+    // Stop at the first/last session instead of wrapping around.
+    int current = (m_active < 0) ? 0 : m_active;
+    int next = current + ((zDelta < 0) ? 1 : -1);
+    next = std::clamp(next, 0, count - 1);
+    if (next != current)
+        Notify(WM_TERM_TAB_SELECT, static_cast<WPARAM>(next));
+}
+
+BOOL CTerminalTabBar::OnMouseWheel(UINT, short zDelta, CPoint)
+{
+    HandleWheel(zDelta);
+    return TRUE;
+}
+
+void CTerminalTabBar::OnMButtonUp(UINT, CPoint point)
+{
+    HandleMiddleClick(point);
 }
 
 void CTerminalTabBar::OnLButtonDown(UINT, CPoint point)
@@ -266,6 +507,13 @@ void CTerminalTabBar::ShowOverflowMenu(CPoint screenPt)
             flags |= MF_CHECKED;
         menu.AppendMenu(flags, baseId + i, m_titles[i]);
     }
+
+    int count = static_cast<int>(m_titles.size());
+    if (m_active >= 0 && count > 1)
+    {
+        menu.AppendMenu(MF_SEPARATOR);
+        menu.AppendMenu(MF_STRING, 2998, loc.GetString(_T("Terminal"), _T("CloseTab")));
+    }
     menu.AppendMenu(MF_SEPARATOR);
     menu.AppendMenu(MF_STRING, 2999, loc.GetString(_T("Terminal"), _T("New")));
 
@@ -273,6 +521,10 @@ void CTerminalTabBar::ShowOverflowMenu(CPoint screenPt)
     if (cmd == 2999)
     {
         Notify(WM_TERM_TAB_NEW, 0);
+    }
+    else if (cmd == 2998 && m_active >= 0)
+    {
+        Notify(WM_TERM_TAB_CLOSE, static_cast<WPARAM>(m_active));
     }
     else if (cmd >= baseId && cmd < baseId + static_cast<UINT>(m_titles.size()))
     {

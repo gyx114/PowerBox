@@ -1061,9 +1061,32 @@ BOOL CMFCApplication1Dlg::PreTranslateMessage(MSG* pMsg)
                     m_terminalTabs.HandleRightClick(client);
                     return TRUE;
                 }
+                if (pMsg->message == WM_MBUTTONUP)
+                {
+                    m_terminalTabs.HandleMiddleClick(client);
+                    return TRUE;
+                }
             }
             if (pMsg->hwnd == m_terminalTabs.m_hWnd)
                 return FALSE;
+        }
+    }
+
+    // Wheel over the tab strip switches sessions instead of scrolling the terminal.
+    if (pMsg->message == WM_MOUSEWHEEL && m_terminalTabs.m_hWnd)
+    {
+        CTabCtrl* pQuickTab = (CTabCtrl*)GetDlgItem(IDC_TAB_QUICK);
+        if (pQuickTab && pQuickTab->GetCurSel() == 0)
+        {
+            CPoint pt;
+            ::GetCursorPos(&pt);
+            CRect rcTabs;
+            m_terminalTabs.GetWindowRect(&rcTabs);
+            if (rcTabs.PtInRect(pt))
+            {
+                m_terminalTabs.HandleWheel(GET_WHEEL_DELTA_WPARAM(pMsg->wParam));
+                return TRUE;
+            }
         }
     }
 
@@ -1081,6 +1104,31 @@ BOOL CMFCApplication1Dlg::PreTranslateMessage(MSG* pMsg)
             UpdateTabVisibility(nTab);
         }
         return TRUE;
+    }
+
+    // Ctrl+Tab / Ctrl+PageUp / Ctrl+PageDown cycle terminal sessions.
+    if (pMsg->message == WM_KEYDOWN && m_pActiveTerminal &&
+        m_pActiveTerminal->m_hWnd &&
+        pMsg->hwnd == m_pActiveTerminal->m_hWnd &&
+        (GetKeyState(VK_CONTROL) & 0x8000))
+    {
+        if (pMsg->wParam == VK_TAB || pMsg->wParam == VK_PRIOR ||
+            pMsg->wParam == VK_NEXT)
+        {
+            int count = static_cast<int>(m_terminalTabsList.size());
+            if (count > 1)
+            {
+                bool forward = (pMsg->wParam == VK_NEXT) ||
+                    (pMsg->wParam == VK_TAB && !(GetKeyState(VK_SHIFT) & 0x8000));
+                int cur = m_terminalTabs.GetActive();
+                if (cur < 0)
+                    cur = 0;
+                int idx = cur + (forward ? 1 : -1);
+                idx = (idx + count) % count;
+                ActivateTerminalTab(idx);
+                return TRUE;
+            }
+        }
     }
 
     // The terminal view handles its own keyboard input. Returning FALSE here
@@ -2273,8 +2321,8 @@ CString CMFCApplication1Dlg::BuildSystemPrompt()
         _T("   - 系统托盘：双击图标恢复窗口；右键菜单\"显示窗口\"或\"退出\"\n\n")
 
         _T("=== 终端 ===\n\n")
-        _T("   - AI 助手右侧面板内置 ConPTY 终端，支持多个终端 tab\n")
-        _T("   - 右键终端 tab 标签可\"新建终端\"或\"关闭终端\"；右键 tab 空白处可\"新建终端\"\n")
+        _T("   - AI 助手右侧面板内置 ConPTY 终端，支持多个终端会话\n")
+        _T("   - 窄窗口使用终端切换器，宽窗口使用标签栏；Ctrl+Tab/滚轮切换，中键关闭，右键可新建或关闭\n")
         _T("   - AI 执行命令时会自动打开一个新终端 tab，命令在真实终端中运行，可交互输入输出\n")
         _T("   - 命令结束后结果会回传到 AI 对话\n\n")
 
