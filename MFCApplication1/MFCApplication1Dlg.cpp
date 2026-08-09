@@ -918,128 +918,153 @@ HCURSOR CMFCApplication1Dlg::OnQueryDragIcon()
 
 BOOL CMFCApplication1Dlg::PreTranslateMessage(MSG* pMsg)
 {
-    // AI tab splitter: same bottom-anchored model as the standalone window.
-    // The hit zone is a bit wider than the visible bar, and the cursor turns
-    // into the resize arrows while the mouse is near it.
+    // AI tab splitter: only active when the AI tab (QuickTab 0) is visible.
     if (m_terminalSplitter.m_hWnd)
     {
-        CPoint pt;
-        ::GetCursorPos(&pt);
-        ScreenToClient(&pt);
-        CRect rcSplit;
-        m_terminalSplitter.GetWindowRect(&rcSplit);
-        ScreenToClient(&rcSplit);
-        CRect rcHit = rcSplit;
-        rcHit.InflateRect(0, 5, 0, 5);
+        CTabCtrl* pQuickTab = (CTabCtrl*)GetDlgItem(IDC_TAB_QUICK);
+        if (!pQuickTab || pQuickTab->GetCurSel() != 0)
+        {
+            // Not on the AI tab — splitter should not be interactive.
+            // But still handle in-progress resize cleanup.
+            if (m_bTerminalResizing && pMsg->message == WM_LBUTTONUP)
+            {
+                m_bTerminalResizing = false;
+                m_terminalSplitter.SetDragging(false);
+                if (GetCapture() == this)
+                    ReleaseCapture();
+                return TRUE;
+            }
+        }
+        else
+        {
+            CPoint pt;
+            ::GetCursorPos(&pt);
+            ScreenToClient(&pt);
+            CRect rcSplit;
+            m_terminalSplitter.GetWindowRect(&rcSplit);
+            ScreenToClient(&rcSplit);
+            CRect rcHit = rcSplit;
+            rcHit.InflateRect(0, 5, 0, 5);
 
-        if (pMsg->message == WM_SETCURSOR && rcHit.PtInRect(pt))
-        {
-            ::SetCursor(::LoadCursor(nullptr, IDC_SIZENS));
-            return TRUE;
-        }
-        if (pMsg->message == WM_MOUSEMOVE && !m_bTerminalResizing &&
-            rcHit.PtInRect(pt))
-        {
-            ::SetCursor(::LoadCursor(nullptr, IDC_SIZENS));
-            return TRUE;
-        }
+            if (pMsg->message == WM_SETCURSOR && rcHit.PtInRect(pt))
+            {
+                ::SetCursor(::LoadCursor(nullptr, IDC_SIZENS));
+                return TRUE;
+            }
+            if (pMsg->message == WM_MOUSEMOVE && !m_bTerminalResizing &&
+                rcHit.PtInRect(pt))
+            {
+                ::SetCursor(::LoadCursor(nullptr, IDC_SIZENS));
+                return TRUE;
+            }
 
-        if (pMsg->message == WM_LBUTTONDOWN && rcHit.PtInRect(pt))
-        {
-            m_bTerminalResizing = true;
-            m_terminalSplitter.SetDragging(true);
-            SetCapture();
-            return TRUE;
-        }
-        else if (pMsg->message == WM_MOUSEMOVE && m_bTerminalResizing)
-        {
-            int offset = m_rcAiTermViewInit.top - m_rcAiSplitterInit.top;
-            int desired = (static_cast<int>(m_rcAiTermViewInit.bottom) - 4) -
-                (pt.y + offset);
-            int maxH = std::max(60,
-                static_cast<int>(m_rcAiTermViewInit.bottom) -
-                static_cast<int>(m_rcAiBrowserInit.top) - 220);
-            m_terminalHeight = std::clamp(desired, 60, maxH);
-            // DeferWindowPos already batches moves; WS_CLIPCHILDREN handles clipping.
-            // No SetRedraw needed — it causes ghosting with child WebBrowser/terminal views.
-            LayoutAiTabControls();
-            return TRUE;
-        }
-        else if (pMsg->message == WM_LBUTTONUP && m_bTerminalResizing)
-        {
-            m_bTerminalResizing = false;
-            m_terminalSplitter.SetDragging(false);
-            if (GetCapture() == this)
-                ReleaseCapture();
-            return TRUE;
+            if (pMsg->message == WM_LBUTTONDOWN && rcHit.PtInRect(pt))
+            {
+                m_bTerminalResizing = true;
+                m_terminalSplitter.SetDragging(true);
+                SetCapture();
+                return TRUE;
+            }
+            else if (pMsg->message == WM_MOUSEMOVE && m_bTerminalResizing)
+            {
+                int offset = m_rcAiTermViewInit.top - m_rcAiSplitterInit.top;
+                int desired = (static_cast<int>(m_rcAiTermViewInit.bottom) - 4) -
+                    (pt.y + offset);
+                int maxH = std::max(60,
+                    static_cast<int>(m_rcAiTermViewInit.bottom) -
+                    static_cast<int>(m_rcAiBrowserInit.top) - 220);
+                m_terminalHeight = std::clamp(desired, 60, maxH);
+                // DeferWindowPos already batches moves; WS_CLIPCHILDREN handles clipping.
+                // No SetRedraw needed — it causes ghosting with child WebBrowser/terminal views.
+                LayoutAiTabControls();
+                return TRUE;
+            }
+            else if (pMsg->message == WM_LBUTTONUP && m_bTerminalResizing)
+            {
+                m_bTerminalResizing = false;
+                m_terminalSplitter.SetDragging(false);
+                if (GetCapture() == this)
+                    ReleaseCapture();
+                return TRUE;
+            }
         }
     }
 
     // Route mouse interaction over the terminal area at the dialog level so
     // selection works even if the tab control is above the terminal window.
+    // Only active when the AI tab (QuickTab 0) is visible.
     if (m_pActiveTerminal && m_pActiveTerminal->m_hWnd)
     {
-        CPoint pt;
-        ::GetCursorPos(&pt);
-        CRect rcTerm;
-        m_pActiveTerminal->GetWindowRect(&rcTerm);
-        if (rcTerm.PtInRect(pt) && pMsg->hwnd != m_terminalShell.m_hWnd)
+        CTabCtrl* pQuickTab = (CTabCtrl*)GetDlgItem(IDC_TAB_QUICK);
+        if (pQuickTab && pQuickTab->GetCurSel() == 0)
         {
-            TCHAR szClass[64]{};
-            ::GetClassName(pMsg->hwnd, szClass, _countof(szClass));
-            bool isShellDropdown = _tcsicmp(szClass, _T("ComboLBox")) == 0;
+            CPoint pt;
+            ::GetCursorPos(&pt);
+            CRect rcTerm;
+            m_pActiveTerminal->GetWindowRect(&rcTerm);
+            if (rcTerm.PtInRect(pt) && pMsg->hwnd != m_terminalShell.m_hWnd)
+            {
+                TCHAR szClass[64]{};
+                ::GetClassName(pMsg->hwnd, szClass, _countof(szClass));
+                bool isShellDropdown = _tcsicmp(szClass, _T("ComboLBox")) == 0;
 
-            if (!isShellDropdown && pMsg->message == WM_LBUTTONDOWN)
-            {
-                m_pActiveTerminal->StartSelectionFromScreen(pt);
-                SetCapture();
-                return TRUE;
-            }
-            if (!isShellDropdown && pMsg->message == WM_MOUSEMOVE && GetCapture() == this)
-            {
-                m_pActiveTerminal->ContinueSelectionFromScreen(pt);
-                return TRUE;
-            }
-            if (!isShellDropdown && pMsg->message == WM_LBUTTONUP && GetCapture() == this)
-            {
-                m_pActiveTerminal->FinishSelection();
-                if (GetCapture() == this)
-                    ReleaseCapture();
-                return TRUE;
-            }
-            if (!isShellDropdown && pMsg->message == WM_RBUTTONUP)
-            {
-                m_pActiveTerminal->ShowContextMenu(pt);
-                return TRUE;
+                if (!isShellDropdown && pMsg->message == WM_LBUTTONDOWN)
+                {
+                    m_pActiveTerminal->StartSelectionFromScreen(pt);
+                    SetCapture();
+                    return TRUE;
+                }
+                if (!isShellDropdown && pMsg->message == WM_MOUSEMOVE && GetCapture() == this)
+                {
+                    m_pActiveTerminal->ContinueSelectionFromScreen(pt);
+                    return TRUE;
+                }
+                if (!isShellDropdown && pMsg->message == WM_LBUTTONUP && GetCapture() == this)
+                {
+                    m_pActiveTerminal->FinishSelection();
+                    if (GetCapture() == this)
+                        ReleaseCapture();
+                    return TRUE;
+                }
+                if (!isShellDropdown && pMsg->message == WM_RBUTTONUP)
+                {
+                    m_pActiveTerminal->ShowContextMenu(pt);
+                    return TRUE;
+                }
             }
         }
     }
 
     // Route terminal tab bar mouse clicks at the dialog level so they always
     // reach the custom hit-testing, even if IsDialogMessage would swallow them.
+    // Only active when the AI tab (QuickTab 0) is visible.
     if (m_terminalTabs.m_hWnd)
     {
-        CPoint pt;
-        ::GetCursorPos(&pt);
-        CRect rcTabs;
-        m_terminalTabs.GetWindowRect(&rcTabs);
-        if (rcTabs.PtInRect(pt))
+        CTabCtrl* pQuickTab = (CTabCtrl*)GetDlgItem(IDC_TAB_QUICK);
+        if (pQuickTab && pQuickTab->GetCurSel() == 0)
         {
-            CPoint client = pt;
-            m_terminalTabs.ScreenToClient(&client);
-            if (pMsg->message == WM_LBUTTONDOWN)
+            CPoint pt;
+            ::GetCursorPos(&pt);
+            CRect rcTabs;
+            m_terminalTabs.GetWindowRect(&rcTabs);
+            if (rcTabs.PtInRect(pt))
             {
-                m_terminalTabs.HandleClick(client);
-                return TRUE;
+                CPoint client = pt;
+                m_terminalTabs.ScreenToClient(&client);
+                if (pMsg->message == WM_LBUTTONDOWN)
+                {
+                    m_terminalTabs.HandleClick(client);
+                    return TRUE;
+                }
+                if (pMsg->message == WM_RBUTTONUP)
+                {
+                    m_terminalTabs.HandleRightClick(client);
+                    return TRUE;
+                }
             }
-            if (pMsg->message == WM_RBUTTONUP)
-            {
-                m_terminalTabs.HandleRightClick(client);
-                return TRUE;
-            }
+            if (pMsg->hwnd == m_terminalTabs.m_hWnd)
+                return FALSE;
         }
-        if (pMsg->hwnd == m_terminalTabs.m_hWnd)
-            return FALSE;
     }
 
     // Alt+1..6 must still switch tabs while the terminal has keyboard focus.
