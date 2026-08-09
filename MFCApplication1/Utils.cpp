@@ -5,7 +5,9 @@
 #include "resource.h"
 #include "LocalizationManager.h"
 #include <userenv.h>
+#include <imm.h>
 #pragma comment(lib, "Userenv.lib")
+#pragma comment(lib, "imm32.lib")
 
 // Format Windows error code to readable string
 [[nodiscard]] CString FormatLastError(DWORD err)
@@ -64,6 +66,20 @@ void CopyToClipboard(HWND hwnd, const CString& text)
     CloseHandle(hToken);
     if (!ok) return false;
     return elev.TokenIsElevated != 0;
+}
+
+bool IsImeComposing(HWND hWnd)
+{
+    if (!hWnd || !::IsWindow(hWnd))
+        return false;
+
+    HIMC hImc = ::ImmGetContext(hWnd);
+    if (!hImc)
+        return false;
+
+    DWORD len = ::ImmGetCompositionStringW(hImc, GCS_COMPSTR, nullptr, 0);
+    ::ImmReleaseContext(hWnd, hImc);
+    return len > 0;
 }
 
 // Prompt user to restart with admin privileges, returns true if restart initiated

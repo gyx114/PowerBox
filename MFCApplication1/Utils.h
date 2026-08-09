@@ -10,6 +10,9 @@ void CopyToClipboard(HWND hwnd, const CString& text);
 // Check if current process is running with administrator privileges
 [[nodiscard]] bool IsProcessElevated();
 
+// Check if an input method is actively composing text for a window
+[[nodiscard]] bool IsImeComposing(HWND hWnd);
+
 // Prompt user to restart with admin privileges, returns true if restart initiated
 [[nodiscard]] bool PromptRestartElevated();
 

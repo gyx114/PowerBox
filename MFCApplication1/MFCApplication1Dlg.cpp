@@ -1179,11 +1179,17 @@ BOOL CMFCApplication1Dlg::PreTranslateMessage(MSG* pMsg)
                     return TRUE;
                 }
 
-                // AI input: send message
+                // AI input: Enter sends; Shift+Enter inserts a newline. While
+                // an IME is composing, let Enter commit the composition first.
                 if (nID == IDC_EDIT_AI_INPUT)
                 {
-                    OnBnClickedAiSend();
-                    return TRUE;
+                    if (!(GetKeyState(VK_SHIFT) & 0x8000) &&
+                        !IsImeComposing(pFocus->GetSafeHwnd()))
+                    {
+                        OnBnClickedAiSend();
+                        return TRUE;
+                    }
+                    return FALSE;
                 }
 
                 // Other edit boxes: swallow Enter to prevent exiting
@@ -2316,6 +2322,7 @@ void CMFCApplication1Dlg::OnBnClickedAiSend()
 {
     CEdit* pInput = static_cast<CEdit*>(GetDlgItem(IDC_EDIT_AI_INPUT));
     if (!pInput) return;
+    if (IsImeComposing(pInput->m_hWnd)) return;
 
     CString userMsg;
     pInput->GetWindowText(userMsg);
@@ -2323,6 +2330,7 @@ void CMFCApplication1Dlg::OnBnClickedAiSend()
     if (userMsg.IsEmpty()) return;
 
     pInput->SetWindowText(_T(""));
+    pInput->SetSel(0, 0);
 
     if (m_aiHistory.empty())
     {
@@ -2546,8 +2554,9 @@ CString CMFCApplication1Dlg::BuildAiBodyFromHistory(const CString& streamingCont
         }
         else if (msg.first == _T("user"))
         {
-            body += _T("<div style='color:#888;margin-bottom:4px;'>You: </div>")
-                + CMarkdownDlg::EscapeHtml(msg.second) + _T("<br>");
+            body += _T("<div style='color:#888;margin-bottom:4px;'>You: </div>");
+            body += _T("<div style='white-space:pre-wrap;margin-bottom:4px;'>")
+                + CMarkdownDlg::EscapeHtml(msg.second) + _T("</div>");
         }
         else if (msg.first == _T("assistant"))
         {
