@@ -348,6 +348,10 @@ BOOL CAIAssistantDlg::OnInitDialog()
 {
     CDialogEx::OnInitDialog();
 
+    // WS_CLIPCHILDREN prevents parent background erasure under child windows,
+    // eliminating ghosting/trails when resizing controls during splitter drag.
+    ModifyStyle(0, WS_CLIPCHILDREN);
+
     auto& loc = CLocalizationManager::GetInstance();
 
     // Translate UI
@@ -389,110 +393,142 @@ void CAIAssistantDlg::OnSize(UINT nType, int cx, int cy)
         return;
 
     int margin = m_rcBrowserInit.left;
-    int gap = m_rcTermTabsInit.left - m_rcTermLabelInit.right;
-    if (gap <= 0)
-        gap = 4;
+    int gap = 4;
 
-    // Vertical stack: keep static gaps, only the terminal view grows/shrinks.
+    // ===== Terminal view: bottom anchored to window bottom =====
     int termViewBottom = cy - margin;
     int termViewH = std::clamp(m_terminalViewHeight, 110,
         std::max(110, cy - 300));
     int termViewTop = termViewBottom - termViewH;
-    int headerTop = termViewTop - (m_rcTermViewInit.top - m_rcTermTabsInit.top);
-    int splitterTop = headerTop - (m_rcTermTabsInit.top - m_rcSplitterInit.top);
-    int buttonsTop = splitterTop - (m_rcSplitterInit.top - m_rcButtonsInit[0].top);
-    int inputTop = buttonsTop - (m_rcButtonsInit[0].top - m_rcInputInit.top);
-    int browserBottom = inputTop - (m_rcInputInit.top - m_rcBrowserInit.bottom);
-    int browserTop = m_rcBrowserInit.top;
 
-    // Vendor placement depends on the static layout captured at startup:
-    // if it sits above the browser, keep it top-left and let the browser use
-    // the full width below; otherwise keep it top-right beside the browser.
+    // ===== shiftY: middle block shifts as a unit =====
+    // Only browser height and terminal view height change.
+    // All controls between them shift by the same amount,
+    // preserving their original relative positions.
+    int shiftY = termViewTop - m_rcTermViewInit.top;
+
+    // Clamp: ensure browser doesn't get too small
+    int minBrowserH = 60;
+    int minShiftY = minBrowserH - m_rcBrowserInit.Height();
+    if (shiftY < minShiftY)
+    {
+        shiftY = minShiftY;
+        termViewTop = m_rcTermViewInit.top + shiftY;
+        termViewH = termViewBottom - termViewTop;
+    }
+
+    // Browser: top static, bottom shifts with middle block
+    int browserBottom = m_rcBrowserInit.bottom + shiftY;
+
+    // Vendor combo: stays at original Y, adjusts X for window width
     int vendorW = m_rcVendorInit.Width();
     int vendorH = m_rcVendorInit.Height();
-    int vendorVisibleH = m_rcButtonsInit[0].Height();
     bool vendorAboveBrowser =
-        (m_rcVendorInit.top + vendorVisibleH <= m_rcBrowserInit.top + 4);
-
+        (m_rcVendorInit.top + m_rcButtonsInit[0].Height() <= m_rcBrowserInit.top + 4);
     CRect rcVendor;
     CRect rcBrowser;
     if (vendorAboveBrowser)
     {
         rcVendor = CRect(margin, m_rcVendorInit.top,
             margin + vendorW, m_rcVendorInit.top + vendorH);
-        rcBrowser = CRect(margin, m_rcBrowserInit.top,
-            cx - margin, browserBottom);
+        rcBrowser = CRect(margin, m_rcBrowserInit.top, cx - margin, browserBottom);
     }
     else
     {
         rcVendor = CRect(cx - margin - vendorW, m_rcVendorInit.top,
             cx - margin, m_rcVendorInit.top + vendorH);
-        rcBrowser = CRect(margin, browserTop, rcVendor.left - gap, browserBottom);
+        rcBrowser = CRect(margin, m_rcBrowserInit.top, rcVendor.left - gap, browserBottom);
     }
-    m_aiBrowser.SetWindowPos(nullptr, rcBrowser.left, rcBrowser.top,
-        rcBrowser.Width(), rcBrowser.Height(), SWP_NOZORDER);
+
+    // ===== Batch all window moves with DeferWindowPos (flicker-free) =====
+    HDWP hdwp = ::BeginDeferWindowPos(12);
+    if (!hdwp) return;
+
+    hdwp = ::DeferWindowPos(hdwp, m_aiBrowser.m_hWnd, nullptr,
+        rcBrowser.left, rcBrowser.top, rcBrowser.Width(), rcBrowser.Height(),
+        SWP_NOZORDER);
     m_aiBrowserRect = rcBrowser;
 
     CWnd* pVendor = GetDlgItem(IDC_COMBO_AI_VENDOR);
     if (pVendor)
-        pVendor->MoveWindow(rcVendor);
+        hdwp = ::DeferWindowPos(hdwp, pVendor->m_hWnd, nullptr,
+            rcVendor.left, rcVendor.top, rcVendor.Width(), rcVendor.Height(),
+            SWP_NOZORDER);
 
+    // Input: shifts by shiftY, full width
     CWnd* pInput = GetDlgItem(IDC_EDIT_AI_INPUT);
     if (pInput)
-        pInput->MoveWindow(margin, inputTop, cx - margin * 2, m_rcInputInit.Height());
+        hdwp = ::DeferWindowPos(hdwp, pInput->m_hWnd, nullptr,
+            margin, m_rcInputInit.top + shiftY,
+            cx - margin * 2, m_rcInputInit.Height(), SWP_NOZORDER);
 
+    // Buttons: shift by shiftY, preserve original X/width/height
     UINT btnIds[4] = {
-        IDC_BUTTON_AI_SEND,
-        IDC_BUTTON_AI_STOP,
-        IDC_BUTTON_AI_CLEAR,
-        IDC_BUTTON_AI_HISTORY
+        IDC_BUTTON_AI_SEND, IDC_BUTTON_AI_STOP,
+        IDC_BUTTON_AI_CLEAR, IDC_BUTTON_AI_HISTORY
     };
-    int bx = margin;
     for (int i = 0; i < 4; i++)
     {
         CWnd* pBtn = GetDlgItem(btnIds[i]);
         if (pBtn)
-            pBtn->MoveWindow(bx, buttonsTop,
-                m_rcButtonsInit[i].Width(), m_rcButtonsInit[i].Height());
-        bx += m_rcButtonsInit[i].Width() + gap;
+            hdwp = ::DeferWindowPos(hdwp, pBtn->m_hWnd, nullptr,
+                m_rcButtonsInit[i].left, m_rcButtonsInit[i].top + shiftY,
+                m_rcButtonsInit[i].Width(), m_rcButtonsInit[i].Height(),
+                SWP_NOZORDER);
     }
 
+    // Splitter: shifts by shiftY, full width
     CWnd* pSplitter = GetDlgItem(IDC_TERMINAL_SPLITTER);
     if (pSplitter)
-        pSplitter->MoveWindow(margin, splitterTop, cx - margin * 2, 6);
+        hdwp = ::DeferWindowPos(hdwp, pSplitter->m_hWnd, nullptr,
+            margin, m_rcSplitterInit.top + shiftY,
+            cx - margin * 2, 6, SWP_NOZORDER);
 
+    // Tabs: shift by shiftY, full width
+    if (m_terminalTabs.m_hWnd)
+        hdwp = ::DeferWindowPos(hdwp, m_terminalTabs.m_hWnd, nullptr,
+            margin, m_rcTermTabsInit.top + shiftY,
+            cx - margin * 2, m_rcTermTabsInit.Height(), SWP_NOZORDER);
+
+    // Label: shifts by shiftY, original X/width/height
     CWnd* pLabel = GetDlgItem(IDC_TERMINAL_LABEL);
     if (pLabel)
-        pLabel->MoveWindow(margin, headerTop,
-            m_rcTermLabelInit.Width(), m_rcTermLabelInit.Height());
+        hdwp = ::DeferWindowPos(hdwp, pLabel->m_hWnd, nullptr,
+            m_rcTermLabelInit.left, m_rcTermLabelInit.top + shiftY,
+            m_rcTermLabelInit.Width(), m_rcTermLabelInit.Height(),
+            SWP_NOZORDER);
 
+    // Clear button: shifts by shiftY, right-aligned to window width
     int clearW = m_rcTermClearInit.Width();
     int clearLeft = cx - margin - clearW;
     CWnd* pClear = GetDlgItem(IDC_BTN_TERMINAL_CLEAR);
     if (pClear)
-        pClear->MoveWindow(clearLeft, headerTop, clearW, m_rcTermClearInit.Height());
+        hdwp = ::DeferWindowPos(hdwp, pClear->m_hWnd, nullptr,
+            clearLeft, m_rcTermClearInit.top + shiftY,
+            clearW, m_rcTermClearInit.Height(), SWP_NOZORDER);
 
+    // Shell dropdown: shifts by shiftY, right-aligned (left of clear)
     int shellW = m_rcTermShellInit.Width();
     int shellLeft = clearLeft - gap - shellW;
     CWnd* pShell = GetDlgItem(IDC_TERMINAL_SHELL);
     if (pShell)
-        pShell->MoveWindow(shellLeft, headerTop, shellW, m_rcTermShellInit.Height());
+        hdwp = ::DeferWindowPos(hdwp, pShell->m_hWnd, nullptr,
+            shellLeft, m_rcTermShellInit.top + shiftY,
+            shellW, m_rcTermShellInit.Height(), SWP_NOZORDER);
 
-    if (m_terminalTabs.m_hWnd)
-    {
-        int tabsLeft = m_rcTermTabsInit.left;
-        int tabsRight = shellLeft - gap;
-        m_terminalTabs.MoveWindow(tabsLeft, headerTop,
-            std::max(40, tabsRight - tabsLeft), m_rcTermTabsInit.Height());
-        m_terminalTabs.Relayout();
-    }
-
-    CRect rcView(margin, termViewTop, cx - margin, termViewTop + termViewH);
+    // Terminal views: fill remaining space
+    CRect rcView(margin, termViewTop, cx - margin, termViewBottom);
     for (CTerminalView* v : m_terminalTabsList)
     {
         if (v && v->m_hWnd)
-            v->MoveWindow(rcView);
+            hdwp = ::DeferWindowPos(hdwp, v->m_hWnd, nullptr,
+                rcView.left, rcView.top, rcView.Width(), rcView.Height(),
+                SWP_NOZORDER);
     }
+
+    ::EndDeferWindowPos(hdwp);
+
+    // Show/hide terminal views
     if (m_pActiveTerminal && m_pActiveTerminal->m_hWnd)
     {
         for (CTerminalView* v : m_terminalTabsList)
@@ -501,6 +537,8 @@ void CAIAssistantDlg::OnSize(UINT nType, int cx, int cy)
                 v->ShowWindow(v == m_pActiveTerminal ? SW_SHOW : SW_HIDE);
         }
     }
+
+    m_terminalTabs.Relayout();
 }
 
 void CAIAssistantDlg::CaptureInitialLayout()
@@ -590,6 +628,8 @@ BOOL CAIAssistantDlg::PreTranslateMessage(MSG* pMsg)
             int maxH = std::max(minH, rcClient.Height() - 300);
             m_terminalViewHeight = std::clamp(desired, minH, maxH);
 
+            // DeferWindowPos already batches moves; WS_CLIPCHILDREN handles clipping.
+            // No SetRedraw needed — it causes ghosting with child WebBrowser/terminal views.
             OnSize(SIZE_RESTORED, rcClient.Width(), rcClient.Height());
             return TRUE;
         }

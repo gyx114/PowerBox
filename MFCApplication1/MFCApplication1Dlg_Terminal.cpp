@@ -57,103 +57,136 @@ void CMFCApplication1Dlg::LayoutAiTabControls()
     if (m_rcAiTermViewInit.IsRectEmpty())
         return;
 
-    // Same bottom-anchored model as the standalone AI window: only the
-    // terminal height changes; all rows above keep their static gaps.
+    int gap = 4;
+    int left = m_rcAiBrowserInit.left;
+    int right = m_rcAiBrowserInit.right;
+
+    // ===== Terminal view: bottom anchored to original position =====
     int termViewBottom = m_rcAiTermViewInit.bottom;
     int maxH = std::max(60, termViewBottom -
         static_cast<int>(m_rcAiBrowserInit.top) - 220);
     int termH = std::clamp(m_terminalHeight, 60, maxH);
     int termViewTop = termViewBottom - termH;
 
-    int headerTop = termViewTop -
-        (m_rcAiTermViewInit.top - m_rcAiTermTabsInit.top);
-    int splitterTop = headerTop -
-        (m_rcAiTermTabsInit.top - m_rcAiSplitterInit.top);
-    int buttonsTop = splitterTop -
-        (m_rcAiSplitterInit.top - m_rcAiButtonsInit[0].top);
-    int inputTop = buttonsTop -
-        (m_rcAiButtonsInit[0].top - m_rcAiInputInit.top);
-    int browserBottom = inputTop -
-        (m_rcAiInputInit.top - m_rcAiBrowserInit.bottom);
+    // ===== shiftY: middle block shifts as a unit =====
+    // Only browser height and terminal view height change.
+    // All controls between them shift by the same amount,
+    // preserving their original relative positions.
+    int shiftY = termViewTop - m_rcAiTermViewInit.top;
 
-    int left = m_rcAiBrowserInit.left;
-    int right = m_rcAiBrowserInit.right;
+    // Clamp: ensure browser doesn't get too small
+    int minBrowserH = 60;
+    int minShiftY = minBrowserH - m_rcAiBrowserInit.Height();
+    if (shiftY < minShiftY)
+    {
+        shiftY = minShiftY;
+        termViewTop = m_rcAiTermViewInit.top + shiftY;
+        termH = termViewBottom - termViewTop;
+    }
+
+    // Browser: top static, bottom shifts with middle block
+    CRect rcBrowser(left, m_rcAiBrowserInit.top, right,
+        m_rcAiBrowserInit.bottom + shiftY);
+
+    // ===== Batch all window moves with DeferWindowPos (flicker-free) =====
+    HDWP hdwp = ::BeginDeferWindowPos(12);
+    if (!hdwp) return;
 
     CWnd* pBrowser = GetDlgItem(IDC_AI_BROWSER);
     if (pBrowser)
     {
-        CRect rcNewBrowser(left, m_rcAiBrowserInit.top,
-            right, browserBottom);
-        pBrowser->MoveWindow(rcNewBrowser);
-        m_aiBrowserRect = rcNewBrowser;
+        hdwp = ::DeferWindowPos(hdwp, pBrowser->m_hWnd, nullptr,
+            rcBrowser.left, rcBrowser.top,
+            rcBrowser.Width(), rcBrowser.Height(), SWP_NOZORDER);
+        m_aiBrowserRect = rcBrowser;
     }
 
+    // Input: shifts by shiftY
     CWnd* pInput = GetDlgItem(IDC_EDIT_AI_INPUT);
     if (pInput)
-        pInput->MoveWindow(left, inputTop,
-            right - left, m_rcAiInputInit.Height());
+        hdwp = ::DeferWindowPos(hdwp, pInput->m_hWnd, nullptr,
+            left, m_rcAiInputInit.top + shiftY,
+            right - left, m_rcAiInputInit.Height(), SWP_NOZORDER);
 
+    // Buttons (including standalone): shift by shiftY, preserve original X/width/height
     UINT btnIds[5] = {
-        IDC_BUTTON_AI_SEND,
-        IDC_BUTTON_AI_STOP,
-        IDC_BUTTON_AI_CLEAR,
-        IDC_BUTTON_AI_HISTORY,
+        IDC_BUTTON_AI_SEND, IDC_BUTTON_AI_STOP,
+        IDC_BUTTON_AI_CLEAR, IDC_BUTTON_AI_HISTORY,
         IDC_BTN_AI_STANDALONE
     };
-    int bx = m_rcAiButtonsInit[0].left;
-    int gap = m_rcAiButtonsInit[1].left - m_rcAiButtonsInit[0].right;
-    if (gap <= 0)
-        gap = 4;
     for (int i = 0; i < 5; i++)
     {
         CWnd* pBtn = GetDlgItem(btnIds[i]);
         if (pBtn)
         {
-            int w = (i < 4) ? m_rcAiButtonsInit[i].Width() : m_rcAiStandaloneInit.Width();
-            int h = (i < 4) ? m_rcAiButtonsInit[i].Height() : m_rcAiStandaloneInit.Height();
-            pBtn->MoveWindow(bx, buttonsTop, w, h);
-            bx += w + gap;
+            int x, y, w, h;
+            if (i < 4)
+            {
+                x = m_rcAiButtonsInit[i].left;
+                y = m_rcAiButtonsInit[i].top;
+                w = m_rcAiButtonsInit[i].Width();
+                h = m_rcAiButtonsInit[i].Height();
+            }
+            else
+            {
+                x = m_rcAiStandaloneInit.left;
+                y = m_rcAiStandaloneInit.top;
+                w = m_rcAiStandaloneInit.Width();
+                h = m_rcAiStandaloneInit.Height();
+            }
+            hdwp = ::DeferWindowPos(hdwp, pBtn->m_hWnd, nullptr,
+                x, y + shiftY, w, h, SWP_NOZORDER);
         }
     }
 
+    // Splitter: shifts by shiftY
     CWnd* pSplit = GetDlgItem(IDC_TERMINAL_SPLITTER);
     if (pSplit)
-        pSplit->MoveWindow(m_rcAiSplitterInit.left, splitterTop,
-            m_rcAiSplitterInit.Width(), 6);
+        hdwp = ::DeferWindowPos(hdwp, pSplit->m_hWnd, nullptr,
+            m_rcAiSplitterInit.left, m_rcAiSplitterInit.top + shiftY,
+            m_rcAiSplitterInit.Width(), 6, SWP_NOZORDER);
 
+    // Tabs: shift by shiftY
+    if (m_terminalTabs.m_hWnd)
+        hdwp = ::DeferWindowPos(hdwp, m_terminalTabs.m_hWnd, nullptr,
+            m_rcAiTermTabsInit.left, m_rcAiTermTabsInit.top + shiftY,
+            right - m_rcAiTermTabsInit.left,
+            m_rcAiTermTabsInit.Height(), SWP_NOZORDER);
+
+    // Label: shifts by shiftY, original X/width/height
     CWnd* pTermLabel = GetDlgItem(IDC_TERMINAL_LABEL);
     if (pTermLabel)
-        pTermLabel->MoveWindow(m_rcAiTermLabelInit.left, headerTop,
-            m_rcAiTermLabelInit.Width(), m_rcAiTermLabelInit.Height());
+        hdwp = ::DeferWindowPos(hdwp, pTermLabel->m_hWnd, nullptr,
+            m_rcAiTermLabelInit.left, m_rcAiTermLabelInit.top + shiftY,
+            m_rcAiTermLabelInit.Width(), m_rcAiTermLabelInit.Height(), SWP_NOZORDER);
 
+    // Shell: shifts by shiftY, original X/width/height
     CWnd* pShell = GetDlgItem(IDC_TERMINAL_SHELL);
     if (pShell)
-        pShell->MoveWindow(m_rcAiTermShellInit.left, headerTop,
-            m_rcAiTermShellInit.Width(), m_rcAiTermShellInit.Height());
+        hdwp = ::DeferWindowPos(hdwp, pShell->m_hWnd, nullptr,
+            m_rcAiTermShellInit.left, m_rcAiTermShellInit.top + shiftY,
+            m_rcAiTermShellInit.Width(), m_rcAiTermShellInit.Height(), SWP_NOZORDER);
 
+    // Clear: shifts by shiftY, original X/width/height
     CWnd* pClear = GetDlgItem(IDC_BTN_TERMINAL_CLEAR);
     if (pClear)
-        pClear->MoveWindow(m_rcAiTermClearInit.left, headerTop,
-            m_rcAiTermClearInit.Width(), m_rcAiTermClearInit.Height());
+        hdwp = ::DeferWindowPos(hdwp, pClear->m_hWnd, nullptr,
+            m_rcAiTermClearInit.left, m_rcAiTermClearInit.top + shiftY,
+            m_rcAiTermClearInit.Width(), m_rcAiTermClearInit.Height(), SWP_NOZORDER);
 
-    if (m_terminalTabs.m_hWnd)
-    {
-        int tabsLeft = m_rcAiTermTabsInit.left;
-        int tabsRight = m_rcAiTermShellInit.left - 4;
-        m_terminalTabs.MoveWindow(tabsLeft, headerTop,
-            std::max(40, tabsRight - tabsLeft), m_rcAiTermTabsInit.Height());
-        m_terminalTabs.Relayout();
-    }
-
-    // All terminal tabs share the same panel rect; move every view so the
-    // active one never stays at a stale position.
-    CRect rcView(left, termViewTop, right, termViewTop + termH);
+    // Terminal views: fill remaining space
+    CRect rcView(left, termViewTop, right, termViewBottom);
     for (CTerminalView* v : m_terminalTabsList)
     {
         if (v && v->m_hWnd)
-            v->MoveWindow(rcView);
+            hdwp = ::DeferWindowPos(hdwp, v->m_hWnd, nullptr,
+                rcView.left, rcView.top, rcView.Width(), rcView.Height(),
+                SWP_NOZORDER);
     }
 
+    ::EndDeferWindowPos(hdwp);
+
+    // Show/hide terminal views
     if (m_pActiveTerminal && m_pActiveTerminal->m_hWnd)
     {
         for (CTerminalView* v : m_terminalTabsList)
@@ -162,6 +195,8 @@ void CMFCApplication1Dlg::LayoutAiTabControls()
                 v->ShowWindow(v == m_pActiveTerminal ? SW_SHOW : SW_HIDE);
         }
     }
+
+    m_terminalTabs.Relayout();
 
     // Give the interactive AI-tab controls top z-order so nothing covers them.
     UINT topIds[] = {

@@ -1906,7 +1906,7 @@ void CBatchRenameDlg::OnBnClickedRenameUndo()
     if (m_undoList.empty())
         return;
 
-    if (MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("UndoConfirm")), _T("Undo"), MB_YESNO | MB_ICONQUESTION) != IDYES)
+    if (MessageBox(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("UndoConfirm")), CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("UndoTitle")), MB_YESNO | MB_ICONQUESTION) != IDYES)
         return;
 
     int undoCount = 0;
@@ -1928,7 +1928,7 @@ void CBatchRenameDlg::OnBnClickedRenameUndo()
 
     CString msg;
     msg.Format(CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("UndoResult")), undoCount, undoFail);
-    MessageBox(msg, _T("Undo"), MB_OK | MB_ICONINFORMATION);
+    MessageBox(msg, CLocalizationManager::GetInstance().GetString(_T("BatchRename"), _T("UndoTitle")), MB_OK | MB_ICONINFORMATION);
 
     LoadFiles();
 }

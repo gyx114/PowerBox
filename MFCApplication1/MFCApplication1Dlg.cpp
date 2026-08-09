@@ -960,6 +960,8 @@ BOOL CMFCApplication1Dlg::PreTranslateMessage(MSG* pMsg)
                 static_cast<int>(m_rcAiTermViewInit.bottom) -
                 static_cast<int>(m_rcAiBrowserInit.top) - 220);
             m_terminalHeight = std::clamp(desired, 60, maxH);
+            // DeferWindowPos already batches moves; WS_CLIPCHILDREN handles clipping.
+            // No SetRedraw needed — it causes ghosting with child WebBrowser/terminal views.
             LayoutAiTabControls();
             return TRUE;
         }
