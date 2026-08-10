@@ -48,10 +48,11 @@ void CMFCApplication1Dlg::InitStartupTab()
 
     auto& loc = CLocalizationManager::GetInstance();
     pList2->ModifyStyle(0, LVS_REPORT);
-    pList2->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
+    pList2->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP | LVS_EX_DOUBLEBUFFER);
     pList2->InsertColumn(0, loc.GetString(_T("StartupTab"), _T("ColName")), LVCFMT_LEFT, 200);
-    pList2->InsertColumn(1, loc.GetString(_T("StartupTab"), _T("ColCmd")), LVCFMT_LEFT, 620);
-    pList2->InsertColumn(2, loc.GetString(_T("StartupTab"), _T("ColLocation")), LVCFMT_LEFT, 180);
+    pList2->InsertColumn(1, loc.GetString(_T("StartupTab"), _T("ColStatus")), LVCFMT_CENTER, 80);
+    pList2->InsertColumn(2, loc.GetString(_T("StartupTab"), _T("ColCmd")), LVCFMT_LEFT, 600);
+    pList2->InsertColumn(3, loc.GetString(_T("StartupTab"), _T("ColLocation")), LVCFMT_LEFT, 180);
 }
 
 void CMFCApplication1Dlg::InitClipboardTab()

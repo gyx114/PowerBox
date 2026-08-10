@@ -165,6 +165,9 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("StartupTab"), _T("ColName"))] = _T("启动项名");
     m_defaults[MakeKey(_T("StartupTab"), _T("ColCmd"))] = _T("命令(路径)");
     m_defaults[MakeKey(_T("StartupTab"), _T("ColLocation"))] = _T("位置");
+    m_defaults[MakeKey(_T("StartupTab"), _T("ColStatus"))] = _T("状态");
+    m_defaults[MakeKey(_T("StartupTab"), _T("StatusEnabled"))] = _T("已启用");
+    m_defaults[MakeKey(_T("StartupTab"), _T("StatusDisabled"))] = _T("已禁用");
 
     // Clipboard tab
     m_defaults[MakeKey(_T("ClipboardTab"), _T("ColText"))] = _T("文本内容(双击复制)");
@@ -355,6 +358,18 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("StartupMenu"), _T("AddMachine"))] = _T("添加本机启动项");
     m_defaults[MakeKey(_T("StartupMenu"), _T("Remove"))] = _T("删除启动项");
     m_defaults[MakeKey(_T("StartupMenu"), _T("CopyPath"))] = _T("复制路径");
+    m_defaults[MakeKey(_T("StartupMenu"), _T("Enable"))] = _T("启用");
+    m_defaults[MakeKey(_T("StartupMenu"), _T("Disable"))] = _T("禁用");
+
+    // Startup safety messages
+    m_defaults[MakeKey(_T("Msg"), _T("ConfirmRemoveStartupDanger"))] =
+        _T("危险操作！即将删除启动项：\n%s\n位置：%s\n删除前会自动备份（注册表值导出为 .reg，启动文件夹文件移入回收站）。\n确定要继续吗？");
+    m_defaults[MakeKey(_T("Msg"), _T("StartupBackupFailed"))] =
+        _T("创建注册表备份失败，已取消删除操作。");
+    m_defaults[MakeKey(_T("Msg"), _T("StartupToggleFail"))] =
+        _T("启用/禁用启动项失败，请检查权限。");
+    m_defaults[MakeKey(_T("Msg"), _T("StartupRemovedWithBackup"))] =
+        _T("启动项已删除。\n注册表备份已保存到：\n%s");
 
     // ===== Tray menu =====
     m_defaults[MakeKey(_T("TrayMenu"), _T("ShowWindow"))] = _T("显示窗口");

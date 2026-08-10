@@ -16,6 +16,285 @@ constexpr LPCTSTR kRunOnceKey = _T("Software\\Microsoft\\Windows\\CurrentVersion
 constexpr LPCTSTR kPoliciesRunKey = _T("Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer\\Run");
 constexpr LPCTSTR kRunServicesKey = _T("Software\\Microsoft\\Windows\\CurrentVersion\\RunServices");
 constexpr LPCTSTR kRunServicesOnceKey = _T("Software\\Microsoft\\Windows\\CurrentVersion\\RunServicesOnce");
+constexpr LPCTSTR kApprovedRun = _T("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run");
+constexpr LPCTSTR kApprovedRun32 = _T("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run32");
+constexpr LPCTSTR kApprovedStartupFolder = _T("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder");
+constexpr LPCTSTR kApprovedStartupFolder32 = _T("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder32");
+
+CString EscapeRegValueName(LPCTSTR value)
+{
+    CString result;
+    for (int i = 0; value[i] != 0; i++)
+    {
+        if (value[i] == _T('"'))
+            result += _T("\\\"");
+        else if (value[i] == _T('\\'))
+            result += _T("\\\\");
+        else
+            result += value[i];
+    }
+    return result;
+}
+
+bool IsStartupApprovedDisabled(HKEY root, LPCTSTR approvedSubKey, LPCTSTR name, DWORD view)
+{
+    HKEY hKey = nullptr;
+    if (RegOpenKeyEx(root, approvedSubKey, 0, KEY_QUERY_VALUE | view, &hKey) != ERROR_SUCCESS)
+        return false;
+
+    DWORD type = 0;
+    DWORD size = 0;
+    LONG ret = RegQueryValueEx(hKey, name, nullptr, &type, nullptr, &size);
+    if (ret != ERROR_SUCCESS)
+    {
+        RegCloseKey(hKey);
+        return false;
+    }
+
+    bool disabled = false;
+    if (type == REG_BINARY && size >= sizeof(DWORD))
+    {
+        DWORD flag = 0;
+        std::vector<BYTE> buffer(size > 0 ? size : sizeof(flag));
+        DWORD readSize = static_cast<DWORD>(buffer.size());
+        if (RegQueryValueEx(hKey, name, nullptr, nullptr,
+            buffer.data(), &readSize) == ERROR_SUCCESS &&
+            readSize >= sizeof(flag))
+        {
+            memcpy(&flag, buffer.data(), sizeof(flag));
+            disabled = (flag == 3);
+        }
+    }
+
+    RegCloseKey(hKey);
+    return disabled;
+}
+
+bool WriteStartupApprovedState(HKEY root, LPCTSTR approvedSubKey,
+    LPCTSTR name, DWORD view, bool enabled)
+{
+    HKEY hKey = nullptr;
+    LONG ret = RegCreateKeyEx(root, approvedSubKey, 0, nullptr,
+        REG_OPTION_NON_VOLATILE, KEY_SET_VALUE | view, nullptr, &hKey, nullptr);
+    if (ret != ERROR_SUCCESS)
+        return false;
+
+    // Task Manager stores a 12-byte StartupApproved value: 2 = enabled, 3 = disabled.
+    BYTE data[12] = {};
+    data[0] = enabled ? 2 : 3;
+    ret = RegSetValueEx(hKey, name, 0, REG_BINARY, data, sizeof(data));
+    RegCloseKey(hKey);
+    return ret == ERROR_SUCCESS;
+}
+
+CString AlternateStartupApprovedKey(HKEY root, LPCTSTR approvedSubKey)
+{
+    if (root == HKEY_CURRENT_USER &&
+        (_tcsicmp(approvedSubKey, kApprovedRun) == 0 ||
+         _tcsicmp(approvedSubKey, kApprovedStartupFolder) == 0))
+    {
+        return (_tcsicmp(approvedSubKey, kApprovedRun) == 0)
+            ? kApprovedRun32 : kApprovedStartupFolder32;
+    }
+    if (root == HKEY_LOCAL_MACHINE &&
+        _tcsicmp(approvedSubKey, kApprovedStartupFolder) == 0)
+    {
+        return kApprovedStartupFolder32;
+    }
+    return CString();
+}
+
+bool IsStartupEntryApprovedDisabled(const CMFCApplication1Dlg::StartupInfo& si)
+{
+    if (IsStartupApprovedDisabled(si.approvedRoot, si.approvedSubKey,
+        si.name, si.approvedView))
+    {
+        return true;
+    }
+
+    CString alternate = AlternateStartupApprovedKey(si.approvedRoot, si.approvedSubKey);
+    return !alternate.IsEmpty() &&
+        IsStartupApprovedDisabled(si.approvedRoot, alternate, si.name, si.approvedView);
+}
+
+bool WriteStartupEntryApprovedState(const CMFCApplication1Dlg::StartupInfo& si, bool enabled)
+{
+    bool ok = WriteStartupApprovedState(si.approvedRoot, si.approvedSubKey,
+        si.name, si.approvedView, enabled);
+
+    CString alternate = AlternateStartupApprovedKey(si.approvedRoot, si.approvedSubKey);
+    if (!alternate.IsEmpty())
+        ok = WriteStartupApprovedState(si.approvedRoot, alternate,
+            si.name, si.approvedView, enabled) && ok;
+    return ok;
+}
+
+bool QueryRegistryValueData(HKEY root, LPCTSTR subKey, LPCTSTR name,
+    DWORD view, DWORD& type, std::vector<BYTE>& data)
+{
+    HKEY hKey = nullptr;
+    if (RegOpenKeyEx(root, subKey, 0, KEY_QUERY_VALUE | view, &hKey) != ERROR_SUCCESS)
+        return false;
+
+    DWORD size = 0;
+    LONG ret = RegQueryValueEx(hKey, name, nullptr, &type, nullptr, &size);
+    if (ret != ERROR_SUCCESS)
+    {
+        RegCloseKey(hKey);
+        return false;
+    }
+
+    data.resize(size > 0 ? size : 1);
+    DWORD readSize = static_cast<DWORD>(data.size());
+    ret = RegQueryValueEx(hKey, name, nullptr, &type, data.data(), &readSize);
+    RegCloseKey(hKey);
+    return ret == ERROR_SUCCESS;
+}
+
+bool WriteRegBackupFile(const CString& path, const std::wstring& content)
+{
+    HANDLE hFile = CreateFile(path, GENERIC_WRITE, 0, nullptr,
+        CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (hFile == INVALID_HANDLE_VALUE)
+        return false;
+
+    const BYTE bom[] = { 0xFF, 0xFE };
+    DWORD written = 0;
+    bool ok = WriteFile(hFile, bom, sizeof(bom), &written, nullptr) &&
+        written == sizeof(bom);
+    if (ok && !content.empty())
+    {
+        DWORD bytes = static_cast<DWORD>(content.size() * sizeof(wchar_t));
+        ok = WriteFile(hFile, content.c_str(), bytes, &written, nullptr) &&
+            written == bytes;
+    }
+
+    CloseHandle(hFile);
+    return ok;
+}
+
+bool BuildRegBackupText(const CMFCApplication1Dlg::StartupInfo& si, CString& text)
+{
+    DWORD type = 0;
+    std::vector<BYTE> data;
+    if (!QueryRegistryValueData(si.root, si.subKey, si.name, si.view, type, data))
+        return false;
+
+    CString rootName = (si.root == HKEY_CURRENT_USER)
+        ? _T("HKEY_CURRENT_USER") : _T("HKEY_LOCAL_MACHINE");
+    CString regSubKey = si.subKey;
+    if (si.root == HKEY_LOCAL_MACHINE && (si.view & KEY_WOW64_32KEY))
+    {
+        const CString prefix = _T("Software\\");
+        if (regSubKey.Left(prefix.GetLength()).CompareNoCase(prefix) == 0)
+            regSubKey = _T("Software\\Wow6432Node\\") + regSubKey.Mid(prefix.GetLength());
+    }
+    text = _T("Windows Registry Editor Version 5.00\r\n\r\n");
+    text.AppendFormat(_T("[%s\\%s]\r\n"), rootName.GetString(), regSubKey.GetString());
+    if (si.name.IsEmpty())
+        text += _T("@=");
+    else
+        text.AppendFormat(_T("\"%s\"="), EscapeRegValueName(si.name).GetString());
+
+    if (type == REG_DWORD && data.size() >= sizeof(DWORD))
+    {
+        DWORD value = 0;
+        memcpy(&value, data.data(), sizeof(value));
+        CString valueText;
+        valueText.Format(_T("dword:%08x\r\n"), value);
+        text += valueText;
+        return true;
+    }
+
+    CString prefix = _T("hex:");
+    if (type == REG_EXPAND_SZ)
+        prefix = _T("hex(2):");
+    else if (type == REG_MULTI_SZ)
+        prefix = _T("hex(7):");
+    else if (type == REG_SZ)
+        prefix = _T("hex(1):");
+    else if (type == REG_QWORD && data.size() >= sizeof(DWORD64))
+        prefix = _T("hex(b):");
+    text += prefix;
+
+    if (data.empty() && (type == REG_SZ || type == REG_EXPAND_SZ))
+    {
+        text += _T("00,00\r\n");
+        return true;
+    }
+
+    for (size_t i = 0; i < data.size(); i++)
+    {
+        if (i > 0)
+            text += _T(",");
+        text.AppendFormat(_T("%02X"), data[i]);
+        if ((i + 1) % 16 == 0 && i + 1 < data.size())
+            text += _T(",\\\r\n ");
+    }
+    text += _T("\r\n");
+    return true;
+}
+
+CString SanitizeFileName(const CString& name)
+{
+    CString safe;
+    for (int i = 0; i < name.GetLength(); i++)
+    {
+        TCHAR c = name[i];
+        if (c == _T('<') || c == _T('>') || c == _T(':') ||
+            c == _T('"') || c == _T('/') || c == _T('\\') ||
+            c == _T('|') || c == _T('?') || c == _T('*'))
+            c = _T('_');
+        safe += c;
+    }
+    if (safe.IsEmpty())
+        safe = _T("startup_entry");
+    return safe;
+}
+
+CString GetStartupBackupDir()
+{
+    TCHAR appData[MAX_PATH] = {};
+    if (FAILED(SHGetFolderPath(nullptr, CSIDL_APPDATA, nullptr, 0, appData)))
+        GetTempPath(MAX_PATH, appData);
+
+    CString dir(appData);
+    if (!dir.IsEmpty() && dir.Right(1) != _T("\\"))
+        dir += _T("\\");
+    dir += _T("PowerBox\\StartupBackup");
+    SHCreateDirectoryEx(nullptr, dir, nullptr);
+    return dir;
+}
+
+bool BackupStartupEntry(const CMFCApplication1Dlg::StartupInfo& si, CString& backupPath)
+{
+    backupPath.Empty();
+    if (si.isFolder)
+        return true;
+
+    CString regText;
+    if (!BuildRegBackupText(si, regText))
+        return false;
+
+    CString dir = GetStartupBackupDir();
+    if (dir.Right(1) != _T("\\"))
+        dir += _T("\\");
+
+    SYSTEMTIME st = {};
+    GetLocalTime(&st);
+    CString file;
+    file.Format(_T("%sPowerBox_Startup_%04u%02u%02u_%02u%02u%02u_%llu_%s.reg"),
+        dir.GetString(), st.wYear, st.wMonth, st.wDay,
+        st.wHour, st.wMinute, st.wSecond, GetTickCount64(),
+        SanitizeFileName(si.name).GetString());
+
+    std::wstring content(regText.GetString());
+    if (!WriteRegBackupFile(file, content))
+        return false;
+
+    backupPath = file;
+    return true;
+}
 
 CString RegistryValueToText(DWORD type, const BYTE* data, DWORD size)
 {
@@ -102,6 +381,23 @@ void AddStartupRegistryEntries(HKEY root, LPCTSTR subKey, DWORD view,
             si.root = root;
             si.subKey = subKey;
             si.view = view;
+            if (_tcsicmp(subKey, kRunKey) == 0)
+            {
+                si.canToggle = true;
+                si.approvedRoot = root;
+                if (root == HKEY_LOCAL_MACHINE)
+                {
+                    si.approvedSubKey = (view == KEY_WOW64_32KEY)
+                        ? kApprovedRun32 : kApprovedRun;
+                    si.approvedView = KEY_WOW64_64KEY;
+                }
+                else
+                {
+                    si.approvedSubKey = kApprovedRun;
+                    si.approvedView = 0;
+                }
+                si.enabled = !IsStartupEntryApprovedDisabled(si);
+            }
             results.push_back(si);
         }
 
@@ -112,6 +408,7 @@ void AddStartupRegistryEntries(HKEY root, LPCTSTR subKey, DWORD view,
 }
 
 void AddStartupFolderEntries(LPCTSTR folder, LPCTSTR location,
+    HKEY approvedRoot, LPCTSTR approvedSubKey, DWORD approvedView,
     std::vector<CMFCApplication1Dlg::StartupInfo>& results)
 {
     CString pattern(folder);
@@ -135,6 +432,11 @@ void AddStartupFolderEntries(LPCTSTR folder, LPCTSTR location,
         si.location = location;
         si.folderPath = finder.GetFilePath();
         si.isFolder = true;
+        si.canToggle = true;
+        si.approvedRoot = approvedRoot;
+        si.approvedSubKey = approvedSubKey;
+        si.approvedView = approvedView;
+        si.enabled = !IsStartupEntryApprovedDisabled(si);
         results.push_back(si);
     }
     finder.Close();
@@ -192,9 +494,11 @@ void CollectStartupEntries(std::vector<CMFCApplication1Dlg::StartupInfo>& result
     TCHAR userStartup[MAX_PATH] = {};
     TCHAR machineStartup[MAX_PATH] = {};
     if (SUCCEEDED(SHGetFolderPath(nullptr, CSIDL_STARTUP, nullptr, 0, userStartup)))
-        AddStartupFolderEntries(userStartup, _T("Startup Folder (User)"), results);
+        AddStartupFolderEntries(userStartup, _T("Startup Folder (User)"),
+            HKEY_CURRENT_USER, kApprovedStartupFolder, 0, results);
     if (SUCCEEDED(SHGetFolderPath(nullptr, CSIDL_COMMON_STARTUP, nullptr, 0, machineStartup)))
-        AddStartupFolderEntries(machineStartup, _T("Startup Folder (All Users)"), results);
+        AddStartupFolderEntries(machineStartup, _T("Startup Folder (All Users)"),
+            HKEY_LOCAL_MACHINE, kApprovedStartupFolder, KEY_WOW64_64KEY, results);
 }
 
 bool RemoveStartupRegistryValue(HKEY root, LPCTSTR subKey, LPCTSTR name, DWORD view)
@@ -387,6 +691,44 @@ void CMFCApplication1Dlg::OnAddMachineStartup()
     }
 }
 
+void CMFCApplication1Dlg::SetSelectedStartupEnabled(bool enabled)
+{
+    auto& loc = CLocalizationManager::GetInstance();
+    CListCtrl* pList = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST2));
+    if (!pList)
+        return;
+
+    int nSel = pList->GetNextItem(-1, LVNI_SELECTED);
+    if (nSel == -1)
+        return;
+
+    DWORD_PTR itemData = pList->GetItemData(nSel);
+    if (itemData >= m_startupInfos.size())
+        return;
+    const StartupInfo& si = m_startupInfos[static_cast<size_t>(itemData)];
+    if (!si.canToggle || si.approvedSubKey.IsEmpty())
+        return;
+
+    if (!WriteStartupEntryApprovedState(si, enabled))
+    {
+        MessageBox(loc.GetString(_T("Msg"), _T("StartupToggleFail")),
+            loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    RefreshStartupList();
+}
+
+void CMFCApplication1Dlg::OnEnableStartup()
+{
+    SetSelectedStartupEnabled(true);
+}
+
+void CMFCApplication1Dlg::OnDisableStartup()
+{
+    SetSelectedStartupEnabled(false);
+}
+
 // Delete selected startup item
 void CMFCApplication1Dlg::OnRemoveStartup()
 {
@@ -403,16 +745,37 @@ void CMFCApplication1Dlg::OnRemoveStartup()
     const StartupInfo& si = m_startupInfos[static_cast<size_t>(itemData)];
 
     CString msg;
-    msg.Format(loc.GetString(_T("Msg"), _T("ConfirmRemoveStartup")), si.name);
-    if (MessageBox(msg, loc.GetString(_T("Msg"), _T("ConfirmDelete")), MB_YESNO | MB_ICONQUESTION) != IDYES) return;
+    msg.Format(loc.GetString(_T("Msg"), _T("ConfirmRemoveStartupDanger")),
+        si.name, si.location);
+    if (MessageBox(msg, loc.GetString(_T("Msg"), _T("ConfirmDelete")),
+        MB_YESNO | MB_ICONWARNING) != IDYES) return;
+
+    CString backupPath;
+    if (!BackupStartupEntry(si, backupPath))
+    {
+        MessageBox(loc.GetString(_T("Msg"), _T("StartupBackupFailed")),
+            loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
+        return;
+    }
 
     bool removed = si.isFolder
         ? RemoveStartupFolderEntry(si.folderPath, m_hWnd)
         : RemoveStartupRegistryValue(si.root, si.subKey, si.name, si.view);
     if (removed)
     {
-        MessageBox(loc.GetString(_T("Msg"), _T("StartupRemoved")),
-            loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONINFORMATION);
+        if (!backupPath.IsEmpty())
+        {
+            CString removedMsg;
+            removedMsg.Format(loc.GetString(_T("Msg"), _T("StartupRemovedWithBackup")),
+                backupPath);
+            MessageBox(removedMsg, loc.GetString(_T("Msg"), _T("Info")),
+                MB_OK | MB_ICONINFORMATION);
+        }
+        else
+        {
+            MessageBox(loc.GetString(_T("Msg"), _T("StartupRemoved")),
+                loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONINFORMATION);
+        }
         RefreshStartupList();
         return;
     }

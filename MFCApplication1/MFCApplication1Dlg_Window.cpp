@@ -378,7 +378,7 @@ void CMFCApplication1Dlg::OnCopyStartupPath()
 	int nSel = pList2->GetNextItem(-1, LVNI_SELECTED);
 	if (nSel < 0) return;
 
-	CString cmd = pList2->GetItemText(nSel, 1);
+	CString cmd = pList2->GetItemText(nSel, 2);
 	if (!cmd.IsEmpty())
 		CopyToClipboard(m_hWnd, cmd);
 }

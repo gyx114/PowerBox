@@ -113,7 +113,10 @@ protected:
 	void RefreshStartupList();
 	afx_msg void OnAddStartup();
 	afx_msg void OnAddMachineStartup();
+	afx_msg void OnEnableStartup();
+	afx_msg void OnDisableStartup();
 	afx_msg void OnRemoveStartup();
+	void SetSelectedStartupEnabled(bool enabled);
 
     // (File management features removed)
 
@@ -195,6 +198,11 @@ public:
         CString folderPath;
         DWORD view = 0;
         bool isFolder = false;
+        bool enabled = true;
+        bool canToggle = false;
+        HKEY approvedRoot = nullptr;
+        CString approvedSubKey;
+        DWORD approvedView = 0;
     };
     std::vector<StartupInfo> m_startupInfos;
 

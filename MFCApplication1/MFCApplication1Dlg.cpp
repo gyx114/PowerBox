@@ -268,6 +268,8 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_COMMAND(32772, &CMFCApplication1Dlg::OnAddStartup)
     ON_COMMAND(ID_STARTUP_ADD_MACHINE, &CMFCApplication1Dlg::OnAddMachineStartup)
     ON_COMMAND(32773, &CMFCApplication1Dlg::OnRemoveStartup)
+    ON_COMMAND(ID_STARTUP_ENABLE, &CMFCApplication1Dlg::OnEnableStartup)
+    ON_COMMAND(ID_STARTUP_DISABLE, &CMFCApplication1Dlg::OnDisableStartup)
     ON_COMMAND(32774, &CMFCApplication1Dlg::OnLocateProcess)
     ON_COMMAND(32805, &CMFCApplication1Dlg::OnUntopmostWindow)
     ON_COMMAND(32806, &CMFCApplication1Dlg::OnCopyStartupPath)
@@ -1371,13 +1373,17 @@ afx_msg LRESULT CMFCApplication1Dlg::OnRefreshStartupsDone(WPARAM wParam, LPARAM
     {
         m_startupInfos = std::move(*vec);
         pList->DeleteAllItems();
+        auto& loc = CLocalizationManager::GetInstance();
         for (size_t i = 0; i < m_startupInfos.size(); i++)
         {
             int idx = static_cast<int>(i);
             const StartupInfo& si = m_startupInfos[i];
             pList->InsertItem(idx, si.name);
-            pList->SetItemText(idx, 1, si.cmd);
-            pList->SetItemText(idx, 2, si.location);
+            pList->SetItemText(idx, 1,
+                si.enabled ? loc.GetString(_T("StartupTab"), _T("StatusEnabled"))
+                           : loc.GetString(_T("StartupTab"), _T("StatusDisabled")));
+            pList->SetItemText(idx, 2, si.cmd);
+            pList->SetItemText(idx, 3, si.location);
             pList->SetItemData(idx, idx);
         }
     }
@@ -1406,6 +1412,20 @@ void CMFCApplication1Dlg::OnContextMenu(CWnd* pWnd, CPoint point)
         menu.AppendMenu(MF_STRING, ID_STARTUP_ADD_MACHINE, loc.GetString(_T("StartupMenu"), _T("AddMachine")));
         if (nSel != -1)
         {
+            DWORD_PTR itemData = pList2->GetItemData(nSel);
+            if (itemData < m_startupInfos.size())
+            {
+                const StartupInfo& si = m_startupInfos[static_cast<size_t>(itemData)];
+                if (si.canToggle && !si.approvedSubKey.IsEmpty())
+                {
+                    menu.AppendMenu(MF_SEPARATOR);
+                    menu.AppendMenu(MF_STRING,
+                        si.enabled ? ID_STARTUP_DISABLE : ID_STARTUP_ENABLE,
+                        loc.GetString(_T("StartupMenu"),
+                            si.enabled ? _T("Disable") : _T("Enable")));
+                }
+            }
+            menu.AppendMenu(MF_SEPARATOR);
             menu.AppendMenu(MF_STRING, 32773, loc.GetString(_T("Menu"), _T("DeleteStartup")));
             menu.AppendMenu(MF_STRING, 32806, loc.GetString(_T("Menu"), _T("CopyPath")));
         }
