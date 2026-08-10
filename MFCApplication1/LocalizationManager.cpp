@@ -1163,6 +1163,7 @@ void CLocalizationManager::LoadBuiltinDefaults()
 
     // ===== ContextMenu - Dialog messages =====
     m_defaults[MakeKey(_T("ContextMenu"), _T("MsgNoSelection"))] = _T("请先选择一个项目。");
+    m_defaults[MakeKey(_T("ContextMenu"), _T("MsgBackupFail"))] = _T("创建注册表备份失败，已取消本次操作。");
     m_defaults[MakeKey(_T("ContextMenu"), _T("MsgNoHistory"))] = _T("无操作历史。");
     m_defaults[MakeKey(_T("ContextMenu"), _T("MsgNoHistoryUndo"))] = _T("没有可撤销的操作。");
     m_defaults[MakeKey(_T("ContextMenu"), _T("MsgItemNotFound"))] = _T("找不到对应的菜单项，可能已被删除。");

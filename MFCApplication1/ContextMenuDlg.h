@@ -98,7 +98,7 @@ private:
 	bool SaveUserOverride(const CString& clsid, const CString& scenePath,
 		const CString& customName);
 	void OnBnClickedDictOpen();           // 打开字典目录
-	bool ExportRegistryBackup(const CString& regPath, const CString& description);
+	bool ExportRegistryBackup(HKEY root, const CString& regPath, const CString& description);
 	CString GetBackupDir();
 	CString GetHistoryPath();
 	void LoadHistory();

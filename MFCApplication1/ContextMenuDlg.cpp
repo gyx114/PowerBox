@@ -1971,7 +1971,6 @@ void CContextMenuDlg::ToggleEntry(int index, bool bRefresh)
 	// Export registry backup before modification
 	CString backupDesc = entry.bEnabled ? _T("Disable ") : _T("Enable ");
 	backupDesc += entry.displayName;
-	ExportRegistryBackup(hkcrFullPath, backupDesc);
 
 	// Clean up any previous HKCU override from earlier attempts
 	// (ensures HKLM writes are not masked by stale HKCU entries in merged view)
@@ -1981,6 +1980,14 @@ void CContextMenuDlg::ToggleEntry(int index, bool bRefresh)
 	HKEY hHkcuTest = nullptr;
 	bool bInHkcu = (RegOpenKeyEx(HKEY_CURRENT_USER, hkcuCleanup, 0, KEY_READ, &hHkcuTest) == ERROR_SUCCESS);
 	if (bInHkcu) RegCloseKey(hHkcuTest);
+	if (!ExportRegistryBackup(bInHkcu ? HKEY_CURRENT_USER : HKEY_LOCAL_MACHINE,
+		hkcrFullPath, backupDesc))
+	{
+		MessageBox(loc.GetString(_T("ContextMenu"), _T("MsgBackupFail")),
+			loc.GetString(_T("ContextMenu"), _T("MsgConfirmDisable")),
+			MB_OK | MB_ICONERROR);
+		return;
+	}
 	if (!bInHkcu)
 		SHDeleteKey(HKEY_CURRENT_USER, hkcuCleanup);
 
@@ -3553,8 +3560,9 @@ void CContextMenuDlg::SaveHistory()
 {
     CString historyPath = GetHistoryPath();
     CString backupDir = GetBackupDir();
-    if (!PathFileExists(backupDir))
-        CreateDirectory(backupDir, nullptr);
+    int createRet = SHCreateDirectoryEx(nullptr, backupDir, nullptr);
+    if (createRet != ERROR_SUCCESS && createRet != ERROR_ALREADY_EXISTS)
+        return;
 
     try
     {
@@ -3598,49 +3606,100 @@ void CContextMenuDlg::AddHistoryEntry(const CString& type, const CString& itemNa
     SaveHistory();
 }
 
-bool CContextMenuDlg::ExportRegistryBackup(const CString& regPath, const CString& /*description*/)
+static CString SanitizeBackupName(const CString& text)
 {
-	auto& loc = CLocalizationManager::GetInstance();
-    CString backupDir = GetBackupDir();
-    if (!PathFileExists(backupDir))
+    CString safe;
+    for (int i = 0; i < text.GetLength() && safe.GetLength() < 40; i++)
     {
-        if (!CreateDirectory(backupDir, nullptr))
+        TCHAR c = text[i];
+        if (c == _T('<') || c == _T('>') || c == _T(':') ||
+            c == _T('"') || c == _T('/') || c == _T('\\') ||
+            c == _T('|') || c == _T('?') || c == _T('*') ||
+            c < 32)
         {
-            UpdateStatus(loc.GetString(_T("ContextMenu"), _T("StatusBackupDirFail")));
-            return false;
+            c = _T('_');
         }
+        safe += c;
+    }
+    if (safe.IsEmpty())
+        safe = _T("contextmenu");
+    return safe;
+}
+
+bool CContextMenuDlg::ExportRegistryBackup(HKEY root, const CString& regPath,
+    const CString& description)
+{
+    auto& loc = CLocalizationManager::GetInstance();
+    CString backupDir = GetBackupDir();
+    int createRet = SHCreateDirectoryEx(nullptr, backupDir, nullptr);
+    if (createRet != ERROR_SUCCESS && createRet != ERROR_ALREADY_EXISTS)
+    {
+        UpdateStatus(loc.GetString(_T("ContextMenu"), _T("StatusBackupDirFail")));
+        return false;
     }
 
+    static volatile LONG s_backupSequence = 0;
+    LONG sequence = InterlockedIncrement(&s_backupSequence);
     CTime now = CTime::GetCurrentTime();
     CString filename;
-    filename.Format(_T("backup_%04d%02d%02d_%02d%02d%02d.reg"),
+    filename.Format(_T("backup_%s_%04d%02d%02d_%02d%02d%02d_%06llu_%03ld_%05lu.reg"),
+        SanitizeBackupName(description).GetString(),
         now.GetYear(), now.GetMonth(), now.GetDay(),
-        now.GetHour(), now.GetMinute(), now.GetSecond());
+        now.GetHour(), now.GetMinute(), now.GetSecond(),
+        GetTickCount64() % 1000000ULL,
+        sequence % 1000,
+        GetCurrentProcessId() % 100000UL);
 
     CString backupPath = backupDir + _T("\\") + filename;
 
-    CString regKeyPath = _T("HKCR\\") + regPath;
+    CString regKeyPath;
+    if (root == HKEY_CURRENT_USER)
+        regKeyPath.Format(_T("HKCU\\Software\\Classes\\%s"), regPath.GetString());
+    else
+        regKeyPath.Format(_T("HKLM\\Software\\Classes\\%s"), regPath.GetString());
+
     CString cmd;
     cmd.Format(_T("reg export \"%s\" \"%s\" /y"), regKeyPath, backupPath);
+    CString cmdLine = _T("cmd.exe /c ") + cmd + _T(" >nul 2>&1");
 
     STARTUPINFO si = { sizeof(si) };
     PROCESS_INFORMATION pi = {};
     si.dwFlags = STARTF_USESHOWWINDOW;
     si.wShowWindow = SW_HIDE;
 
-    CString cmdLine = _T("cmd.exe /c ") + cmd + _T(" >nul 2>&1");
     BOOL bResult = CreateProcess(nullptr, cmdLine.GetBuffer(), nullptr, nullptr,
         FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi);
     cmdLine.ReleaseBuffer();
+    if (!bResult)
+        return false;
 
-    if (bResult)
+    DWORD waitRet = WaitForSingleObject(pi.hProcess, 10000);
+    if (waitRet == WAIT_TIMEOUT)
+        TerminateProcess(pi.hProcess, 1);
+
+    DWORD exitCode = 0;
+    if (!GetExitCodeProcess(pi.hProcess, &exitCode))
+        exitCode = 1;
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+    if (exitCode != 0)
     {
-        WaitForSingleObject(pi.hProcess, 5000);
-        CloseHandle(pi.hProcess);
-        CloseHandle(pi.hThread);
+        DeleteFile(backupPath);
+        return false;
     }
 
-    return (PathFileExists(backupPath) != FALSE);
+    WIN32_FILE_ATTRIBUTE_DATA attr = {};
+    if (!GetFileAttributesEx(backupPath, GetFileExInfoStandard, &attr))
+    {
+        DeleteFile(backupPath);
+        return false;
+    }
+    if (attr.nFileSizeHigh == 0 && attr.nFileSizeLow < 16)
+    {
+        DeleteFile(backupPath);
+        return false;
+    }
+    return true;
 }
 
 void CContextMenuDlg::OnBnClickedUndo()
