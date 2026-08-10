@@ -15,6 +15,7 @@
 #include "AutoClickerSpeedDlg.h"
 #include "AIApiClient.h"
 #include "ConversationHistoryDlg.h"
+#include "MarkdownDlg.h"
 #include "HotkeyCaptureDlg.h"
 #include "TerminalView.h"
 #include "TerminalTabBar.h"
@@ -384,6 +385,7 @@ public:
     std::vector<std::unique_ptr<CTerminalSession>> m_aiSessions;
     std::map<CTerminalSession*, AiCommandContext> m_aiCommandContexts;
     std::map<UINT_PTR, CString> m_aiCommandById;
+    CActionCommandRegistry m_aiActionCommands;
     UINT_PTR m_aiNextCommandId = 1;
     afx_msg LRESULT OnAiSessionOutput(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnAiSessionExited(WPARAM wParam, LPARAM lParam);

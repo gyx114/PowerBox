@@ -3,6 +3,19 @@
 
 #pragma once
 #include "afxdialogex.h"
+#include <map>
+
+class CActionCommandRegistry
+{
+public:
+    CString Add(const CString& jsonAttr);
+    bool Get(const CString& id, CString& jsonAttr) const;
+    void Clear();
+
+private:
+    UINT_PTR m_nextId = 1;
+    std::map<UINT_PTR, CString> m_commands;
+};
 
 class CMarkdownDlg : public CDialogEx
 {
@@ -47,9 +60,11 @@ private:
 public:
     static CString MarkdownToHtml(const CString& markdown);
     static CString MarkdownToBody(const CString& markdown);
+    static CString MarkdownToBody(const CString& markdown, CActionCommandRegistry* actionCommands);
     static CString EscapeHtml(const CString& text);
 private:
 	static CString FormatInline(const CString& text);
+    static CString MarkdownToHtml(const CString& markdown, CActionCommandRegistry* actionCommands);
 
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void OnPaint();

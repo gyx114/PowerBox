@@ -17,6 +17,33 @@
 
 IMPLEMENT_DYNAMIC(CMarkdownDlg, CDialogEx)
 
+CString CActionCommandRegistry::Add(const CString& jsonAttr)
+{
+    UINT_PTR idValue = m_nextId++;
+    CString id;
+    id.Format(_T("%I64u"), static_cast<unsigned __int64>(idValue));
+    m_commands[idValue] = jsonAttr;
+    return id;
+}
+
+bool CActionCommandRegistry::Get(const CString& id, CString& jsonAttr) const
+{
+    if (id.IsEmpty())
+        return false;
+
+    auto it = m_commands.find(static_cast<UINT_PTR>(_ttoi64(id)));
+    if (it == m_commands.end())
+        return false;
+
+    jsonAttr = it->second;
+    return true;
+}
+
+void CActionCommandRegistry::Clear()
+{
+    m_commands.clear();
+}
+
 CMarkdownDlg::CMarkdownDlg(CWnd* pParent)
 	: CDialogEx(IDD_MARKDOWN_DLG, pParent)
 	, m_splitPos(280)
@@ -617,6 +644,11 @@ CString CMarkdownDlg::FormatInline(const CString& text)
 
 CString CMarkdownDlg::MarkdownToHtml(const CString& markdown)
 {
+	return MarkdownToHtml(markdown, nullptr);
+}
+
+CString CMarkdownDlg::MarkdownToHtml(const CString& markdown, CActionCommandRegistry* actionCommands)
+{
 	CString html;
 	html += _T("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">");
 	html += _T("<style>");
@@ -770,7 +802,7 @@ CString CMarkdownDlg::MarkdownToHtml(const CString& markdown)
 			riskLevel = _T("level-medium");
 		}
 
-		// Build JSON string for data-cmd attribute using nlohmann::json
+		// Build JSON string for the command registry using nlohmann::json
 		CString jsonAttr;
 		{
 			nlohmann::json j;
@@ -791,7 +823,20 @@ CString CMarkdownDlg::MarkdownToHtml(const CString& markdown)
 		body += _T("<div class=\"action-purpose\">") + loc.GetString(_T("Markdown"), _T("PurposeLabel")) + escPurpose + _T("</div>");
 		body += _T("<div class=\"action-risk ") + riskLevel + _T("\">") + loc.GetString(_T("Markdown"), _T("RiskLevelLabel")) + riskText + _T("</div>");
 		body += _T("<div class=\"action-terminal\">") + loc.GetString(_T("Markdown"), _T("TerminalLabel")) + EscapeHtml(terminalDisplay) + _T("</div>");
-		body += _T("<button class=\"action-btn\" data-cmd=\"") + EscapeHtml(jsonAttr) + _T("\" onclick=\"execCmd(this)\">") + loc.GetString(_T("Markdown"), _T("ExecuteBtn")) + _T("</button>");
+		if (actionCommands)
+		{
+			body += _T("<button class=\"action-btn\" data-cmd-id=\"")
+				+ EscapeHtml(actionCommands->Add(jsonAttr))
+				+ _T("\" onclick=\"execCmd(this)\">")
+				+ loc.GetString(_T("Markdown"), _T("ExecuteBtn")) + _T("</button>");
+		}
+		else
+		{
+			body += _T("<button class=\"action-btn\" data-cmd=\"")
+				+ EscapeHtml(jsonAttr)
+				+ _T("\" onclick=\"execCmd(this)\">")
+				+ loc.GetString(_T("Markdown"), _T("ExecuteBtn")) + _T("</button>");
+		}
 		body += _T("<div class=\"action-command\">$ ") + escCmd + _T("</div>");
 		body += _T("</div>");
 	};
@@ -1069,9 +1114,14 @@ CString CMarkdownDlg::MarkdownToHtml(const CString& markdown)
 
 CString CMarkdownDlg::MarkdownToBody(const CString& markdown)
 {
+    return MarkdownToBody(markdown, nullptr);
+}
+
+CString CMarkdownDlg::MarkdownToBody(const CString& markdown, CActionCommandRegistry* actionCommands)
+{
     // Extract just the body content from MarkdownToHtml output
     // so it can be embedded in a custom page (e.g. dark-themed AI chat)
-    CString fullHtml = MarkdownToHtml(markdown);
+    CString fullHtml = MarkdownToHtml(markdown, actionCommands);
     int bodyStart = fullHtml.Find(_T("<body>"));
     int bodyEnd = fullHtml.Find(_T("</body>"));
     if (bodyStart >= 0 && bodyEnd > bodyStart)

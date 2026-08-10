@@ -137,18 +137,14 @@ public:
         if (url.Left(prefixLen) != kExecPrefix())
             return false;
 
-        // URL-decode using UrlUnescapeA + UTF-8 (not UrlUnescapeW which uses ANSI code page)
-        CString encoded = url.Mid(prefixLen);
-        CStringA encodedUtf8((LPCSTR)CT2A(encoded, CP_UTF8));
-        DWORD dwSize = (DWORD)encodedUtf8.GetLength() + 1;
-        char* buf = encodedUtf8.GetBuffer((int)dwSize);
-        UrlUnescapeA(buf, buf, &dwSize, URL_UNESCAPE_INPLACE);
-        encodedUtf8.ReleaseBuffer((int)dwSize);
-        CString decoded((LPCWSTR)CA2T(encodedUtf8, CP_UTF8));
+        // The browser only sends a short command id. The full command lives in
+        // the C++ side registry, so long commands never enter the URL.
+        CString id = url.Mid(prefixLen);
+        if (id.IsEmpty())
+            return false;
 
-        // Post to main window for processing
         ::PostMessage(m_hTargetWnd, WM_AI_EXECUTE_COMMAND, 0,
-            reinterpret_cast<LPARAM>(_tcsdup(decoded)));
+            reinterpret_cast<LPARAM>(_tcsdup(id)));
         return true;
     }
 
@@ -825,6 +821,7 @@ void CMFCApplication1Dlg::OnDestroy()
 
     // Disconnect WebBrowser event sink
     DisconnectAiBrowserEvents();
+    m_aiActionCommands.Clear();
 
     // ensure any background volume thread is stopped (CVolumeManager handles this automatically)
     // Drop helper and file management removed - no cleanup required here
@@ -2519,6 +2516,7 @@ void CMFCApplication1Dlg::OnBnClickedAiClear()
     m_strConvPath.Empty();
     m_strConvCreated.Empty();
     m_aiHistory.clear();
+    m_aiActionCommands.Clear();
     m_aiStreamingContent.Empty();
     m_aiPendingHtml.Empty();
     SetAiBrowserHtml(BuildAiHtmlPage(_T("")));
@@ -2661,9 +2659,9 @@ CString CMFCApplication1Dlg::BuildAiHtmlPage(const CString& bodyContent)
         _T(".action-command{font-size:15px;color:#888;background:#333;padding:4px 8px;border-radius:4px;word-break:break-all;}")
         _T("</style><script>")
         _T("function execCmd(btn){")
-        _T("var data=btn.getAttribute('data-cmd');")
-        _T("if(!data)return;")
-        _T("location.href='http://127.0.0.1:1/exec/'+encodeURIComponent(data);")
+        _T("var id=btn.getAttribute('data-cmd-id');")
+        _T("if(!id)return;")
+        _T("location.href='http://127.0.0.1:1/exec/'+id;")
         _T("}")
         _T("function copyText(t){")
         _T("if(window.clipboardData&&window.clipboardData.setData){window.clipboardData.setData('Text',t);return true;}")
@@ -2735,7 +2733,7 @@ CString CMFCApplication1Dlg::BuildAiBodyFromHistory(const CString& streamingCont
     if (!streamingContent.IsEmpty())
     {
         body += _T("<div style='color:#c8c8c8;margin-bottom:4px;'>AI:</div>")
-            + CMarkdownDlg::MarkdownToBody(streamingContent);
+            + CMarkdownDlg::MarkdownToBody(streamingContent, &m_aiActionCommands);
     }
 
     // Always add scroll anchor at the end so the browser can scroll to the latest content
@@ -2791,7 +2789,7 @@ CString CMFCApplication1Dlg::RenderAssistantWithResults(const CString& content,
             // No more action cards, render the remaining text
             CString rest = content.Mid(pos);
             if (!rest.IsEmpty())
-                html += CMarkdownDlg::MarkdownToBody(rest);
+                html += CMarkdownDlg::MarkdownToBody(rest, &m_aiActionCommands);
             break;
         }
 
@@ -2800,7 +2798,7 @@ CString CMFCApplication1Dlg::RenderAssistantWithResults(const CString& content,
         {
             CString beforeText = content.Mid(pos, actionStart - pos);
             if (!beforeText.IsEmpty())
-                html += CMarkdownDlg::MarkdownToBody(beforeText);
+                html += CMarkdownDlg::MarkdownToBody(beforeText, &m_aiActionCommands);
         }
 
         // Find the closing ``` of this code block
@@ -2808,13 +2806,13 @@ CString CMFCApplication1Dlg::RenderAssistantWithResults(const CString& content,
         if (codeEnd < 0 || codeEnd <= actionStart + 9)
         {
             // No closing ``` or empty block, render the rest as markdown and bail out
-            html += CMarkdownDlg::MarkdownToBody(content.Mid(actionStart));
+            html += CMarkdownDlg::MarkdownToBody(content.Mid(actionStart), &m_aiActionCommands);
             break;
         }
 
         // Render the action card itself (including the ```action ... ``` wrapper)
         CString actionBlock = content.Mid(actionStart, codeEnd + 3 - actionStart);
-        html += CMarkdownDlg::MarkdownToBody(actionBlock);
+        html += CMarkdownDlg::MarkdownToBody(actionBlock, &m_aiActionCommands);
 
         // Extract the JSON content inside the action card to get the command
         CString jsonContent = content.Mid(actionStart + 9, codeEnd - actionStart - 9);
@@ -2838,7 +2836,7 @@ CString CMFCApplication1Dlg::RenderAssistantWithResults(const CString& content,
                 if (idx < (int)results.size())
                 {
                     html += _T("<div style='color:#569cd6;font-size:15px;border-left:3px solid #569cd6;padding-left:8px;margin:4px 0;'>")
-                        + CMarkdownDlg::MarkdownToBody(results[idx]) + _T("</div>")
+                        + CMarkdownDlg::MarkdownToBody(results[idx], &m_aiActionCommands) + _T("</div>")
                         + _T("<div class=\"cmd-result-marker\" data-command=\"") + CMarkdownDlg::EscapeHtml(matchedCommand) + _T("\"></div>");
                     cmdResultIndex[matchedCommand] = idx + 1;
                 }
@@ -3418,12 +3416,16 @@ static UINT AFX_CDECL CommandExecThread(LPVOID pParam)
 LRESULT CMFCApplication1Dlg::OnAiExecuteCommand(WPARAM /*wParam*/, LPARAM lParam)
 {
     auto& loc = CLocalizationManager::GetInstance();
-    // lParam is a TCHAR* allocated by _tcsdup in HandleAppExecUrl
-    TCHAR* pJsonStr = reinterpret_cast<TCHAR*>(lParam);
-    if (!pJsonStr) return 0;
+    // lParam is a TCHAR* command id allocated by _tcsdup in HandleAppExecUrl
+    TCHAR* pCmdId = reinterpret_cast<TCHAR*>(lParam);
+    if (!pCmdId) return 0;
 
-    CString json = pJsonStr;
-    free(pJsonStr);  // _tcsdup uses malloc, must use free()
+    CString cmdId = pCmdId;
+    free(pCmdId);  // _tcsdup uses malloc, must use free()
+
+    CString json;
+    if (!m_aiActionCommands.Get(cmdId, json))
+        return 0;
 
     // Parse JSON using nlohmann::json
     CString command, purpose, risk, terminal;
@@ -3725,6 +3727,28 @@ void CMFCApplication1Dlg::AddAiCommandTab(const CString& command, const CString&
             shellName = _T("CMD");
     }
     CString cmdLine = CTerminalView::BuildAiCommandLine(shellName, cmdTrimmed);
+
+    const int kMaxCommandLineLength = 32000;
+    if (cmdLine.GetLength() > kMaxCommandLineLength)
+    {
+        CString resultMsg;
+        resultMsg.Format(_T("【命令执行结果】\n命令：%s\n状态：已拒绝\n\n输出：\n```\n命令过长，超过 Windows 命令行 32767 字符限制，无法在终端中执行。\n```\n\n退出码：0"),
+            command.GetString());
+        int insertPos = (int)m_aiHistory.size();
+        for (int i = (int)m_aiHistory.size() - 1; i >= 0; i--)
+        {
+            if (m_aiHistory[i].first == _T("assistant"))
+            {
+                insertPos = i + 1;
+                while (insertPos < (int)m_aiHistory.size() && m_aiHistory[insertPos].first == _T("system"))
+                    insertPos++;
+                break;
+            }
+        }
+        m_aiHistory.insert(m_aiHistory.begin() + insertPos, { _T("system"), resultMsg });
+        SetAiBrowserHtml(BuildAiHtmlPage(BuildAiBodyFromHistory(CString(), command)));
+        return;
+    }
 
     AddTerminalTabWithCommand(shellName, cmdLine);
     CTerminalView* view = m_pActiveTerminal;
