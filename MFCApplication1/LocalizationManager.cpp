@@ -164,6 +164,7 @@ void CLocalizationManager::LoadBuiltinDefaults()
     // Startup tab columns
     m_defaults[MakeKey(_T("StartupTab"), _T("ColName"))] = _T("启动项名");
     m_defaults[MakeKey(_T("StartupTab"), _T("ColCmd"))] = _T("命令(路径)");
+    m_defaults[MakeKey(_T("StartupTab"), _T("ColLocation"))] = _T("位置");
 
     // Clipboard tab
     m_defaults[MakeKey(_T("ClipboardTab"), _T("ColText"))] = _T("文本内容(双击复制)");
@@ -351,6 +352,7 @@ void CLocalizationManager::LoadBuiltinDefaults()
 
     // ===== Startup tab right-click menu =====
     m_defaults[MakeKey(_T("StartupMenu"), _T("Add"))] = _T("添加启动项");
+    m_defaults[MakeKey(_T("StartupMenu"), _T("AddMachine"))] = _T("添加本机启动项");
     m_defaults[MakeKey(_T("StartupMenu"), _T("Remove"))] = _T("删除启动项");
     m_defaults[MakeKey(_T("StartupMenu"), _T("CopyPath"))] = _T("复制路径");
 

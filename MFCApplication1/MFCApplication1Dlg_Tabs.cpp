@@ -50,7 +50,8 @@ void CMFCApplication1Dlg::InitStartupTab()
     pList2->ModifyStyle(0, LVS_REPORT);
     pList2->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
     pList2->InsertColumn(0, loc.GetString(_T("StartupTab"), _T("ColName")), LVCFMT_LEFT, 200);
-    pList2->InsertColumn(1, loc.GetString(_T("StartupTab"), _T("ColCmd")), LVCFMT_LEFT, 840);
+    pList2->InsertColumn(1, loc.GetString(_T("StartupTab"), _T("ColCmd")), LVCFMT_LEFT, 620);
+    pList2->InsertColumn(2, loc.GetString(_T("StartupTab"), _T("ColLocation")), LVCFMT_LEFT, 180);
 }
 
 void CMFCApplication1Dlg::InitClipboardTab()

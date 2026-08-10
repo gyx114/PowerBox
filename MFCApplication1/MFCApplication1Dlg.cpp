@@ -266,6 +266,7 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_COMMAND(IDM_KILL_SAME_NAME, &CMFCApplication1Dlg::OnKillSameName)
     ON_NOTIFY(NM_RCLICK, IDC_LIST1, &CMFCApplication1Dlg::OnRclickProcessList)
     ON_COMMAND(32772, &CMFCApplication1Dlg::OnAddStartup)
+    ON_COMMAND(ID_STARTUP_ADD_MACHINE, &CMFCApplication1Dlg::OnAddMachineStartup)
     ON_COMMAND(32773, &CMFCApplication1Dlg::OnRemoveStartup)
     ON_COMMAND(32774, &CMFCApplication1Dlg::OnLocateProcess)
     ON_COMMAND(32805, &CMFCApplication1Dlg::OnUntopmostWindow)
@@ -1368,13 +1369,16 @@ afx_msg LRESULT CMFCApplication1Dlg::OnRefreshStartupsDone(WPARAM wParam, LPARAM
     CListCtrl* pList = (CListCtrl*)GetDlgItem(IDC_LIST2);
     if (pList)
     {
+        m_startupInfos = std::move(*vec);
         pList->DeleteAllItems();
-        int idx = 0;
-        for (auto &si : *vec)
+        for (size_t i = 0; i < m_startupInfos.size(); i++)
         {
+            int idx = static_cast<int>(i);
+            const StartupInfo& si = m_startupInfos[i];
             pList->InsertItem(idx, si.name);
             pList->SetItemText(idx, 1, si.cmd);
-            idx++;
+            pList->SetItemText(idx, 2, si.location);
+            pList->SetItemData(idx, idx);
         }
     }
     delete vec;
@@ -1399,6 +1403,7 @@ void CMFCApplication1Dlg::OnContextMenu(CWnd* pWnd, CPoint point)
         menu.CreatePopupMenu();
         // Add and delete commands
         menu.AppendMenu(MF_STRING, 32772, loc.GetString(_T("Menu"), _T("AddStartup")));
+        menu.AppendMenu(MF_STRING, ID_STARTUP_ADD_MACHINE, loc.GetString(_T("StartupMenu"), _T("AddMachine")));
         if (nSel != -1)
         {
             menu.AppendMenu(MF_STRING, 32773, loc.GetString(_T("Menu"), _T("DeleteStartup")));

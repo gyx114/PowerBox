@@ -112,6 +112,7 @@ protected:
    // Startup item management
 	void RefreshStartupList();
 	afx_msg void OnAddStartup();
+	afx_msg void OnAddMachineStartup();
 	afx_msg void OnRemoveStartup();
 
     // (File management features removed)
@@ -185,7 +186,17 @@ public:
     static constexpr UINT WM_HOTKEYS_CHANGED = WM_APP + 12;
 
     struct ProcInfo { CString name; DWORD pid; CString path; SIZE_T memKB; double cpuPercent{0.0}; };
-	struct StartupInfo { CString name; CString cmd; };
+	struct StartupInfo {
+        CString name;
+        CString cmd;
+        CString location;
+        HKEY root = nullptr;
+        CString subKey;
+        CString folderPath;
+        DWORD view = 0;
+        bool isFolder = false;
+    };
+    std::vector<StartupInfo> m_startupInfos;
 
     // Process list: store raw data for sorting and filtering
     std::vector<ProcInfo> m_processes;
