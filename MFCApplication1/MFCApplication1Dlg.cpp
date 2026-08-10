@@ -52,6 +52,14 @@
 #include <shlwapi.h>
 #pragma comment(lib, "Userenv.lib")
 
+static bool IsComboBoxDropDown(HWND hwnd)
+{
+    TCHAR szClass[64]{};
+    if (!hwnd || ::GetClassName(hwnd, szClass, _countof(szClass)) == 0)
+        return false;
+    return _tcsicmp(szClass, _T("ComboLBox")) == 0;
+}
+
 // ============================================================================
 // WebBrowser event sink: intercepts BeforeNavigate2 to handle AI executable
 // commands via the custom "http://127.0.0.1:1/exec/" URL scheme.
@@ -1004,9 +1012,7 @@ BOOL CMFCApplication1Dlg::PreTranslateMessage(MSG* pMsg)
             m_pActiveTerminal->GetWindowRect(&rcTerm);
             if (rcTerm.PtInRect(pt) && pMsg->hwnd != m_terminalShell.m_hWnd)
             {
-                TCHAR szClass[64]{};
-                ::GetClassName(pMsg->hwnd, szClass, _countof(szClass));
-                bool isShellDropdown = _tcsicmp(szClass, _T("ComboLBox")) == 0;
+                bool isShellDropdown = IsComboBoxDropDown(pMsg->hwnd);
 
                 if (!isShellDropdown && pMsg->message == WM_LBUTTONDOWN)
                 {
@@ -1047,7 +1053,8 @@ BOOL CMFCApplication1Dlg::PreTranslateMessage(MSG* pMsg)
             ::GetCursorPos(&pt);
             CRect rcTabs;
             m_terminalTabs.GetWindowRect(&rcTabs);
-            if (rcTabs.PtInRect(pt))
+            bool isShellDropdown = IsComboBoxDropDown(pMsg->hwnd);
+            if (rcTabs.PtInRect(pt) && !isShellDropdown)
             {
                 CPoint client = pt;
                 m_terminalTabs.ScreenToClient(&client);
@@ -1072,7 +1079,7 @@ BOOL CMFCApplication1Dlg::PreTranslateMessage(MSG* pMsg)
                     return TRUE;
                 }
             }
-            if (pMsg->hwnd == m_terminalTabs.m_hWnd)
+            if (pMsg->hwnd == m_terminalTabs.m_hWnd && !isShellDropdown)
                 return FALSE;
         }
     }
@@ -1087,7 +1094,7 @@ BOOL CMFCApplication1Dlg::PreTranslateMessage(MSG* pMsg)
             ::GetCursorPos(&pt);
             CRect rcTabs;
             m_terminalTabs.GetWindowRect(&rcTabs);
-            if (rcTabs.PtInRect(pt))
+            if (rcTabs.PtInRect(pt) && !IsComboBoxDropDown(pMsg->hwnd))
             {
                 m_terminalTabs.HandleWheel(GET_WHEEL_DELTA_WPARAM(pMsg->wParam));
                 return TRUE;
