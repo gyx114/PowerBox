@@ -1,6 +1,4 @@
-<p align="center">
-  [🌐 English](README.md) · [中文](README.zh-CN.md) · [日本語](README.ja.md)
-</p>
+🌐 [English](README.md) · **中文** · [日本語](README.ja.md)
 
 ---
 
