@@ -23,13 +23,13 @@
 <p align="center">
   <a href="https://github.com/gyx114/PowerBox/wiki">📖 Wiki-документация</a>
   ·
-  <a href="https://github.com/gyx114/PowerBox/wiki/Quick-Start">🚀 Быстрый старт</a>
+  <a href="https://github.com/gyx114/PowerBox/wiki/快速开始">🚀 Быстрый старт</a>
   ·
-  <a href="https://github.com/gyx114/PowerBox/wiki/Feature-Details">📋 Возможности</a>
+  <a href="https://github.com/gyx114/PowerBox/wiki/功能详解">📋 Возможности</a>
   ·
-  <a href="https://github.com/gyx114/PowerBox/wiki/AI-Configuration">🤖 Настройка AI</a>
+  <a href="https://github.com/gyx114/PowerBox/wiki/AI助手配置">🤖 Настройка AI</a>
   ·
-  <a href="https://github.com/gyx114/PowerBox/wiki/FAQ">❓ ЧаВо</a>
+  <a href="https://github.com/gyx114/PowerBox/wiki/常见问题FAQ">❓ ЧаВо</a>
 </p>
 
 ---
@@ -49,7 +49,7 @@
 Панель AI-ассистента включает встроенный ConPTY-терминал с поддержкой нескольких сессий. Когда AI выполняет команды, они автоматически запускаются в терминале с возвратом результатов.
 
 ### 🌐 Многоязычный интерфейс
-Поддерживает переключение между русским и английским языками, файлы локализации находятся в каталоге `lang/`, легко расширяется для добавления новых языков. См. раздел «Многоязычный интерфейс» в [описании возможностей](https://github.com/gyx114/PowerBox/wiki/Feature-Details).
+Поддерживает переключение между русским и английским языками, файлы локализации находятся в каталоге `lang/`, легко расширяется для добавления новых языков. См. раздел «Многоязычный интерфейс» в [описании возможностей](https://github.com/gyx114/PowerBox/wiki/功能详解).
 
 ### 📋 Основные инструменты
 
@@ -117,12 +117,12 @@
 
 | Документ | Описание |
 |----------|-------------|
-| [📋 Возможности](https://github.com/gyx114/PowerBox/wiki/Feature-Details) | Подробное описание функций |
-| [🤖 Настройка AI](https://github.com/gyx114/PowerBox/wiki/AI-Configuration) | Настройка AI-провайдеров и получение API-ключей |
-| [🚀 Быстрый старт](https://github.com/gyx114/PowerBox/wiki/Quick-Start) | Руководство по загрузке, установке и первому запуску |
-| [⌨️ Горячие клавиши](https://github.com/gyx114/PowerBox/wiki/Shortcuts) | Полный справочник горячих клавиш |
-| [🔧 Сборка из исходников](https://github.com/gyx114/PowerBox/wiki/Build-Guide) | Сборка из исходного кода |
-| [❓ ЧаВо](https://github.com/gyx114/PowerBox/wiki/FAQ) | Часто задаваемые вопросы и ответы |
+| [📋 Возможности](https://github.com/gyx114/PowerBox/wiki/功能详解) | Подробное описание функций |
+| [🤖 Настройка AI](https://github.com/gyx114/PowerBox/wiki/AI助手配置) | Настройка AI-провайдеров и получение API-ключей |
+| [🚀 Быстрый старт](https://github.com/gyx114/PowerBox/wiki/快速开始) | Руководство по загрузке, установке и первому запуску |
+| [⌨️ Горячие клавиши](https://github.com/gyx114/PowerBox/wiki/快捷键大全) | Полный справочник горячих клавиш |
+| [🔧 Сборка из исходников](https://github.com/gyx114/PowerBox/wiki/编译指南) | Сборка из исходного кода |
+| [❓ ЧаВо](https://github.com/gyx114/PowerBox/wiki/常见问题FAQ) | Часто задаваемые вопросы и ответы |
 
 ---
 

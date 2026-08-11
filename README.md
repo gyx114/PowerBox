@@ -23,13 +23,13 @@
 <p align="center">
   <a href="https://github.com/gyx114/PowerBox/wiki">📖 Wiki Documentation</a>
   ·
-  <a href="https://github.com/gyx114/PowerBox/wiki/Quick-Start">🚀 Quick Start</a>
+  <a href="https://github.com/gyx114/PowerBox/wiki/快速开始">🚀 Quick Start</a>
   ·
-  <a href="https://github.com/gyx114/PowerBox/wiki/Feature-Details">📋 Features</a>
+  <a href="https://github.com/gyx114/PowerBox/wiki/功能详解">📋 Features</a>
   ·
-  <a href="https://github.com/gyx114/PowerBox/wiki/AI-Configuration">🤖 AI Config</a>
+  <a href="https://github.com/gyx114/PowerBox/wiki/AI助手配置">🤖 AI Config</a>
   ·
-  <a href="https://github.com/gyx114/PowerBox/wiki/FAQ">❓ FAQ</a>
+  <a href="https://github.com/gyx114/PowerBox/wiki/常见问题FAQ">❓ FAQ</a>
 </p>
 
 ---
@@ -49,7 +49,7 @@ Integrated with 6 AI providers (OpenAI, DeepSeek, Tongyi Qianwen, Zhipu AI, Moon
 The AI assistant panel includes a built-in ConPTY terminal supporting multiple terminal sessions. When AI executes commands, it automatically runs them in the terminal and returns results.
 
 ### 🌐 Multi-language Interface
-Supports Chinese/English switching, language files located in the `lang/` directory, easily extensible to more languages. See the "Multi-language Interface" section in [Feature Details](https://github.com/gyx114/PowerBox/wiki/Feature-Details).
+Supports Chinese/English switching, language files located in the `lang/` directory, easily extensible to more languages. See the "Multi-language Interface" section in [Feature Details](https://github.com/gyx114/PowerBox/wiki/功能详解).
 
 ### 📋 Core Tools
 
@@ -80,7 +80,7 @@ Supports Chinese/English switching, language files located in the `lang/` direct
 | ConPTY Terminal | Built-in terminal in the AI assistant panel, supports multiple terminal sessions, horizontal tab bar switching (Ctrl+Tab/scroll wheel/middle-click to close), AI automatically runs commands in a new terminal tab |
 | Standalone AI Assistant Window | A standalone AI assistant window that can be used independently from the main window, with full chat, terminal, and history management features |
 
-### ⌨️ Shortcuts
+### ⌨️ 快捷键大全
 
 | Shortcut | Function |
 |----------|----------|
@@ -117,12 +117,12 @@ Detailed usage instructions and configuration guides can be found in the Wiki:
 
 | Document | Description |
 |----------|-------------|
-| [📋 Features](https://github.com/gyx114/PowerBox/wiki/Feature-Details) | Detailed feature descriptions |
-| [🤖 AI Config](https://github.com/gyx114/PowerBox/wiki/AI-Configuration) | AI provider configuration and API key acquisition |
-| [🚀 Quick Start](https://github.com/gyx114/PowerBox/wiki/Quick-Start) | Download, installation, and first-time usage guide |
-| [⌨️ Shortcuts](https://github.com/gyx114/PowerBox/wiki/Shortcuts) | Complete shortcut key reference |
-| [🔧 Build Guide](https://github.com/gyx114/PowerBox/wiki/Build-Guide) | Building from source code |
-| [❓ FAQ](https://github.com/gyx114/PowerBox/wiki/FAQ) | Frequently asked questions and answers |
+| [📋 Features](https://github.com/gyx114/PowerBox/wiki/功能详解) | Detailed feature descriptions |
+| [🤖 AI Config](https://github.com/gyx114/PowerBox/wiki/AI助手配置) | AI provider configuration and API key acquisition |
+| [🚀 Quick Start](https://github.com/gyx114/PowerBox/wiki/快速开始) | Download, installation, and first-time usage guide |
+| [⌨️ 快捷键大全](https://github.com/gyx114/PowerBox/wiki/快捷键大全) | Complete shortcut key reference |
+| [🔧 Build Guide](https://github.com/gyx114/PowerBox/wiki/编译指南) | Building from source code |
+| [❓ FAQ](https://github.com/gyx114/PowerBox/wiki/常见问题FAQ) | Frequently asked questions and answers |
 
 ---
 

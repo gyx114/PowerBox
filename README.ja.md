@@ -23,13 +23,13 @@
 <p align="center">
   <a href="https://github.com/gyx114/PowerBox/wiki">📖 Wiki ドキュメント</a>
   ·
-  <a href="https://github.com/gyx114/PowerBox/wiki/Quick-Start">🚀 クイックスタート</a>
+  <a href="https://github.com/gyx114/PowerBox/wiki/快速开始">🚀 クイックスタート</a>
   ·
-  <a href="https://github.com/gyx114/PowerBox/wiki/Feature-Details">📋 機能詳細</a>
+  <a href="https://github.com/gyx114/PowerBox/wiki/功能详解">📋 機能詳細</a>
   ·
-  <a href="https://github.com/gyx114/PowerBox/wiki/AI-Configuration">🤖 AI 設定</a>
+  <a href="https://github.com/gyx114/PowerBox/wiki/AI助手配置">🤖 AI 設定</a>
   ·
-  <a href="https://github.com/gyx114/PowerBox/wiki/FAQ">❓ FAQ</a>
+  <a href="https://github.com/gyx114/PowerBox/wiki/常见问题FAQ">❓ FAQ</a>
 </p>
 
 ---
@@ -49,7 +49,7 @@
 AI アシスタントパネルには組み込み ConPTY ターミナルがあり、複数のターミナルセッションをサポート。AI がコマンドを実行するときは自動的にターミナルで実行し、結果を返します。
 
 ### 🌐 多言語インターフェース
-中国語/英語の切り替えに対応。言語ファイルは `lang/` ディレクトリにあり、自由に拡張可能。詳細は [機能詳細](https://github.com/gyx114/PowerBox/wiki/Feature-Details) の「多言語インターフェース」セクションを参照。
+中国語/英語の切り替えに対応。言語ファイルは `lang/` ディレクトリにあり、自由に拡張可能。詳細は [機能詳細](https://github.com/gyx114/PowerBox/wiki/功能详解) の「多言語インターフェース」セクションを参照。
 
 ### 📋 コアツール
 
@@ -117,12 +117,12 @@ AI アシスタントパネルには組み込み ConPTY ターミナルがあり
 
 | ドキュメント | 説明 |
 |------|------|
-| [📋 機能詳細](https://github.com/gyx114/PowerBox/wiki/Feature-Details) | 各機能モジュールの詳細説明 |
-| [🤖 AI 設定](https://github.com/gyx114/PowerBox/wiki/AI-Configuration) | AI プロバイダー設定と API キー取得 |
-| [🚀 クイックスタート](https://github.com/gyx114/PowerBox/wiki/Quick-Start) | ダウンロード、インストール、初回使用ガイド |
-| [⌨️ ショートカット一覧](https://github.com/gyx114/PowerBox/wiki/Shortcuts) | 全ショートカットキーリファレンス |
-| [🔧 ビルドガイド](https://github.com/gyx114/PowerBox/wiki/Build-Guide) | ソースコードからのビルド |
-| [❓ FAQ](https://github.com/gyx114/PowerBox/wiki/FAQ) | よくある質問と回答 |
+| [📋 機能詳細](https://github.com/gyx114/PowerBox/wiki/功能详解) | 各機能モジュールの詳細説明 |
+| [🤖 AI 設定](https://github.com/gyx114/PowerBox/wiki/AI助手配置) | AI プロバイダー設定と API キー取得 |
+| [🚀 クイックスタート](https://github.com/gyx114/PowerBox/wiki/快速开始) | ダウンロード、インストール、初回使用ガイド |
+| [⌨️ ショートカット一覧](https://github.com/gyx114/PowerBox/wiki/快捷键大全) | 全ショートカットキーリファレンス |
+| [🔧 ビルドガイド](https://github.com/gyx114/PowerBox/wiki/编译指南) | ソースコードからのビルド |
+| [❓ FAQ](https://github.com/gyx114/PowerBox/wiki/常见问题FAQ) | よくある質問と回答 |
 
 ---
 
