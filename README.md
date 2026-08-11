@@ -1,4 +1,4 @@
-🌐 **English** · [中文](README.zh-CN.md) · [日本語](README.ja.md)
+🌐 **English** · [中文](README.zh-CN.md) · [日本語](README.ja.md) · [Русский](README.ru.md) · [한국어](README.ko.md)
 
 ---
 
@@ -89,7 +89,7 @@ Supports Chinese/English switching, language files located in the `lang/` direct
 | `Alt+1` ~ `Alt+6` | Switch left sidebar tabs |
 | `F5` | Refresh current list |
 | `Del` | End selected process |
-| `Ctrl+Enter` | Send AI chat message (when AI panel is focused) |
+| `Enter` | Send AI chat message (when AI panel is focused). `Shift+Enter` for newline. |
 
 ---
 

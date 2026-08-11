@@ -1,4 +1,4 @@
-🌐 [English](README.md) · [中文](README.zh-CN.md) · **日本語**
+🌐 [English](README.md) · [中文](README.zh-CN.md) · **日本語** · [Русский](README.ru.md) · [한국어](README.ko.md)
 
 ---
 
@@ -89,7 +89,7 @@ AI アシスタントパネルには組み込み ConPTY ターミナルがあり
 | `Alt+1` ~ `Alt+6` | 左側サイドバータブを切り替え |
 | `F5` | 現在のリストを更新 |
 | `Del` | 選択中のプロセスを終了 |
-| `Ctrl+Enter` | AI チャットメッセージを送信（AI パネルフォーカス時） |
+| `Enter` | AI チャットメッセージを送信（AI パネルフォーカス時）。`Shift+Enter` で改行。 |
 
 ---
 

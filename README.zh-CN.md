@@ -1,4 +1,4 @@
-🌐 [English](README.md) · **中文** · [日本語](README.ja.md)
+🌐 [English](README.md) · **中文** · [日本語](README.ja.md) · [Русский](README.ru.md) · [한국어](README.ko.md)
 
 ---
 
@@ -89,7 +89,7 @@ AI 助手面板内置 ConPTY 终端，支持多个终端会话，AI 执行命令
 | `Alt+1` ~ `Alt+6` | 切换左侧标签页 |
 | `F5` | 刷新当前列表 |
 | `Del` | 结束选中的进程 |
-| `Ctrl+Enter` | AI 对话发送（AI 面板聚焦时） |
+| `Enter` | AI 对话发送（AI 面板聚焦时）。`Shift+Enter` 换行。 |
 
 ---
 
