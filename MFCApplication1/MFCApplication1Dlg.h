@@ -122,10 +122,14 @@ protected:
     // (File management features removed)
 
 	// File management: drag-drop file path and make copy button
-	afx_msg void OnDropFiles(HDROP hDropInfo);
-	afx_msg BOOL OnCopyData(CWnd* pWnd, COPYDATASTRUCT* pCopyDataStruct);
-	afx_msg void OnBnClickedButton3();
-	CString m_strDroppedFilePath; // Stored drag-drop file path
+    afx_msg void OnDropFiles(HDROP hDropInfo);
+    afx_msg BOOL OnCopyData(CWnd* pWnd, COPYDATASTRUCT* pCopyDataStruct);
+    afx_msg void OnBnClickedButton3();
+    CString m_strDroppedFilePath; // Stored drag-drop file path
+    // File hash calculator
+    afx_msg void OnBnClickedHashCalc();
+    afx_msg void OnBnClickedHashCopy();
+    void CalculateFileHash(const CString& filePath);
 public:
 	CString m_strInitialFolder;   // Folder path passed via command line (context menu)
 protected:

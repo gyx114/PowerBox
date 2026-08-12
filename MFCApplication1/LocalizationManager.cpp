@@ -440,6 +440,10 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("MainCtrl"), _T("BtnCopyTo"))] = _T("复制到");
     m_defaults[MakeKey(_T("MainCtrl"), _T("BtnMoveTo"))] = _T("移动到");
     m_defaults[MakeKey(_T("MainCtrl"), _T("GroupCopyMove"))] = _T("复制 / 移动");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("GroupFileHash"))] = _T("文件哈希校验");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("HashCalc"))] = _T("计算");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("HashCopy"))] = _T("复制");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("HashResult"))] = _T("计算结果");
     m_defaults[MakeKey(_T("MainCtrl"), _T("GitDropHint"))] = _T("拖拽文件夹或文件目录到此");
 
     // ===== Shutdown combo =====

@@ -343,6 +343,8 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_BN_CLICKED(IDC_BUTTON24, &CMFCApplication1Dlg::OnBnClickedButton24)
     ON_BN_CLICKED(IDC_BUTTON25, &CMFCApplication1Dlg::OnBnClickedButton25)
     ON_BN_CLICKED(IDC_BUTTON26, &CMFCApplication1Dlg::OnBnClickedButton26)
+    ON_BN_CLICKED(IDC_BTN_HASH_CALC, &CMFCApplication1Dlg::OnBnClickedHashCalc)
+    ON_BN_CLICKED(IDC_BTN_HASH_COPY, &CMFCApplication1Dlg::OnBnClickedHashCopy)
     ON_MESSAGE(CMFCApplication1Dlg::WM_VOLUME_UPDATED, &CMFCApplication1Dlg::OnVolumeUpdated)
     ON_MESSAGE(CMFCApplication1Dlg::WM_HOTKEYS_CHANGED, &CMFCApplication1Dlg::OnHotkeysChanged)
     ON_BN_CLICKED(IDC_CHECK6, &CMFCApplication1Dlg::OnBnClickedCheck6)
@@ -2052,6 +2054,10 @@ void CMFCApplication1Dlg::TranslateUI()
     GetDlgItem(IDC_STATIC7)->SetWindowText(loc.GetString(_T("MainCtrl"), _T("GroupGenerate")));
     GetDlgItem(IDC_STATIC13)->SetWindowText(loc.GetString(_T("MainCtrl"), _T("GroupRename")));
     GetDlgItem(IDC_STATIC14)->SetWindowText(loc.GetString(_T("MainCtrl"), _T("GroupCopyMove")));
+    // File hash controls
+    GetDlgItem(IDC_GROUP_FILE_HASH)->SetWindowText(loc.GetString(_T("MainCtrl"), _T("GroupFileHash")));
+    SetDlgItemText(IDC_BTN_HASH_CALC, loc.GetString(_T("MainCtrl"), _T("HashCalc")));
+    SetDlgItemText(IDC_BTN_HASH_COPY, loc.GetString(_T("MainCtrl"), _T("HashCopy")));
 
     // ===== Checkboxes (bottom area) =====
     SetDlgItemText(IDC_CHECK1, loc.GetString(_T("MainCtrl"), _T("CheckAutoStart")));
@@ -2259,6 +2265,8 @@ CString CMFCApplication1Dlg::BuildSystemPrompt()
         _T("   - \"修改\"按钮：验证文件名（无非法字符）、检查目标不存在、然后重命名\n")
         _T("   - \"删除\"：将文件移入回收站（非永久删除）\n")
         _T("   - \"复制到\"/\"移动到\"：选择目标文件夹，然后复制或移动拖放的文件\n")
+        _T("   - 文件哈希校验：选择 MD5/SHA-1/SHA-256/SHA-512（默认勾选前三个），")
+        _T("点击\"计算\"计算拖放文件的哈希值，\"复制\"按钮将结果复制到剪贴板\n")
 
         _T("6. git工具箱（标签页 6）\n")
         _T("   - 预载 20 条常用 Git 命令（init、add、commit、push、pull、clone、status、branch、checkout、merge、log、restore 等）\n")

@@ -113,6 +113,9 @@ void CMFCApplication1Dlg::InitFileTab()
 {
     // File management tab controls are defined in resource editor, placeholder here
     // Actual visibility managed by UpdateTabVisibility
+
+    // Initialize hash radio buttons: default MD5 selected
+    CheckDlgButton(IDC_CHECK_HASH_MD5, BST_CHECKED);
 }
 
 void CMFCApplication1Dlg::InitGitTab()
@@ -290,6 +293,25 @@ void CMFCApplication1Dlg::UpdateTabVisibility(int nTab)
     if (pBtn25) pBtn25->ShowWindow(showFile ? SW_SHOW : SW_HIDE);
     if (pBtn26) pBtn26->ShowWindow(showFile ? SW_SHOW : SW_HIDE);
     if (pBrowse) pBrowse->ShowWindow(showFile ? SW_SHOW : SW_HIDE);
+
+    // File hash calculator controls
+    CWnd* pGroupHash = GetDlgItem(IDC_GROUP_FILE_HASH);
+    CWnd* pCheckMd5 = GetDlgItem(IDC_CHECK_HASH_MD5);
+    CWnd* pCheckSha1 = GetDlgItem(IDC_CHECK_HASH_SHA1);
+    CWnd* pCheckSha256 = GetDlgItem(IDC_CHECK_HASH_SHA256);
+    CWnd* pCheckSha512 = GetDlgItem(IDC_CHECK_HASH_SHA512);
+    CWnd* pBtnCalc = GetDlgItem(IDC_BTN_HASH_CALC);
+    CWnd* pEditHash = GetDlgItem(IDC_EDIT_HASH_RESULT);
+    CWnd* pBtnCopy = GetDlgItem(IDC_BTN_HASH_COPY);
+
+    if (pGroupHash) pGroupHash->ShowWindow(showFile ? SW_SHOW : SW_HIDE);
+    if (pCheckMd5) pCheckMd5->ShowWindow(showFile ? SW_SHOW : SW_HIDE);
+    if (pCheckSha1) pCheckSha1->ShowWindow(showFile ? SW_SHOW : SW_HIDE);
+    if (pCheckSha256) pCheckSha256->ShowWindow(showFile ? SW_SHOW : SW_HIDE);
+    if (pCheckSha512) pCheckSha512->ShowWindow(showFile ? SW_SHOW : SW_HIDE);
+    if (pBtnCalc) pBtnCalc->ShowWindow(showFile ? SW_SHOW : SW_HIDE);
+    if (pEditHash) pEditHash->ShowWindow(showFile ? SW_SHOW : SW_HIDE);
+    if (pBtnCopy) pBtnCopy->ShowWindow(showFile ? SW_SHOW : SW_HIDE);
 
     if (showFile)
     {

@@ -582,3 +582,144 @@ void CMFCApplication1Dlg::OnDrawItem(int nIDCtl, LPDRAWITEMSTRUCT lpDIS)
     }
     CDialogEx::OnDrawItem(nIDCtl, lpDIS);
 }
+
+// ============================================================================
+// File hash calculator (MD5, SHA-1, SHA-256, SHA-512)
+// ============================================================================
+
+// Forward declare WinRT hash helper
+#include <winrt/Windows.Storage.Streams.h>
+#include <winrt/Windows.Security.Cryptography.h>
+#include <winrt/Windows.Security.Cryptography.Core.h>
+
+namespace winrt
+{
+    using namespace Windows::Storage::Streams;
+    using namespace Windows::Security::Cryptography;
+    using namespace Windows::Security::Cryptography::Core;
+}
+
+static CString ComputeHashWinRT(const CString& filePath, const CString& algorithm)
+{
+    CString result;
+    try
+    {
+        // Read file bytes
+        HANDLE hFile = CreateFile(filePath, GENERIC_READ, FILE_SHARE_READ, NULL,
+            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (hFile == INVALID_HANDLE_VALUE) return CString();
+
+        LARGE_INTEGER fileSize{};
+        GetFileSizeEx(hFile, &fileSize);
+        if (fileSize.QuadPart > 200 * 1024 * 1024) // limit to 200MB
+        {
+            CloseHandle(hFile);
+            return CString();
+        }
+
+        std::vector<BYTE> buffer(static_cast<size_t>(fileSize.QuadPart));
+        DWORD bytesRead = 0;
+        ReadFile(hFile, buffer.data(), static_cast<DWORD>(buffer.size()), &bytesRead, NULL);
+        CloseHandle(hFile);
+
+        if (bytesRead == 0) return CString();
+
+        // Create WinRT buffer from the byte array
+        winrt::IBuffer winrtBuffer = winrt::CryptographicBuffer::CreateFromByteArray(
+            std::vector<byte>{ buffer.begin(), buffer.begin() + bytesRead });
+
+        // Open the hash algorithm provider
+        winrt::HashAlgorithmProvider hasher = winrt::HashAlgorithmProvider::OpenAlgorithm(static_cast<PCWSTR>(algorithm));
+        winrt::IBuffer hashed = hasher.HashData(winrtBuffer);
+        winrt::hstring hex = winrt::CryptographicBuffer::EncodeToHexString(hashed);
+
+        // Convert to CString
+        result = CString(hex.c_str());
+    }
+    catch (...)
+    {
+        result.Empty();
+    }
+    return result;
+}
+
+void CMFCApplication1Dlg::OnBnClickedHashCalc()
+{
+    auto& loc = CLocalizationManager::GetInstance();
+
+    if (m_strDroppedFilePath.IsEmpty())
+    {
+        MessageBox(loc.GetString(_T("Msg"), _T("FileNotFound")), loc.GetString(_T("Msg"), _T("Info")), MB_OK | MB_ICONWARNING);
+        return;
+    }
+
+    // Check file exists
+    if (GetFileAttributes(m_strDroppedFilePath) == INVALID_FILE_ATTRIBUTES)
+    {
+        MessageBox(loc.GetString(_T("Msg"), _T("FileNotFound")), loc.GetString(_T("Msg"), _T("Error")), MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    // Determine which algorithm is selected (radio buttons)
+    struct { CString name; CString algo; UINT id; } algoList[] = {
+        { _T("MD5"),    _T("MD5"),    IDC_CHECK_HASH_MD5 },
+        { _T("SHA-1"),  _T("SHA1"),   IDC_CHECK_HASH_SHA1 },
+        { _T("SHA-256"),_T("SHA256"), IDC_CHECK_HASH_SHA256 },
+        { _T("SHA-512"),_T("SHA512"), IDC_CHECK_HASH_SHA512 },
+    };
+
+    int checkedId = GetCheckedRadioButton(IDC_CHECK_HASH_MD5, IDC_CHECK_HASH_SHA512);
+    CString result;
+    for (const auto& a : algoList)
+    {
+        if (a.id == static_cast<UINT>(checkedId))
+        {
+            CString hex = ComputeHashWinRT(m_strDroppedFilePath, a.algo);
+            if (!hex.IsEmpty())
+            {
+                result = a.name + _T(": ") + hex;
+            }
+            else
+            {
+                result = a.name + _T(": ") + loc.GetString(_T("Msg"), _T("Error"));
+            }
+            break;
+        }
+    }
+
+    if (result.IsEmpty())
+    {
+        result = loc.GetString(_T("MainCtrl"), _T("HashResult"));
+    }
+
+    SetDlgItemText(IDC_EDIT_HASH_RESULT, result);
+}
+
+void CMFCApplication1Dlg::OnBnClickedHashCopy()
+{
+    CString text;
+    GetDlgItemText(IDC_EDIT_HASH_RESULT, text);
+    if (!text.IsEmpty())
+    {
+        if (OpenClipboard())
+        {
+            EmptyClipboard();
+            HGLOBAL hGlobal = GlobalAlloc(GMEM_MOVEABLE, (text.GetLength() + 1) * sizeof(TCHAR));
+            if (hGlobal)
+            {
+                LPTSTR pStr = static_cast<LPTSTR>(GlobalLock(hGlobal));
+                if (pStr)
+                {
+                    _tcscpy_s(pStr, text.GetLength() + 1, text);
+                    GlobalUnlock(hGlobal);
+#ifdef _UNICODE
+                    SetClipboardData(CF_UNICODETEXT, hGlobal);
+#else
+                    SetClipboardData(CF_TEXT, hGlobal);
+#endif
+                }
+            }
+            CloseClipboard();
+        }
+    }
+}

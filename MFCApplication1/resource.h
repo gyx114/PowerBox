@@ -495,13 +495,23 @@
 #define ID_STARTUP_DISABLE               32861
 #define ID_STARTUP_ENABLE                32862
 
+// File hash calculator controls
+#define IDC_GROUP_FILE_HASH            1409
+#define IDC_CHECK_HASH_MD5             1410
+#define IDC_CHECK_HASH_SHA1            1411
+#define IDC_CHECK_HASH_SHA256          1412
+#define IDC_CHECK_HASH_SHA512          1413
+#define IDC_BTN_HASH_CALC              1414
+#define IDC_EDIT_HASH_RESULT           1415
+#define IDC_BTN_HASH_COPY              1416
+
 // Next default values for new objects
 //
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        160
 #define _APS_NEXT_COMMAND_VALUE         32863
-#define _APS_NEXT_CONTROL_VALUE         1409
+#define _APS_NEXT_CONTROL_VALUE         1417
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
