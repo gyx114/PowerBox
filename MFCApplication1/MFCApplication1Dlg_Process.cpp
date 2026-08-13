@@ -260,6 +260,7 @@ std::map<CString, std::pair<CString, bool>> CMFCApplication1Dlg::s_signatureCach
 
 void CMFCApplication1Dlg::ClearSignatureCache()
 {
+    std::lock_guard<std::mutex> lock(s_cacheMutex);
     s_signatureCache.clear();
 }
 
@@ -273,12 +274,15 @@ bool CMFCApplication1Dlg::GetProcessSignatureInfo(const CString& path, CString& 
         return false;
 
     // Check cache first to avoid repeated WinVerifyTrust disk/chain I/O
-    auto it = s_signatureCache.find(path);
-    if (it != s_signatureCache.end())
     {
-        outSigner = it->second.first;
-        outValid = it->second.second;
-        return true;
+        std::lock_guard<std::mutex> lock(s_cacheMutex);
+        auto it = s_signatureCache.find(path);
+        if (it != s_signatureCache.end())
+        {
+            outSigner = it->second.first;
+            outValid = it->second.second;
+            return true;
+        }
     }
 
     WINTRUST_FILE_INFO fileInfo = {0};
@@ -329,7 +333,10 @@ bool CMFCApplication1Dlg::GetProcessSignatureInfo(const CString& path, CString& 
     WinVerifyTrust(NULL, &guidAction, &trustData);
 
     // Cache the result so subsequent scans avoid WinVerifyTrust overhead
-    s_signatureCache[path] = { outSigner, outValid };
+    {
+        std::lock_guard<std::mutex> lock(s_cacheMutex);
+        s_signatureCache[path] = { outSigner, outValid };
+    }
     return true;
 }
 
@@ -422,9 +429,60 @@ bool CMFCApplication1Dlg::ShouldSkipProcessPrefilter(const CString& path)
 // Uses an in-memory cache keyed by path to avoid repeated disk I/O.
 // ============================================================================
 std::map<CString, std::pair<CString, CString>> CMFCApplication1Dlg::s_versionInfoCache;
+std::mutex CMFCApplication1Dlg::s_cacheMutex;
+
+// ============================================================================
+// Background cache prewarm thread.
+// Iterates the current process list and fills the version/signature caches so
+// that a subsequent AI scan is near-instant. Runs detached; never touches UI.
+// ============================================================================
+UINT CMFCApplication1Dlg::ScanCachePrewarmThread(LPVOID pParam)
+{
+    auto dlg = reinterpret_cast<CMFCApplication1Dlg*>(pParam);
+    if (!dlg) return 0;
+
+    // Snapshot the current process list (copy under the main-thread lock is not
+    // done here; m_processes is only mutated by the enum thread which posts back
+    // to the UI thread, and the scan dialog is modal/visible during prewarm).
+    std::vector<ProcInfo> list = dlg->m_processes;
+    for (const auto& pi : list)
+    {
+        if (pi.path.IsEmpty())
+            continue;
+
+        // Prefill version info cache (disk I/O is the slow part we want pre-done)
+        CString company, orig;
+        GetProcessVersionInfo(pi.path, company, orig);
+
+        // Prefill signature cache only for Program Files paths (the only place
+        // the pre-filter actually queries a signature); skip system/user dirs.
+        if (PrefilterIsProgramFiles(pi.path))
+        {
+            CString signer;
+            bool bValid = false;
+            GetProcessSignatureInfo(pi.path, signer, bValid);
+        }
+    }
+    return 0;
+}
+
+void CMFCApplication1Dlg::StartScanCachePrewarm()
+{
+    if (m_processes.empty())
+        return;
+    try
+    {
+        AfxBeginThread(ScanCachePrewarmThread, this);
+    }
+    catch (...)
+    {
+        // Thread creation failure is non-fatal; scan will collect on demand.
+    }
+}
 
 void CMFCApplication1Dlg::ClearVersionInfoCache()
 {
+    std::lock_guard<std::mutex> lock(s_cacheMutex);
     s_versionInfoCache.clear();
 }
 
@@ -436,12 +494,15 @@ bool CMFCApplication1Dlg::GetProcessVersionInfo(const CString& path, CString& ou
     if (path.IsEmpty()) return false;
 
     // Check cache first to avoid repeated GetFileVersionInfo disk I/O
-    auto it = s_versionInfoCache.find(path);
-    if (it != s_versionInfoCache.end())
     {
-        outCompany = it->second.first;
-        outOriginalName = it->second.second;
-        return true;
+        std::lock_guard<std::mutex> lock(s_cacheMutex);
+        auto it = s_versionInfoCache.find(path);
+        if (it != s_versionInfoCache.end())
+        {
+            outCompany = it->second.first;
+            outOriginalName = it->second.second;
+            return true;
+        }
     }
 
     DWORD dwHandle = 0;
@@ -485,7 +546,10 @@ bool CMFCApplication1Dlg::GetProcessVersionInfo(const CString& path, CString& ou
     }
 
     // Cache the result so subsequent scans avoid disk I/O
-    s_versionInfoCache[path] = { outCompany, outOriginalName };
+    {
+        std::lock_guard<std::mutex> lock(s_cacheMutex);
+        s_versionInfoCache[path] = { outCompany, outOriginalName };
+    }
     return true;
 }
 
@@ -577,6 +641,10 @@ void CMFCApplication1Dlg::OnBnClickedProcessAiScan()
     CProcessScanDlg* pRaw = pDlg.release();
     pRaw->Create(IDD_PROCESS_SCAN_DLG, this);
     pRaw->ShowWindow(SW_SHOW);
+
+    // Prewarm version/signature caches in the background so the actual AI scan
+    // (triggered by the user clicking "开始扫描") is near-instant.
+    StartScanCachePrewarm();
 }
 
 LRESULT CMFCApplication1Dlg::OnProcessScanStart(WPARAM wParam, LPARAM lParam)

@@ -5,6 +5,7 @@
 
 #include <vector>
 #include <thread>
+#include <mutex>
 #include <stop_token>
 #include <string>
 #include <memory>
@@ -323,6 +324,12 @@ public:
     // 数字签名内存缓存：path -> (signer, valid)。与版本信息缓存同生命周期，一并清除。
     static void ClearSignatureCache();
     static std::map<CString, std::pair<CString, bool>> s_signatureCache;
+    // 保护上述两个静态缓存多线程访问的互斥锁（预热线程与主线程可能并发读写）
+    static std::mutex s_cacheMutex;
+    // 后台预热：打开 AI 进程扫描窗口时，在后台线程遍历当前进程列表，预填充
+    // 版本信息/签名缓存，使正式扫描时缓存命中、秒级返回。
+    void StartScanCachePrewarm();
+    static UINT ScanCachePrewarmThread(LPVOID pParam);
     // 本地预过滤：判断进程路径是否属于"公认安全"（系统目录，或 Program Files + 微软签名）。
     // 返回 true 表示应跳过该进程，不发送给 AI 分析。
     static bool ShouldSkipProcessPrefilter(const CString& path);
