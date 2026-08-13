@@ -316,6 +316,16 @@ public:
     afx_msg LRESULT OnProcessScanStart(WPARAM wParam, LPARAM lParam);
     static bool GetProcessSignatureInfo(const CString& path, CString& outSigner, bool& outValid);
     static bool GetProcessVersionInfo(const CString& path, CString& outCompany, CString& outOriginalName);
+    // 版本信息内存缓存：path -> (company, originalName)。进程路径不变则该缓存有效，
+    // 清除按钮/进程集合变化时可调用 ClearVersionInfoCache() 清空。
+    static void ClearVersionInfoCache();
+    static std::map<CString, std::pair<CString, CString>> s_versionInfoCache;
+    // 数字签名内存缓存：path -> (signer, valid)。与版本信息缓存同生命周期，一并清除。
+    static void ClearSignatureCache();
+    static std::map<CString, std::pair<CString, bool>> s_signatureCache;
+    // 本地预过滤：判断进程路径是否属于"公认安全"（系统目录，或 Program Files + 微软签名）。
+    // 返回 true 表示应跳过该进程，不发送给 AI 分析。
+    static bool ShouldSkipProcessPrefilter(const CString& path);
     // Git list handlers
 	afx_msg void OnNMDblclkList4(NMHDR* pNMHDR, LRESULT* pResult);
 	afx_msg void OnNMRclickList4(NMHDR* pNMHDR, LRESULT* pResult);

@@ -254,7 +254,15 @@ void CMFCApplication1Dlg::OnLocateProcess()
 
 // ============================================================================
 // Digital signature verification for process AI analysis
+// Uses an in-memory cache keyed by path to avoid repeated WinVerifyTrust calls.
 // ============================================================================
+std::map<CString, std::pair<CString, bool>> CMFCApplication1Dlg::s_signatureCache;
+
+void CMFCApplication1Dlg::ClearSignatureCache()
+{
+    s_signatureCache.clear();
+}
+
 bool CMFCApplication1Dlg::GetProcessSignatureInfo(const CString& path, CString& outSigner, bool& outValid)
 {
     auto& loc = CLocalizationManager::GetInstance();
@@ -263,6 +271,15 @@ bool CMFCApplication1Dlg::GetProcessSignatureInfo(const CString& path, CString& 
 
     if (path.IsEmpty())
         return false;
+
+    // Check cache first to avoid repeated WinVerifyTrust disk/chain I/O
+    auto it = s_signatureCache.find(path);
+    if (it != s_signatureCache.end())
+    {
+        outSigner = it->second.first;
+        outValid = it->second.second;
+        return true;
+    }
 
     WINTRUST_FILE_INFO fileInfo = {0};
     fileInfo.cbStruct = sizeof(fileInfo);
@@ -311,18 +328,121 @@ bool CMFCApplication1Dlg::GetProcessSignatureInfo(const CString& path, CString& 
     trustData.dwStateAction = WTD_STATEACTION_CLOSE;
     WinVerifyTrust(NULL, &guidAction, &trustData);
 
+    // Cache the result so subsequent scans avoid WinVerifyTrust overhead
+    s_signatureCache[path] = { outSigner, outValid };
     return true;
 }
 
 // ============================================================================
-// Get file version info (CompanyName, OriginalFilename) for AI analysis
+// Local pre-filter for AI process scan.
+// Returns true if the process at the given path is considered "commonly safe"
+// and should be skipped (not sent to AI). Never enabled for suspicious paths.
+//
+// Rules (option 2 — conservative):
+//   1. Files under the Windows system directory (System32/SysWOW64/SystemApps)
+//      are skipped outright (zero-cost path check, no signature lookup).
+//   2. Files under "Program Files" / "Program Files (x86)" are skipped only if
+//      they carry a valid *Microsoft* signature; third-party signed programs
+//      are still sent to AI for review.
+//   3. Any other path (user dir, temp, removable drives) is kept for AI.
 // ============================================================================
+static bool PrefilterIsSystemDir(const CString& path)
+{
+    TCHAR sysDir[MAX_PATH] = {0};
+    GetSystemDirectory(sysDir, _countof(sysDir));
+    CString sys = sysDir;
+    sys.MakeLower();
+    CString p = path;
+    p.MakeLower();
+    if (p.GetLength() >= sys.GetLength() + 1 &&
+        p.Left(sys.GetLength()) == sys &&
+        p[sys.GetLength()] == _T('\\'))
+        return true;
+    // Also cover SystemApps under Windows dir
+    TCHAR winDir[MAX_PATH] = {0};
+    GetWindowsDirectory(winDir, _countof(winDir));
+    CString win = winDir;
+    win.MakeLower();
+    CString sysApps = win + _T("\\systemapps\\");
+    if (p.GetLength() >= sysApps.GetLength() &&
+        p.Left(sysApps.GetLength()).CompareNoCase(sysApps) == 0)
+        return true;
+    // SysWOW64 is under System32's parent; GetSystemDirectory returns System32.
+    // SysWOW64 is a sibling: <win>\SysWOW64. Check it explicitly.
+    CString sysWow = win + _T("\\syswow64\\");
+    if (p.GetLength() >= sysWow.GetLength() &&
+        p.Left(sysWow.GetLength()).CompareNoCase(sysWow) == 0)
+        return true;
+    return false;
+}
+
+static bool PrefilterIsProgramFiles(const CString& path)
+{
+    CString p = path;
+    p.MakeLower();
+    const LPCTSTR pfDirs[] = {
+        _T("\\program files\\"),
+        _T("\\program files (x86)\\"),
+    };
+    for (auto dir : pfDirs)
+    {
+        if (p.Find(dir) != -1)
+            return true;
+    }
+    return false;
+}
+
+bool CMFCApplication1Dlg::ShouldSkipProcessPrefilter(const CString& path)
+{
+    if (path.IsEmpty())
+        return false; // unknown path -> keep for AI
+
+    // Rule 1: system directory -> skip (zero-cost)
+    if (PrefilterIsSystemDir(path))
+        return true;
+
+    // Rule 2: Program Files -> skip only if valid Microsoft signature
+    if (PrefilterIsProgramFiles(path))
+    {
+        CString signer;
+        bool bValid = false;
+        GetProcessSignatureInfo(path, signer, bValid);
+        if (bValid && signer.Find(_T("Microsoft")) != -1)
+            return true;
+        // third-party signed or unsigned -> keep for AI
+        return false;
+    }
+
+    // Rule 3: other paths -> keep for AI
+    return false;
+}
+
+// ============================================================================
+// Get file version info (CompanyName, OriginalFilename) for AI analysis
+// Uses an in-memory cache keyed by path to avoid repeated disk I/O.
+// ============================================================================
+std::map<CString, std::pair<CString, CString>> CMFCApplication1Dlg::s_versionInfoCache;
+
+void CMFCApplication1Dlg::ClearVersionInfoCache()
+{
+    s_versionInfoCache.clear();
+}
+
 bool CMFCApplication1Dlg::GetProcessVersionInfo(const CString& path, CString& outCompany, CString& outOriginalName)
 {
     outCompany = _T("无");
     outOriginalName = _T("");
 
     if (path.IsEmpty()) return false;
+
+    // Check cache first to avoid repeated GetFileVersionInfo disk I/O
+    auto it = s_versionInfoCache.find(path);
+    if (it != s_versionInfoCache.end())
+    {
+        outCompany = it->second.first;
+        outOriginalName = it->second.second;
+        return true;
+    }
 
     DWORD dwHandle = 0;
     DWORD dwSize = GetFileVersionInfoSize(path, &dwHandle);
@@ -364,6 +484,8 @@ bool CMFCApplication1Dlg::GetProcessVersionInfo(const CString& path, CString& ou
         query.ReleaseBuffer();
     }
 
+    // Cache the result so subsequent scans avoid disk I/O
+    s_versionInfoCache[path] = { outCompany, outOriginalName };
     return true;
 }
 
@@ -459,7 +581,9 @@ void CMFCApplication1Dlg::OnBnClickedProcessAiScan()
 
 LRESULT CMFCApplication1Dlg::OnProcessScanStart(WPARAM wParam, LPARAM lParam)
 {
-    int scanLevel = (int)wParam;
+    // High bit of wParam carries the pre-filter checkbox toggle (0x10000)
+    int scanLevel = (int)(wParam & 0xFFFF);
+    bool bPrefilter = (wParam & 0x10000) != 0;
     HWND hScanDlg = (HWND)lParam;
 
     // Get AI config
@@ -511,6 +635,11 @@ LRESULT CMFCApplication1Dlg::OnProcessScanStart(WPARAM wParam, LPARAM lParam)
             }
         }
         if (bSkip) continue;
+
+        // Local pre-filter: skip commonly-safe processes (system dir / MS-signed
+        // Program Files) before collecting version info and sending to AI.
+        if (bPrefilter && ShouldSkipProcessPrefilter(pi.path))
+            continue;
 
         CString company, origName;
         GetProcessVersionInfo(pi.path, company, origName);

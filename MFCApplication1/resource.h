@@ -318,6 +318,8 @@
 #define IDC_STATIC_SCAN_LEVEL_LABEL    1291
 #define IDC_COMBO_SCAN_LEVEL           1292
 #define IDC_BTN_SCAN_START             1293
+#define IDC_BTN_SCAN_CLEAR_CACHE       1298
+#define IDC_CHECK_SCAN_PREFILTER       1299
 
 // Git command result dialog
 #define IDD_GIT_CMD_RESULT_DLG          153

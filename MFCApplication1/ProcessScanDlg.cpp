@@ -5,6 +5,7 @@
 #include "LocalizationManager.h"
 #include "Utils.h"
 #include "AIApiClient.h"
+#include "MFCApplication1Dlg.h"
 #include <Shellapi.h>
 #include <Psapi.h>
 #include <algorithm>
@@ -27,6 +28,7 @@ CProcessScanDlg::CProcessScanDlg(CWnd* pParent)
     m_cmbLevelWidth = m_cmbLevelHeight = 0;
     m_statusLeft = m_statusTop = 0;
     m_statusWidth = m_statusHeight = 0;
+    m_checkPrefilterLeft = m_checkPrefilterTop = 0;
 }
 
 CProcessScanDlg::~CProcessScanDlg() = default;
@@ -45,6 +47,7 @@ BEGIN_MESSAGE_MAP(CProcessScanDlg, CDialogEx)
     ON_BN_CLICKED(IDC_BTN_SCAN_LOCATE, &CProcessScanDlg::OnBnClickedScanLocate)
     ON_BN_CLICKED(IDC_BTN_SCAN_ENDALL, &CProcessScanDlg::OnBnClickedScanEndAll)
     ON_BN_CLICKED(IDC_BTN_SCAN_START, &CProcessScanDlg::OnBnClickedScanStart)
+    ON_BN_CLICKED(IDC_BTN_SCAN_CLEAR_CACHE, &CProcessScanDlg::OnBnClickedScanClearCache)
     ON_NOTIFY(NM_RCLICK, IDC_LIST_SCAN_RESULTS, &CProcessScanDlg::OnNMRClickList)
     ON_COMMAND(IDM_SCAN_END, &CProcessScanDlg::OnMenuScanEnd)
     ON_COMMAND(IDM_SCAN_LOCATE, &CProcessScanDlg::OnMenuScanLocate)
@@ -99,6 +102,8 @@ BOOL CProcessScanDlg::OnInitDialog()
     if (pLabelLevel) { pLabelLevel->GetWindowRect(&rcBtn); ScreenToClient(&rcBtn); m_labelLevelLeft = rcBtn.left; m_labelLevelTop = rcBtn.top; m_labelLevelWidth = rcBtn.Width(); m_labelLevelHeight = rcBtn.Height(); }
     if (pCmbLevelWnd) { pCmbLevelWnd->GetWindowRect(&rcBtn); ScreenToClient(&rcBtn); m_cmbLevelLeft = rcBtn.left; m_cmbLevelTop = rcBtn.top; m_cmbLevelWidth = rcBtn.Width(); m_cmbLevelHeight = rcBtn.Height(); }
     if (pStatus) { pStatus->GetWindowRect(&rcBtn); ScreenToClient(&rcBtn); m_statusLeft = rcBtn.left; m_statusTop = rcBtn.top; m_statusWidth = rcBtn.Width(); m_statusHeight = rcBtn.Height(); }
+    CWnd* pCheckPrefilter = GetDlgItem(IDC_CHECK_SCAN_PREFILTER);
+    if (pCheckPrefilter) { pCheckPrefilter->GetWindowRect(&rcBtn); ScreenToClient(&rcBtn); m_checkPrefilterLeft = rcBtn.left; m_checkPrefilterTop = rcBtn.top; }
 
     // Set initial column widths based on original list size from RC
     CRect rcListClient;
@@ -124,6 +129,12 @@ BOOL CProcessScanDlg::OnInitDialog()
         pCmbLevel->SetCurSel(1); // Default to "标准"
     }
 
+    // Pre-filter checkbox defaults to checked (local pre-filtering is the
+    // recommended performance optimization; user can uncheck to force full AI scan)
+    CWnd* pCheck = GetDlgItem(IDC_CHECK_SCAN_PREFILTER);
+    if (pCheck)
+        pCheck->SendMessage(BM_SETCHECK, BST_CHECKED, 0);
+
     CString statusReady;
     statusReady.Format(loc.GetString(_T("ProcessScan"), _T("StatusReadyFormat")), loc.GetString(_T("ProcessScan"), _T("BtnStartScan")));
     UpdateStatus(statusReady);
@@ -142,6 +153,8 @@ void CProcessScanDlg::TranslateUI()
     SetDlgItemText(IDC_BTN_SCAN_LOCATE, loc.GetString(_T("ProcessScan"), _T("BtnLocate")));
     SetDlgItemText(IDC_BTN_SCAN_ENDALL, loc.GetString(_T("ProcessScan"), _T("BtnEndAll")));
     SetDlgItemText(IDC_BTN_SCAN_START, loc.GetString(_T("ProcessScan"), _T("BtnStartScan")));
+    SetDlgItemText(IDC_BTN_SCAN_CLEAR_CACHE, loc.GetString(_T("ProcessScan"), _T("BtnClearCache")));
+    SetDlgItemText(IDC_CHECK_SCAN_PREFILTER, loc.GetString(_T("ProcessScan"), _T("PrefilterLabel")));
 
     // Translate static label
     SetChildTextByCurrentText(this, _T("审查级别:"), loc.GetString(_T("ProcessScan"), _T("LevelLabel")));
@@ -661,12 +674,36 @@ void CProcessScanDlg::OnBnClickedScanStart()
     int level = GetScanLevel();
     UpdateStatus(loc.GetString(_T("Msg"), _T("Scanning")));
 
+    // Pack pre-filter checkbox state into the high bit of wParam (0x10000)
+    WPARAM wParam = (WPARAM)level;
+    CWnd* pCheckPrefilter = GetDlgItem(IDC_CHECK_SCAN_PREFILTER);
+    if (pCheckPrefilter &&
+        pCheckPrefilter->SendMessage(BM_GETCHECK, 0, 0) == BST_CHECKED)
+        wParam |= 0x10000;
+
     // Notify parent (main dialog) to start the AI scan
     CWnd* pParent = GetParent();
     if (pParent && IsWindow(pParent->m_hWnd))
     {
-        pParent->PostMessage(WM_PROCESS_SCAN_START, (WPARAM)level, (LPARAM)m_hWnd);
+        pParent->PostMessage(WM_PROCESS_SCAN_START, wParam, (LPARAM)m_hWnd);
     }
+}
+
+void CProcessScanDlg::OnBnClickedScanClearCache()
+{
+    auto& loc = CLocalizationManager::GetInstance();
+
+    // Confirm before clearing
+    CString prompt = loc.GetString(_T("ProcessScan"), _T("ClearCacheConfirm"));
+    if (MessageBox(prompt, loc.GetString(_T("ProcessScan"), _T("BtnClearCache")),
+        MB_YESNO | MB_ICONQUESTION) != IDYES)
+        return;
+
+    // Clear the version info cache in the main dialog
+    CMFCApplication1Dlg::ClearVersionInfoCache();
+
+    CString status = loc.GetString(_T("ProcessScan"), _T("CacheCleared"));
+    UpdateStatus(status);
 }
 
 void CProcessScanDlg::OnNMRClickList(NMHDR* pNMHDR, LRESULT* pResult)

@@ -47,6 +47,7 @@ protected:
     afx_msg void OnBnClickedScanLocate();
     afx_msg void OnBnClickedScanEndAll();
     afx_msg void OnBnClickedScanStart();
+    afx_msg void OnBnClickedScanClearCache();
     afx_msg void OnNMRClickList(NMHDR* pNMHDR, LRESULT* pResult);
     afx_msg void OnMenuScanEnd();
     afx_msg void OnMenuScanLocate();
@@ -68,6 +69,7 @@ private:
     int m_cmbLevelWidth, m_cmbLevelHeight;  // fixed combo box size from RC
     int m_statusLeft, m_statusTop;
     int m_statusWidth, m_statusHeight;  // fixed status label size from RC
+    int m_checkPrefilterLeft, m_checkPrefilterTop;  // fixed pre-filter checkbox pos from RC
     int m_colRatios[4];  // column width ratios for dynamic resizing
 
     void TranslateUI();
