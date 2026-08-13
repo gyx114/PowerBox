@@ -444,6 +444,23 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("MainCtrl"), _T("HashCalc"))] = _T("计算");
     m_defaults[MakeKey(_T("MainCtrl"), _T("HashCopy"))] = _T("复制");
     m_defaults[MakeKey(_T("MainCtrl"), _T("HashResult"))] = _T("计算结果");
+
+    // System info tab
+    m_defaults[MakeKey(_T("SysInfoTab"), _T("GroupSysInfo"))] = _T("系统信息");
+    m_defaults[MakeKey(_T("SysInfoTab"), _T("ColField"))] = _T("项目");
+    m_defaults[MakeKey(_T("SysInfoTab"), _T("ColValue"))] = _T("值");
+    m_defaults[MakeKey(_T("SysInfoTab"), _T("BtnRefresh"))] = _T("刷新");
+    m_defaults[MakeKey(_T("SysInfoTab"), _T("BtnCopy"))] = _T("复制");
+    m_defaults[MakeKey(_T("SysInfoTab"), _T("OS"))] = _T("操作系统");
+    m_defaults[MakeKey(_T("SysInfoTab"), _T("CPU"))] = _T("处理器");
+    m_defaults[MakeKey(_T("SysInfoTab"), _T("Memory"))] = _T("内存");
+    m_defaults[MakeKey(_T("SysInfoTab"), _T("Disk"))] = _T("磁盘");
+    m_defaults[MakeKey(_T("SysInfoTab"), _T("Uptime"))] = _T("运行时间");
+    m_defaults[MakeKey(_T("SysInfoTab"), _T("BootTime"))] = _T("开机时间");
+    m_defaults[MakeKey(_T("SysInfoTab"), _T("ComputerName"))] = _T("计算机名");
+    m_defaults[MakeKey(_T("SysInfoTab"), _T("UserName"))] = _T("用户名");
+
+    
     m_defaults[MakeKey(_T("MainCtrl"), _T("GitDropHint"))] = _T("拖拽文件夹或文件目录到此");
 
     // ===== Shutdown combo =====

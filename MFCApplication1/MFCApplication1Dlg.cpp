@@ -345,6 +345,8 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_BN_CLICKED(IDC_BUTTON26, &CMFCApplication1Dlg::OnBnClickedButton26)
     ON_BN_CLICKED(IDC_BTN_HASH_CALC, &CMFCApplication1Dlg::OnBnClickedHashCalc)
     ON_BN_CLICKED(IDC_BTN_HASH_COPY, &CMFCApplication1Dlg::OnBnClickedHashCopy)
+    ON_BN_CLICKED(IDC_BTN_SYSINFO_REFRESH, &CMFCApplication1Dlg::OnBnClickedSysinfoRefresh)
+    ON_BN_CLICKED(IDC_BTN_SYSINFO_COPY, &CMFCApplication1Dlg::OnBnClickedSysinfoCopy)
     ON_MESSAGE(CMFCApplication1Dlg::WM_VOLUME_UPDATED, &CMFCApplication1Dlg::OnVolumeUpdated)
     ON_MESSAGE(CMFCApplication1Dlg::WM_HOTKEYS_CHANGED, &CMFCApplication1Dlg::OnHotkeysChanged)
     ON_BN_CLICKED(IDC_CHECK6, &CMFCApplication1Dlg::OnBnClickedCheck6)
@@ -467,6 +469,7 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 	InitFileTab();
 	InitGitTab();
 	InitQuickTab();
+	InitSysInfoTab();
 	InitAIControls();
 	InitTerminal();
 
@@ -662,7 +665,9 @@ void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
         IDC_STATIC_QUICK_SEP1,
         IDC_STATIC_QUICK_VOLUME, IDC_SLIDER1, IDC_EDIT5, IDC_BUTTON12, IDC_BUTTON13,
         IDC_STATIC_QUICK_SEP2,
-        IDC_STATIC_QUICK_SYSMGMT, IDC_BUTTON20
+        IDC_STATIC_QUICK_SYSMGMT, IDC_BUTTON20,
+        IDC_STATIC_QUICK_SYSINFO_SEP, IDC_STATIC_QUICK_SYSINFO_LABEL,
+        IDC_LIST_SYSINFO, IDC_BTN_SYSINFO_REFRESH, IDC_BTN_SYSINFO_COPY
     };
     static const int kToolIds[] = {
         IDC_STATIC_QUICK_CMDLINE, IDC_BUTTON27, IDC_BUTTON28,
@@ -758,6 +763,8 @@ void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
 
     // System tools (tab 2)
     showGroup(kSystemIds, _countof(kSystemIds), nTab == 2);
+    if (nTab == 2)
+        RefreshSysInfo();
 
     // Tool utilities (tab 3)
     showGroup(kToolIds, _countof(kToolIds), nTab == 3);
@@ -2058,6 +2065,10 @@ void CMFCApplication1Dlg::TranslateUI()
     GetDlgItem(IDC_GROUP_FILE_HASH)->SetWindowText(loc.GetString(_T("MainCtrl"), _T("GroupFileHash")));
     SetDlgItemText(IDC_BTN_HASH_CALC, loc.GetString(_T("MainCtrl"), _T("HashCalc")));
     SetDlgItemText(IDC_BTN_HASH_COPY, loc.GetString(_T("MainCtrl"), _T("HashCopy")));
+    // System info controls
+    SetDlgItemText(IDC_STATIC_QUICK_SYSINFO_LABEL, loc.GetString(_T("SysInfoTab"), _T("GroupSysInfo")));
+    SetDlgItemText(IDC_BTN_SYSINFO_REFRESH, loc.GetString(_T("SysInfoTab"), _T("BtnRefresh")));
+    SetDlgItemText(IDC_BTN_SYSINFO_COPY, loc.GetString(_T("SysInfoTab"), _T("BtnCopy")));
 
     // ===== Checkboxes (bottom area) =====
     SetDlgItemText(IDC_CHECK1, loc.GetString(_T("MainCtrl"), _T("CheckAutoStart")));
@@ -2304,7 +2315,8 @@ CString CMFCApplication1Dlg::BuildSystemPrompt()
         _T("   - 关机/重启：下拉菜单包含\"1分钟后重启\"、\"3分钟后关机\"、\"自定义时间关机\"（可设置时/分/秒）\n")
         _T("   - \"执行\"按钮触发关机/重启；\"解除关机\"按钮中止操作\n")
         _T("   - 音量：滑块（0-100）、输入框（回车应用）、\"应用\"按钮、\"静音\"（0%）\n")
-        _T("   - \"任务管理器\"按钮打开 Windows 任务管理器\n\n")
+        _T("   - \"任务管理器\"按钮打开 Windows 任务管理器\n")
+        _T("   - 系统信息：显示操作系统、CPU、内存、磁盘、运行时间、开机时间、计算机名、用户名等；\"刷新\"重新采集，\"复制\"复制到剪贴板\n\n")
 
         _T("「工具」标签页：\n")
         _T("   - \"PowerShell\"：选择普通或管理员模式\n")

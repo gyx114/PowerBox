@@ -266,6 +266,7 @@ xcopy /y /e /i "$(ProjectDir)lang" "$(OutDir)lang"</Command>
     <ClCompile Include="MFCApplication1Dlg_Terminal.cpp" />
     <ClCompile Include="MFCApplication1Dlg_Tray.cpp" />
     <ClCompile Include="MFCApplication1Dlg_Window.cpp" />
+    <ClCompile Include="MFCApplication1Dlg_SysInfo.cpp" />
     <ClCompile Include="qrcodegen.cpp" />
     <ClCompile Include="QRCodeGenDlg.cpp" />
     <ClCompile Include="ScreenshotOCRDlg.cpp" />

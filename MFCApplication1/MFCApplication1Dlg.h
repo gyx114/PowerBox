@@ -90,6 +90,8 @@ protected:
 	void InitWindowTab();
 	void InitFileTab();
 	void InitGitTab();
+	void InitSysInfoTab();
+	void RefreshSysInfo();
 	void InitQuickTab();
 	void TranslateUI();
 	void UpdateTabVisibility(int nTab);
@@ -249,6 +251,8 @@ public:
 	afx_msg void OnViewWindow();
 	afx_msg void OnViewFile();
 	afx_msg void OnViewGit();
+	afx_msg void OnBnClickedSysinfoRefresh();
+	afx_msg void OnBnClickedSysinfoCopy();
 	afx_msg void OnWindowLocate();
 	afx_msg void OnWindowUntopmost();
 	afx_msg void OnWindowClose();
