@@ -31,8 +31,14 @@ void CAutoClicker::Stop()
     m_bClicking = false;
     m_monitorStopSource.request_stop();
     m_clickStopSource.request_stop();
-    if (m_clickThread.joinable()) m_clickThread.join();
+
+    // Join the monitor thread first: it is the only thread that joins the click
+    // thread on its way out. This avoids a concurrent double-join (undefined
+    // behavior / deadlock) between the UI thread and the monitor thread. Once the
+    // monitor is gone, the UI thread is the sole joiner of the click thread.
     if (m_monitorThread.joinable()) m_monitorThread.join();
+    if (m_clickThread.joinable()) m_clickThread.join();
+
     m_monitorStopSource = std::stop_source{};
     m_clickStopSource = std::stop_source{};
 }
@@ -44,8 +50,10 @@ void CAutoClicker::Pause()
     m_bClicking = false;
     m_monitorStopSource.request_stop();
     m_clickStopSource.request_stop();
-    if (m_clickThread.joinable()) m_clickThread.join();
+    // Join the monitor first; it joins the click thread on the way out. After the
+    // monitor is gone, join the click thread here as the sole joiner.
     if (m_monitorThread.joinable()) m_monitorThread.join();
+    if (m_clickThread.joinable()) m_clickThread.join();
     m_monitorStopSource = std::stop_source{};
     m_clickStopSource = std::stop_source{};
 }
@@ -65,16 +73,9 @@ void CAutoClicker::SetInterval(int intervalMs)
 {
     if (intervalMs < 10) intervalMs = 10;
     if (intervalMs > 10000) intervalMs = 10000;
+    // The click thread reads m_intervalMs on every iteration, so no restart of the
+    // click thread is needed here (which also avoids a redundant join on the UI thread).
     m_intervalMs = intervalMs;
-
-    // If currently clicking, restart click thread to apply new interval
-    if (m_bClicking.load())
-    {
-        m_clickStopSource.request_stop();
-        if (m_clickThread.joinable()) m_clickThread.join();
-        m_clickStopSource = std::stop_source{};
-        m_clickThread = std::jthread(ClickThreadFunc, m_clickStopSource.get_token(), intervalMs);
-    }
 }
 
 void CAutoClicker::SetKeys(char keyStart, char keyStop)
@@ -89,7 +90,7 @@ void CAutoClicker::SetKeys(char keyStart, char keyStop)
     m_keyStop = kp;
 }
 
-void CAutoClicker::ClickThreadFunc(std::stop_token stoken, int intervalMs)
+void CAutoClicker::ClickThreadFunc(std::stop_token stoken)
 {
     INPUT inputs[2]{};
     inputs[0].type = INPUT_MOUSE;
@@ -100,7 +101,14 @@ void CAutoClicker::ClickThreadFunc(std::stop_token stoken, int intervalMs)
     while (!stoken.stop_requested())
     {
         SendInput(2, inputs, sizeof(INPUT));
-        Sleep(intervalMs);
+        // Wait in small increments so that a stop request can interrupt within
+        // ~10ms, regardless of the configured click interval (up to 1000ms).
+        int remaining = m_intervalMs.load();
+        while (remaining > 0 && !stoken.stop_requested())
+        {
+            Sleep(10);
+            remaining -= 10;
+        }
     }
 }
 
@@ -115,7 +123,7 @@ void CAutoClicker::MonitorThreadFunc(std::stop_token stoken)
             m_clickStopSource.request_stop();
             if (m_clickThread.joinable()) m_clickThread.join();
             m_clickStopSource = std::stop_source{};
-            m_clickThread = std::jthread(ClickThreadFunc, m_clickStopSource.get_token(), m_intervalMs.load());
+            m_clickThread = std::jthread(&CAutoClicker::ClickThreadFunc, this, m_clickStopSource.get_token());
         }
 
         if (m_bClicking.load() && IsUppercaseKeyPressed(m_keyStop.load()))

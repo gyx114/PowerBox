@@ -47,7 +47,7 @@ public:
 
 private:
     // Thread functions
-    static void ClickThreadFunc(std::stop_token stoken, int intervalMs);
+    void ClickThreadFunc(std::stop_token stoken);
     void MonitorThreadFunc(std::stop_token stoken);
 
     // Detect uppercase key press
