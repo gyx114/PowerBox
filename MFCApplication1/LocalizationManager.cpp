@@ -374,6 +374,9 @@ void CLocalizationManager::LoadBuiltinDefaults()
     // ===== Tray menu =====
     m_defaults[MakeKey(_T("TrayMenu"), _T("ShowWindow"))] = _T("显示窗口");
     m_defaults[MakeKey(_T("TrayMenu"), _T("Exit"))] = _T("退出程序");
+    m_defaults[MakeKey(_T("TrayMenu"), _T("Media"))] = _T("媒体");
+    m_defaults[MakeKey(_T("TrayMenu"), _T("MediaPrev"))] = _T("上一首");
+    m_defaults[MakeKey(_T("TrayMenu"), _T("MediaNext"))] = _T("下一首");
 
     // ===== Window tab controls =====
     m_defaults[MakeKey(_T("WindowTab"), _T("TranparencyLabel"))] = _T("透明度: 100%");
@@ -406,6 +409,7 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("MainCtrl"), _T("BtnAiScan"))] = _T("AI扫描");
     m_defaults[MakeKey(_T("MainCtrl"), _T("BtnRegexHelp"))] = _T("帮助");
     m_defaults[MakeKey(_T("MainCtrl"), _T("BtnNextTrack"))] = _T("下一首");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnPrevTrack"))] = _T("上一首");
     m_defaults[MakeKey(_T("MainCtrl"), _T("LabelShutdown"))] = _T("关机");
     m_defaults[MakeKey(_T("MainCtrl"), _T("BtnExecute"))] = _T("执行");
     m_defaults[MakeKey(_T("MainCtrl"), _T("BtnCancelShutdown"))] = _T("解除关机");
@@ -760,6 +764,7 @@ void CLocalizationManager::LoadBuiltinDefaults()
 
     // ===== Quick buttons =====
     m_defaults[MakeKey(_T("QuickBtn"), _T("NextTrack"))] = _T("下一首");
+    m_defaults[MakeKey(_T("QuickBtn"), _T("PrevTrack"))] = _T("上一首");
 
     // ===== Volume =====
     m_defaults[MakeKey(_T("Volume"), _T("BtnApply"))] = _T("应用");

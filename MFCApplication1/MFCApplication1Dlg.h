@@ -306,6 +306,7 @@ public:
 	afx_msg void OnBnClickedButton30();
 	afx_msg void OnBnClickedButton31();
     afx_msg void OnBnClickedButton32();
+    afx_msg void OnBiliPrev();
     afx_msg void OnBiliNext();
     // Process list sorting and filtering
     afx_msg void OnProcessColumnClick(NMHDR* pNMHDR, LRESULT* pResult);

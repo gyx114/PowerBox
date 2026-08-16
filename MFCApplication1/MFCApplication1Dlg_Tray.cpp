@@ -48,6 +48,15 @@ LRESULT CMFCApplication1Dlg::OnTrayNotification(WPARAM wParam, LPARAM lParam)
         CMenu menu;
         menu.CreatePopupMenu();
         menu.AppendMenu(MF_STRING, 2001, loc.GetString(_T("TrayMenu"), _T("ShowWindow")));
+
+        // Media submenu: previous / next track
+        CMenu mediaMenu;
+        mediaMenu.CreatePopupMenu();
+        mediaMenu.AppendMenu(MF_STRING, 41002, loc.GetString(_T("TrayMenu"), _T("MediaPrev")));
+        mediaMenu.AppendMenu(MF_STRING, 41003, loc.GetString(_T("TrayMenu"), _T("MediaNext")));
+        menu.AppendMenu(MF_POPUP, (UINT_PTR)mediaMenu.m_hMenu, loc.GetString(_T("TrayMenu"), _T("Media")));
+        mediaMenu.Detach();
+
         menu.AppendMenu(MF_STRING, 2002, loc.GetString(_T("TrayMenu"), _T("Exit")));
 
         POINT pt;

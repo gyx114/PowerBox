@@ -43,125 +43,30 @@ protected:
 BEGIN_MESSAGE_MAP(CGitCmdInputDialog, CDialogEx)
 END_MESSAGE_MAP()
 
-// Trigger next track in Bilibili player if found; otherwise send global media next key as fallback
+// Trigger next track via the global media key, routed to the active SMTC media session
 void CMFCApplication1Dlg::OnBiliNext()
 {
-    // Helper: find candidate window(s) that likely belong to Bilibili. Collect all candidates
-    // and prefer the one with the largest HWND value when multiple exist.
-    auto FindBiliWindow = [this]() -> HWND {
-        std::vector<HWND> candidates;
-        for (HWND h = ::GetTopWindow(NULL); h != NULL; h = ::GetNextWindow(h, GW_HWNDNEXT))
-        {
-            if (!::IsWindowVisible(h)) continue;
-
-            TCHAR title[512] = {0};
-            ::GetWindowText(h, title, _countof(title));
-            CString sTitle = title;
-            sTitle.MakeLower();
-            bool matched = false;
-            if (sTitle.Find(_T("哔哩")) != -1 || sTitle.Find(_T("bilibili")) != -1 || sTitle.Find(_T("b站")) != -1 || sTitle.Find(_T("Bili")) != -1 || sTitle.Find(_T("B站")) != -1)
-                matched = true;
-
-            // check process image path for name containing bilibili
-            if (!matched)
-            {
-                DWORD pid = 0; GetWindowThreadProcessId(h, &pid);
-                if (pid != 0)
-                {
-                    HANDLE hProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
-                    if (hProc)
-                    {
-                        TCHAR buf[MAX_PATH] = {0};
-                        DWORD sz = _countof(buf);
-                        if (QueryFullProcessImageName(hProc, 0, buf, &sz))
-                        {
-                            CString p = buf; p.MakeLower();
-                            if (p.Find(_T("bilibili")) != -1 || p.Find(_T("bili")) != -1)
-                                matched = true;
-                        }
-                        CloseHandle(hProc);
-                    }
-                }
-            }
-
-            if (matched)
-                candidates.push_back(h);
-        }
-
-        if (candidates.empty()) return NULL;
-
-        // If only one candidate, return it. If multiple, pick the one with smallest HWND value.
-        HWND best = candidates.front();
-        if (candidates.size() > 1)
-        {
-            for (HWND c : candidates)
-            {
-                if ((UINT_PTR)c < (UINT_PTR)best) best = c;
-            }
-        }
-        return best;
-    };
-
-    // Do NOT prefer user-selected window; instead select candidate by smallest HWND value
-    HWND hBili = FindBiliWindow();
-    if (hBili)
-    {
-        // Bring the player window to foreground (restore if minimized), send ']' key, then re-minimize.
-        // Try to set foreground safely by attaching thread input.
-        if (::IsIconic(hBili)) ::ShowWindow(hBili, SW_RESTORE);
-
-        DWORD curTid = GetCurrentThreadId();
-        DWORD targetPid = 0; DWORD targetTid = GetWindowThreadProcessId(hBili, &targetPid);
-        // attach input threads to allow SetForegroundWindow
-        AttachThreadInput(curTid, targetTid, TRUE);
-        ::SetForegroundWindow(hBili);
-        ::SetActiveWindow(hBili);
-        AttachThreadInput(curTid, targetTid, FALSE);
-
-        // small delay to ensure window receives focus
-        Sleep(120);
-
-        // Determine virtual-key and modifier from current layout for ']'
-        SHORT vkAndState = VkKeyScanW((WCHAR)']');
-        BYTE vk = LOBYTE(vkAndState);
-        BYTE shiftState = HIBYTE(vkAndState);
-
-        // Build inputs: press modifiers, keydown, keyup, release modifiers
-        std::vector<INPUT> inputs;
-        inputs.reserve(6);
-        auto pushKey = [&](WORD vkCode, DWORD flags){ INPUT in = {}; in.type = INPUT_KEYBOARD; in.ki.wVk = vkCode; in.ki.dwFlags = flags; inputs.push_back(in); };
-
-        // modifiers: SHIFT (1), CTRL (2), ALT (4) per VkKeyScan return
-        if (shiftState & 1) pushKey(VK_SHIFT, 0);
-        if (shiftState & 2) pushKey(VK_CONTROL, 0);
-        if (shiftState & 4) pushKey(VK_MENU, 0);
-
-        // key down + up
-        if (vk != 0xFF)
-        {
-            pushKey(vk, 0);
-            pushKey(vk, KEYEVENTF_KEYUP);
-        }
-
-        // release modifiers in reverse order
-        if (shiftState & 4) pushKey(VK_MENU, KEYEVENTF_KEYUP);
-        if (shiftState & 2) pushKey(VK_CONTROL, KEYEVENTF_KEYUP);
-        if (shiftState & 1) pushKey(VK_SHIFT, KEYEVENTF_KEYUP);
-
-        if (!inputs.empty()) SendInput((UINT)inputs.size(), inputs.data(), sizeof(INPUT));
-
-        // give the app a moment to process and then minimize it again
-        Sleep(80);
-        ::ShowWindow(hBili, SW_MINIMIZE);
-        return;
-    }
-
-    // Fallback: send a global media next key via SendInput
+    // Send the global media "next track" key directly. The system routes it to the
+    // currently active media session (SMTC). Bilibili client registers an SMTC session,
+    // so this behaves exactly like pressing the media key on a headset/keyboard.
+    // No need to find the window, activate it, or synthesize a shortcut key.
     INPUT inputs[2] = {};
     inputs[0].type = INPUT_KEYBOARD;
     inputs[0].ki.wVk = VK_MEDIA_NEXT_TRACK;
     inputs[1].type = INPUT_KEYBOARD;
     inputs[1].ki.wVk = VK_MEDIA_NEXT_TRACK;
+    inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
+    SendInput(2, inputs, sizeof(INPUT));
+}
+
+// Trigger previous track via the global media key, identical mechanism to OnBiliNext
+void CMFCApplication1Dlg::OnBiliPrev()
+{
+    INPUT inputs[2] = {};
+    inputs[0].type = INPUT_KEYBOARD;
+    inputs[0].ki.wVk = VK_MEDIA_PREV_TRACK;
+    inputs[1].type = INPUT_KEYBOARD;
+    inputs[1].ki.wVk = VK_MEDIA_PREV_TRACK;
     inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
     SendInput(2, inputs, sizeof(INPUT));
 }

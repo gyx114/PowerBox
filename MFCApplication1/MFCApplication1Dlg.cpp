@@ -355,11 +355,14 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_BN_CLICKED(IDC_BUTTON30, &CMFCApplication1Dlg::OnBnClickedButton30)
     ON_BN_CLICKED(IDC_BUTTON31, &CMFCApplication1Dlg::OnBnClickedButton31)
     ON_BN_CLICKED(IDC_BUTTON32, &CMFCApplication1Dlg::OnBnClickedButton32)
-    // Bind IDC_BUTTON33 to the bilibili "next" handler if the control exists
+    // Media control buttons (Tools tab): previous / next track
+    ON_BN_CLICKED(IDC_BUTTON34, &CMFCApplication1Dlg::OnBiliPrev)
 #ifdef IDC_BUTTON33
     ON_BN_CLICKED(IDC_BUTTON33, &CMFCApplication1Dlg::OnBiliNext)
 #endif
-    ON_COMMAND(41001, &CMFCApplication1Dlg::OnBiliNext)
+    // Tray menu: Media submenu (previous / next track)
+    ON_COMMAND(41002, &CMFCApplication1Dlg::OnBiliPrev)
+    ON_COMMAND(41003, &CMFCApplication1Dlg::OnBiliNext)
     // Quick Launch management and dynamic buttons
     ON_BN_CLICKED(IDC_QL_BTN_MANAGE, &CMFCApplication1Dlg::OnQuickLaunchManage)
     ON_NOTIFY(NM_DBLCLK, IDC_LIST_QUICK_LAUNCH, &CMFCApplication1Dlg::OnNMDblclkQuickLaunchList)
@@ -672,7 +675,8 @@ void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
     static const int kToolIds[] = {
         IDC_STATIC_QUICK_CMDLINE, IDC_BUTTON27, IDC_BUTTON28,
         IDC_STATIC_QUICK_SEP3,
-        IDC_STATIC_QUICK_RUNCMD, IDC_EDIT6, IDC_BUTTON17, IDC_BUTTON18
+        IDC_STATIC_QUICK_RUNCMD, IDC_EDIT6, IDC_BUTTON17, IDC_BUTTON18,
+        IDC_STATIC_QUICK_SEP5, IDC_BUTTON34, IDC_BUTTON33
     };
 
     auto showGroup = [&](const int* ids, int count, bool show) {
@@ -2084,7 +2088,8 @@ void CMFCApplication1Dlg::TranslateUI()
     SetDlgItemText(IDC_BTN_GIT_CMD_WINDOW, loc.GetString(_T("GitTab"), _T("CmdWindow")));
     SetDlgItemText(IDC_BTN_GIT_LOCATE, loc.GetString(_T("GitTab"), _T("Locate")));
 
-    // ===== Quick tab 1 - Favorites =====
+    // ===== Media control buttons (Tools tab) =====
+    SetDlgItemText(IDC_BUTTON34, loc.GetString(_T("MainCtrl"), _T("BtnPrevTrack")));
     SetDlgItemText(IDC_BUTTON33, loc.GetString(_T("MainCtrl"), _T("BtnNextTrack")));
 
     // ===== Quick tab 2 - System =====
@@ -2322,7 +2327,8 @@ CString CMFCApplication1Dlg::BuildSystemPrompt()
         _T("   - \"PowerShell\"：选择普通或管理员模式\n")
         _T("   - \"WSL\"：启动 WSL 终端\n")
         _T("   - 运行命令输入框：输入 exe 路径、URL 或 cmd 命令，按回车执行\n")
-        _T("   - \"清空\"按钮清除命令输入\n\n")
+        _T("   - \"清空\"按钮清除命令输入\n")
+        _T("   - 媒体控制：\"上一首\"、\"下一首\"按钮发送系统媒体键，控制当前播放的媒体会话\n\n")
 
         _T("=== 菜单栏：工具(&T)（9 个工具，分 4 个子菜单 + 1 个直接项） ===\n\n")
         _T("菜单层级：工具 > 文本工具 / 图像工具 / 文件工具 / 系统工具 / 简易便签\n\n")
@@ -2425,7 +2431,7 @@ CString CMFCApplication1Dlg::BuildSystemPrompt()
         _T("   - \"最小化到托盘\"复选框：勾选后点击 X 按钮最小化到系统托盘而非关闭\n\n")
 
         _T("位于系统托盘区\n\n")
-        _T("   - 系统托盘：双击图标恢复窗口；右键菜单\"显示窗口\"或\"退出\"\n\n")
+        _T("   - 系统托盘：双击图标恢复窗口；右键菜单\"显示窗口\"、\"媒体\"子菜单（上一首/下一首）或\"退出\"\n\n")
 
         _T("=== 终端 ===\n\n")
         _T("   - AI 助手右侧面板内置 ConPTY 终端，支持多个终端会话\n")
