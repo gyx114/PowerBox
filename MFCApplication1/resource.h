@@ -242,6 +242,7 @@
 #define IDC_STATIC_QUICK_SEP3           1255
 #define IDC_STATIC_QUICK_SEP4           1256
 #define IDC_STATIC_QUICK_SEP5           1423
+#define IDC_STATIC_QUICK_MEDIA          1424
 #define IDC_BTN_FILELOCK_REFRESH2       1244
 // AI Assistant controls
 #define IDC_STATIC_AI_LABEL             1260
@@ -522,7 +523,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        160
 #define _APS_NEXT_COMMAND_VALUE         32863
-#define _APS_NEXT_CONTROL_VALUE         1424
+#define _APS_NEXT_CONTROL_VALUE         1425
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

@@ -61,6 +61,7 @@ Supports Chinese/English switching, language files located in the `lang/` direct
 | Window Tool | Locate window (Ctrl+Alt+D), pin to top (supports multiple windows), transparency adjustment (10%-100%), force close, screenshot save; auto-saves locate history |
 | File Manager | Drag in files to create copies (customizable name), rename, delete (recycle bin), copy, move; drag in folder to open batch rename |
 | Git Toolbox | 20 preset commands, supports custom list (config.ini [GitCommands]), auto-detects repo branch, AI-assisted command generation, Git Bash quick launch, standalone Git command result window |
+| Media Control | "Previous"/"Next" buttons send system media keys to control the currently playing media session; the tray menu's "Media" submenu offers the same |
 
 ### 🛠 Tool Windows
 

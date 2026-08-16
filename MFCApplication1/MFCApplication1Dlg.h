@@ -57,7 +57,7 @@ struct QLItem;
 #define IDC_BTN_GITHUB         IDC_BUTTON30  // Open GitHub
 #define IDC_BTN_GIT_BASH       IDC_BUTTON31  // Launch Git Bash
 #define IDC_BTN_CLEAR_PATH     IDC_BUTTON32  // Clear drag-drop path
-#define IDC_BTN_BILI_NEXT      IDC_BUTTON33  // Bilibili next track
+
 
 // CMFCApplication1Dlg dialog
 class CMFCApplication1Dlg : public CDialogEx
@@ -306,8 +306,8 @@ public:
 	afx_msg void OnBnClickedButton30();
 	afx_msg void OnBnClickedButton31();
     afx_msg void OnBnClickedButton32();
-    afx_msg void OnBiliPrev();
-    afx_msg void OnBiliNext();
+    afx_msg void OnMediaPrev();
+    afx_msg void OnMediaNext();
     // Process list sorting and filtering
     afx_msg void OnProcessColumnClick(NMHDR* pNMHDR, LRESULT* pResult);
     afx_msg void OnProcessFilterChange();

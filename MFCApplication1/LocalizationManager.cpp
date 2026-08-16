@@ -423,6 +423,7 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("MainCtrl"), _T("BtnTaskManager"))] = _T("任务管理器");
     m_defaults[MakeKey(_T("MainCtrl"), _T("LabelCmdLine"))] = _T("命令行");
     m_defaults[MakeKey(_T("MainCtrl"), _T("LabelRunCmd"))] = _T("运行");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("LabelMedia"))] = _T("媒体");
     m_defaults[MakeKey(_T("MainCtrl"), _T("BtnRun"))] = _T("运行");
     m_defaults[MakeKey(_T("MainCtrl"), _T("BtnClear"))] = _T("清空");
     m_defaults[MakeKey(_T("MainCtrl"), _T("BtnSend"))] = _T("发送");

@@ -44,12 +44,12 @@ BEGIN_MESSAGE_MAP(CGitCmdInputDialog, CDialogEx)
 END_MESSAGE_MAP()
 
 // Trigger next track via the global media key, routed to the active SMTC media session
-void CMFCApplication1Dlg::OnBiliNext()
+void CMFCApplication1Dlg::OnMediaNext()
 {
     // Send the global media "next track" key directly. The system routes it to the
-    // currently active media session (SMTC). Bilibili client registers an SMTC session,
-    // so this behaves exactly like pressing the media key on a headset/keyboard.
-    // No need to find the window, activate it, or synthesize a shortcut key.
+    // currently active media session (SMTC), so this behaves exactly like pressing
+    // the media key on a headset/keyboard. No need to find a window or synthesize
+    // an application-specific shortcut key.
     INPUT inputs[2] = {};
     inputs[0].type = INPUT_KEYBOARD;
     inputs[0].ki.wVk = VK_MEDIA_NEXT_TRACK;
@@ -59,8 +59,8 @@ void CMFCApplication1Dlg::OnBiliNext()
     SendInput(2, inputs, sizeof(INPUT));
 }
 
-// Trigger previous track via the global media key, identical mechanism to OnBiliNext
-void CMFCApplication1Dlg::OnBiliPrev()
+// Trigger previous track via the global media key, identical mechanism to OnMediaNext
+void CMFCApplication1Dlg::OnMediaPrev()
 {
     INPUT inputs[2] = {};
     inputs[0].type = INPUT_KEYBOARD;

@@ -192,7 +192,8 @@ private:
 
 // capture overlay is implemented via a window class registered at runtime
 
-// Bilibili-specific window-finding helpers removed per user request.
+// Media keys (VK_MEDIA_NEXT_TRACK / VK_MEDIA_PREV_TRACK) are sent via SendInput,
+// routed by the system to the active SMTC media session — no window lookup needed.
 
 
 
@@ -356,13 +357,13 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_BN_CLICKED(IDC_BUTTON31, &CMFCApplication1Dlg::OnBnClickedButton31)
     ON_BN_CLICKED(IDC_BUTTON32, &CMFCApplication1Dlg::OnBnClickedButton32)
     // Media control buttons (Tools tab): previous / next track
-    ON_BN_CLICKED(IDC_BUTTON34, &CMFCApplication1Dlg::OnBiliPrev)
+    ON_BN_CLICKED(IDC_BUTTON34, &CMFCApplication1Dlg::OnMediaPrev)
 #ifdef IDC_BUTTON33
-    ON_BN_CLICKED(IDC_BUTTON33, &CMFCApplication1Dlg::OnBiliNext)
+    ON_BN_CLICKED(IDC_BUTTON33, &CMFCApplication1Dlg::OnMediaNext)
 #endif
     // Tray menu: Media submenu (previous / next track)
-    ON_COMMAND(41002, &CMFCApplication1Dlg::OnBiliPrev)
-    ON_COMMAND(41003, &CMFCApplication1Dlg::OnBiliNext)
+    ON_COMMAND(41002, &CMFCApplication1Dlg::OnMediaPrev)
+    ON_COMMAND(41003, &CMFCApplication1Dlg::OnMediaNext)
     // Quick Launch management and dynamic buttons
     ON_BN_CLICKED(IDC_QL_BTN_MANAGE, &CMFCApplication1Dlg::OnQuickLaunchManage)
     ON_NOTIFY(NM_DBLCLK, IDC_LIST_QUICK_LAUNCH, &CMFCApplication1Dlg::OnNMDblclkQuickLaunchList)
@@ -676,7 +677,7 @@ void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
         IDC_STATIC_QUICK_CMDLINE, IDC_BUTTON27, IDC_BUTTON28,
         IDC_STATIC_QUICK_SEP3,
         IDC_STATIC_QUICK_RUNCMD, IDC_EDIT6, IDC_BUTTON17, IDC_BUTTON18,
-        IDC_STATIC_QUICK_SEP5, IDC_BUTTON34, IDC_BUTTON33
+        IDC_STATIC_QUICK_MEDIA, IDC_STATIC_QUICK_SEP5, IDC_BUTTON34, IDC_BUTTON33
     };
 
     auto showGroup = [&](const int* ids, int count, bool show) {
@@ -2112,6 +2113,7 @@ void CMFCApplication1Dlg::TranslateUI()
     // ===== Quick tab 3 - Tools =====
     SetDlgItemText(IDC_STATIC_QUICK_CMDLINE, loc.GetString(_T("MainCtrl"), _T("LabelCmdLine")));
     SetDlgItemText(IDC_STATIC_QUICK_RUNCMD, loc.GetString(_T("MainCtrl"), _T("LabelRunCmd")));
+    SetDlgItemText(IDC_STATIC_QUICK_MEDIA, loc.GetString(_T("MainCtrl"), _T("LabelMedia")));
     SetDlgItemText(IDC_BUTTON17, loc.GetString(_T("MainCtrl"), _T("BtnRun")));
     SetDlgItemText(IDC_BUTTON18, loc.GetString(_T("MainCtrl"), _T("BtnClear")));
 
