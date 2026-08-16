@@ -179,7 +179,8 @@ public:
  afx_msg void OnBnClickedButton20();
 	afx_msg void OnBnClickedButton17();
 	afx_msg void OnBnClickedButton18();
-	afx_msg void OnBnClickedCheck4();
+	afx_msg void OnBnClickedAutoClicker();
+	afx_msg void OnBnClickedCheckAutoOpenSticky();
 	afx_msg LRESULT OnAutoClickStopped(WPARAM wParam, LPARAM lParam);
 
 	// Clipboard manager: recent copy history (double-click to re-copy)
@@ -287,6 +288,8 @@ public:
 	// Auto-clicker unified start/stop
 	void StartAutoClicker();
 	void StopAutoClicker();
+	// Refresh the auto-clicker toggle button text based on running state
+	void UpdateAutoClickerButton();
 
 	// Prevent automatic lock/screen-off checkbox state (IDC_CHECK5)
 	bool m_bPreventLockScreen{false};

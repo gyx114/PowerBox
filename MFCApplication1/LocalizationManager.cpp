@@ -424,6 +424,10 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("MainCtrl"), _T("LabelCmdLine"))] = _T("命令行");
     m_defaults[MakeKey(_T("MainCtrl"), _T("LabelRunCmd"))] = _T("运行");
     m_defaults[MakeKey(_T("MainCtrl"), _T("LabelMedia"))] = _T("媒体");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("LabelOther"))] = _T("其他");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnAutoClicker"))] = _T("连点器");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("BtnAutoClickerStop"))] = _T("停止连点");
+    m_defaults[MakeKey(_T("MainCtrl"), _T("CheckAutoOpenSticky"))] = _T("自动打开便签");
     m_defaults[MakeKey(_T("MainCtrl"), _T("BtnRun"))] = _T("运行");
     m_defaults[MakeKey(_T("MainCtrl"), _T("BtnClear"))] = _T("清空");
     m_defaults[MakeKey(_T("MainCtrl"), _T("BtnSend"))] = _T("发送");
@@ -437,7 +441,6 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("MainCtrl"), _T("DropHint"))] = _T("拖拽文件到此");
     m_defaults[MakeKey(_T("MainCtrl"), _T("CheckAutoStart"))] = _T("开机自启动");
     m_defaults[MakeKey(_T("MainCtrl"), _T("CheckTopmost"))] = _T("窗口置顶");
-    m_defaults[MakeKey(_T("MainCtrl"), _T("CheckAutoClicker"))] = _T("连点器");
     m_defaults[MakeKey(_T("MainCtrl"), _T("CheckPreventLock"))] = _T("禁止自动锁屏");
     m_defaults[MakeKey(_T("MainCtrl"), _T("GroupRename"))] = _T("修改文件名");
     m_defaults[MakeKey(_T("MainCtrl"), _T("BtnModify"))] = _T("修改");

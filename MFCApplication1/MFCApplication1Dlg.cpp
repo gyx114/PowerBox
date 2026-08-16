@@ -300,7 +300,8 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_MESSAGE(WM_REFRESH_STARTUPS_DONE, &CMFCApplication1Dlg::OnRefreshStartupsDone)
     ON_WM_HOTKEY()
     ON_BN_CLICKED(IDC_CHECK3, &CMFCApplication1Dlg::OnBnClickedCheck3)
-    ON_BN_CLICKED(IDC_CHECK4, &CMFCApplication1Dlg::OnBnClickedCheck4)
+    ON_BN_CLICKED(IDC_BTN_AUTOCLICKER, &CMFCApplication1Dlg::OnBnClickedAutoClicker)
+    ON_BN_CLICKED(IDC_CHECK_AUTO_OPEN_STICKY, &CMFCApplication1Dlg::OnBnClickedCheckAutoOpenSticky)
     ON_BN_CLICKED(IDC_CHECK5, &CMFCApplication1Dlg::OnBnClickedCheck5)
     ON_BN_CLICKED(IDC_BUTTON17, &CMFCApplication1Dlg::OnBnClickedButton17)
     ON_BN_CLICKED(IDC_BUTTON18, &CMFCApplication1Dlg::OnBnClickedButton18)
@@ -615,8 +616,13 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 		CVolumeManager::FetchVolumeAsync(m_hWnd);
 	}
 
-	// Auto-create sticky note in collapsed state at startup
-	if (!m_pStickyNoteDlg || !::IsWindow(m_pStickyNoteDlg->m_hWnd))
+	// "自动打开便签" checkbox: restore persisted preference
+	BOOL bAutoOpenSticky = AfxGetApp()->GetProfileInt(_T("Settings"), _T("AutoOpenSticky"), 1);
+	CButton* pAutoSticky = static_cast<CButton*>(GetDlgItem(IDC_CHECK_AUTO_OPEN_STICKY));
+	if (pAutoSticky) pAutoSticky->SetCheck(bAutoOpenSticky ? BST_CHECKED : BST_UNCHECKED);
+
+	// Auto-create sticky note in collapsed state at startup (only when enabled)
+	if (bAutoOpenSticky && (!m_pStickyNoteDlg || !::IsWindow(m_pStickyNoteDlg->m_hWnd)))
 	{
 		m_pStickyNoteDlg = new CStickyNoteDlg(nullptr);
 		m_pStickyNoteDlg->Create(IDD_STICKY_NOTE_DLG, nullptr);
@@ -677,7 +683,8 @@ void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
         IDC_STATIC_QUICK_CMDLINE, IDC_BUTTON27, IDC_BUTTON28,
         IDC_STATIC_QUICK_SEP3,
         IDC_STATIC_QUICK_RUNCMD, IDC_EDIT6, IDC_BUTTON17, IDC_BUTTON18,
-        IDC_STATIC_QUICK_MEDIA, IDC_STATIC_QUICK_SEP5, IDC_BUTTON34, IDC_BUTTON33
+        IDC_STATIC_QUICK_MEDIA, IDC_STATIC_QUICK_SEP5, IDC_BUTTON34, IDC_BUTTON33,
+        IDC_STATIC_QUICK_SEP6, IDC_STATIC_QUICK_OTHER, IDC_BTN_AUTOCLICKER
     };
 
     auto showGroup = [&](const int* ids, int count, bool show) {
@@ -1620,23 +1627,40 @@ void CMFCApplication1Dlg::StopAutoClicker()
     }
 }
 
-// Handler for autoclick checkbox in main dialog (C++20: using CAutoClicker class)
-void CMFCApplication1Dlg::OnBnClickedCheck4()
+// Refresh the auto-clicker toggle button text based on running state
+void CMFCApplication1Dlg::UpdateAutoClickerButton()
 {
-    CButton* pCheck = static_cast<CButton*>(GetDlgItem(IDC_CHECK4));
-    if (!pCheck) return;
+    CButton* pBtn = static_cast<CButton*>(GetDlgItem(IDC_BTN_AUTOCLICKER));
+    if (!pBtn) return;
+    auto& loc = CLocalizationManager::GetInstance();
+    pBtn->SetWindowText(m_autoClicker.IsRunning()
+        ? loc.GetString(_T("MainCtrl"), _T("BtnAutoClickerStop"))
+        : loc.GetString(_T("MainCtrl"), _T("BtnAutoClicker")));
+}
 
-    if (pCheck->GetCheck() == BST_CHECKED)
-        StartAutoClicker();
-    else
+// Handler for auto-clicker toggle button in Tools tab (C++20: using CAutoClicker class)
+void CMFCApplication1Dlg::OnBnClickedAutoClicker()
+{
+    if (m_autoClicker.IsRunning())
         StopAutoClicker();
+    else
+        StartAutoClicker();
+    UpdateAutoClickerButton();
+}
+
+// "自动打开便签" checkbox: persist auto-open-sticky-note preference
+void CMFCApplication1Dlg::OnBnClickedCheckAutoOpenSticky()
+{
+    CButton* pCheck = static_cast<CButton*>(GetDlgItem(IDC_CHECK_AUTO_OPEN_STICKY));
+    if (!pCheck) return;
+    AfxGetApp()->WriteProfileInt(_T("Settings"), _T("AutoOpenSticky"),
+        pCheck->GetCheck() == BST_CHECKED ? 1 : 0);
 }
 
 // Message handler invoked when autoclick stops due to B key
 afx_msg LRESULT CMFCApplication1Dlg::OnAutoClickStopped(WPARAM wParam, LPARAM lParam)
 {
-    CButton* pCheck = (CButton*)GetDlgItem(IDC_CHECK4);
-    if (pCheck) pCheck->SetCheck(BST_UNCHECKED);
+    UpdateAutoClickerButton();
 
     // Destroy speed adjustment window
     if (m_pSpeedDlg)
@@ -1662,9 +1686,8 @@ afx_msg LRESULT CMFCApplication1Dlg::OnAutoClickStopped(WPARAM wParam, LPARAM lP
 // Speed dialog close callback: clear pointer
 afx_msg LRESULT CMFCApplication1Dlg::OnSpeedDlgClosed(WPARAM wParam, LPARAM lParam)
 {
-    // Sync CHECK4 state
-    CButton* pCheck = static_cast<CButton*>(GetDlgItem(IDC_CHECK4));
-    if (pCheck) pCheck->SetCheck(BST_UNCHECKED);
+    // Sync auto-clicker toggle button state
+    UpdateAutoClickerButton();
 
     m_pSpeedDlg.reset();
     return 0;
@@ -2078,7 +2101,7 @@ void CMFCApplication1Dlg::TranslateUI()
     // ===== Checkboxes (bottom area) =====
     SetDlgItemText(IDC_CHECK1, loc.GetString(_T("MainCtrl"), _T("CheckAutoStart")));
     SetDlgItemText(IDC_CHECK3, loc.GetString(_T("MainCtrl"), _T("CheckTopmost")));
-    SetDlgItemText(IDC_CHECK4, loc.GetString(_T("MainCtrl"), _T("CheckAutoClicker")));
+    SetDlgItemText(IDC_CHECK_AUTO_OPEN_STICKY, loc.GetString(_T("MainCtrl"), _T("CheckAutoOpenSticky")));
     SetDlgItemText(IDC_CHECK5, loc.GetString(_T("MainCtrl"), _T("CheckPreventLock")));
 
     // ===== Git tab =====
@@ -2116,6 +2139,9 @@ void CMFCApplication1Dlg::TranslateUI()
     SetDlgItemText(IDC_STATIC_QUICK_MEDIA, loc.GetString(_T("MainCtrl"), _T("LabelMedia")));
     SetDlgItemText(IDC_BUTTON17, loc.GetString(_T("MainCtrl"), _T("BtnRun")));
     SetDlgItemText(IDC_BUTTON18, loc.GetString(_T("MainCtrl"), _T("BtnClear")));
+    // ===== Quick tab 3 - "其他" category =====
+    SetDlgItemText(IDC_STATIC_QUICK_OTHER, loc.GetString(_T("MainCtrl"), _T("LabelOther")));
+    UpdateAutoClickerButton();
 
     // ===== AI assistant section =====
     SetDlgItemText(IDC_STATIC_AI_LABEL, loc.GetString(_T("Settings"), _T("TabAI")));
@@ -2423,9 +2449,10 @@ CString CMFCApplication1Dlg::BuildSystemPrompt()
 
         _T("=== 其他功能 ===\n\n")
         _T("位于左下角的\n\n")
-        _T("   - 连点器：勾选\"连点器\"启用；按开始键开始点击，停止键停止\n")
+        _T("   - 连点器：位于右侧\"工具\"tab 的\"其他\"归类中，为切换式按钮；点击开始连点，再点击停止\n")
         _T("     可在设置中配置间隔（毫秒）和开始/停止键；启用时显示速度调节窗口\n")
         _T("   - 禁止自动锁屏：勾选\"禁止自动锁屏\"保持屏幕常亮（SetThreadExecutionState）\n")
+        _T("   - 自动打开便签：勾选\"自动打开便签\"后，程序启动时自动打开简易便签\n")
         _T("   - 开机自启动：勾选\"开机自启动\"添加到注册表 Run 键\n")
         _T("   - \"窗口置顶\"复选框：保持工具箱始终在最前\n\n")
 
