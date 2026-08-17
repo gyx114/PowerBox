@@ -63,7 +63,66 @@ void CMFCApplication1Dlg::InitClipboardTab()
     auto& loc = CLocalizationManager::GetInstance();
     pList3->ModifyStyle(0, LVS_REPORT);
     pList3->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
-    pList3->InsertColumn(0, loc.GetString(_T("ClipboardTab"), _T("ColText")), LVCFMT_LEFT, 780);
+    pList3->InsertColumn(0, loc.GetString(_T("ClipboardTab"), _T("ColText")), LVCFMT_LEFT, 195);
+
+    // Toolbar button to open the enhanced clipboard history window.
+    if (CWnd* pBtn = GetDlgItem(IDC_BTN_CLIP_HISTORY))
+        pBtn->SetWindowText(loc.GetString(_T("ClipboardHistory"), _T("DlgCaption")));
+}
+
+// Fill the tab3 clipboard view from the shared clipboard manager.
+// Every entry (text / files / image / mixed) is shown; row item data = entry id.
+void CMFCApplication1Dlg::RefreshClipboardTab()
+{
+    CListCtrl* pList3 = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST3));
+    if (!pList3) return;
+
+    auto& loc = CLocalizationManager::GetInstance();
+
+    // Short, kind-aware description of an entry (image > files > text priority).
+    auto Describe = [&](const ClipboardEntry& e) -> CString
+    {
+        if (!e.imagePath.empty() && e.files.empty())
+        {
+            CString t = loc.GetString(_T("ClipboardHistory"), _T("TabImage"));
+            if (!e.text.empty()) { std::wstring s = e.text; for (auto& c : s) if (c == L'\r' || c == L'\n') c = L' '; t += CString(L"  ") + CString(s.c_str()); }
+            return t;
+        }
+        if (!e.files.empty())
+        {
+            std::wstring names;
+            for (size_t i = 0; i < e.files.size() && i < 3; ++i)
+            {
+                const std::wstring& p = e.files[i];
+                const size_t s = p.find_last_of(L"\\/");
+                CString leaf((s != std::wstring::npos) ? p.substr(s + 1).c_str() : p.c_str());
+                names += (i ? L"、" : L"") + std::wstring(leaf);
+            }
+            if (e.files.size() > 3) names += L"…";
+            CString t = loc.GetString(_T("ClipboardHistory"), _T("TabFiles"));
+            t += CString(L"  ") + names.c_str();
+            return t;
+        }
+        // text (or empty)
+        std::wstring s = e.text;
+        for (auto& c : s) if (c == L'\r' || c == L'\n') c = L' ';
+        if (s.size() > 80) s = s.substr(0, 80) + L"…";
+        return s.c_str();
+    };
+
+    pList3->SetRedraw(FALSE);
+    pList3->DeleteAllItems();
+    int idx = 0;
+    for (const auto& e : m_clipboard.Snapshot())
+    {
+        const CString text = Describe(e);
+        if (text.IsEmpty()) continue;
+        int row = pList3->InsertItem(idx, text);
+        if (row >= 0) pList3->SetItemData(row, (DWORD_PTR)e.id);
+        ++idx;
+    }
+    pList3->SetRedraw(TRUE);
+    pList3->Invalidate();
 }
 
 void CMFCApplication1Dlg::InitWindowTab()
@@ -223,6 +282,9 @@ void CMFCApplication1Dlg::UpdateTabVisibility(int nTab)
         pBtnAiScan->ShowWindow(nTab == 0 ? SW_SHOW : SW_HIDE);
     if (pList2) pList2->ShowWindow(nTab == 1 ? SW_SHOW : SW_HIDE);
     if (pList3) pList3->ShowWindow(nTab == 2 ? SW_SHOW : SW_HIDE);
+    // Clipboard tab toolbar button (tab 2 only)
+    CWnd* pBtnClipHist = GetDlgItem(IDC_BTN_CLIP_HISTORY);
+    if (pBtnClipHist) pBtnClipHist->ShowWindow(nTab == 2 ? SW_SHOW : SW_HIDE);
     if (pList4) pList4->ShowWindow(nTab == 5 ? SW_SHOW : SW_HIDE);
     if (pList5)
     {

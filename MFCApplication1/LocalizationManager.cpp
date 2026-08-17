@@ -373,10 +373,36 @@ void CLocalizationManager::LoadBuiltinDefaults()
 
     // ===== Tray menu =====
     m_defaults[MakeKey(_T("TrayMenu"), _T("ShowWindow"))] = _T("显示窗口");
+    m_defaults[MakeKey(_T("TrayMenu"), _T("ClipboardHistory"))] = _T("剪贴板历史");
     m_defaults[MakeKey(_T("TrayMenu"), _T("Exit"))] = _T("退出程序");
     m_defaults[MakeKey(_T("TrayMenu"), _T("Media"))] = _T("媒体");
     m_defaults[MakeKey(_T("TrayMenu"), _T("MediaPrev"))] = _T("上一首");
     m_defaults[MakeKey(_T("TrayMenu"), _T("MediaNext"))] = _T("下一首");
+
+    // ===== Enhanced clipboard history window =====
+    m_defaults[MakeKey(_T("ClipboardHistory"), _T("DlgCaption"))] = _T("剪贴板历史");
+    m_defaults[MakeKey(_T("ClipboardHistory"), _T("SearchPlaceholder"))] = _T("搜索…");
+    m_defaults[MakeKey(_T("ClipboardHistory"), _T("BtnCopy"))] = _T("复制");
+    m_defaults[MakeKey(_T("ClipboardHistory"), _T("BtnDelete"))] = _T("删除");
+    m_defaults[MakeKey(_T("ClipboardHistory"), _T("BtnClear"))] = _T("清空");
+    m_defaults[MakeKey(_T("ClipboardHistory"), _T("BtnPin"))] = _T("置顶");
+    m_defaults[MakeKey(_T("ClipboardHistory"), _T("MenuPin"))] = _T("置顶");
+    m_defaults[MakeKey(_T("ClipboardHistory"), _T("BtnSettings"))] = _T("设置");
+    m_defaults[MakeKey(_T("ClipboardHistory"), _T("BtnApply"))] = _T("应用设置");
+    m_defaults[MakeKey(_T("ClipboardHistory"), _T("ColTime"))] = _T("时间");
+    m_defaults[MakeKey(_T("ClipboardHistory"), _T("ColType"))] = _T("类型");
+    m_defaults[MakeKey(_T("ClipboardHistory"), _T("LabelMaxEntries"))] = _T("历史条数上限:");
+    m_defaults[MakeKey(_T("ClipboardHistory"), _T("LabelSnapshot"))] = _T("启用文件快照");
+    m_defaults[MakeKey(_T("ClipboardHistory"), _T("LabelSnapFiles"))] = _T("快照最大文件数:");
+    m_defaults[MakeKey(_T("ClipboardHistory"), _T("LabelSnapMB"))] = _T("快照体积上限(MB):");
+    m_defaults[MakeKey(_T("ClipboardHistory"), _T("SettingsTip"))] = _T("启用后，文件和图片将复制到本地存档，方便后续恢复。");
+    m_defaults[MakeKey(_T("ClipboardHistory"), _T("TabText"))] = _T("文本");
+    m_defaults[MakeKey(_T("ClipboardHistory"), _T("TabFiles"))] = _T("文件");
+    m_defaults[MakeKey(_T("ClipboardHistory"), _T("TabImage"))] = _T("图片");
+    m_defaults[MakeKey(_T("ClipboardHistory"), _T("TabMixed"))] = _T("混合");
+    m_defaults[MakeKey(_T("ClipboardHistory"), _T("TabEmpty"))] = _T("(空)");
+    m_defaults[MakeKey(_T("ClipboardHistory"), _T("ConfirmDelete"))] = _T("确定删除该条剪贴板记录吗？");
+    m_defaults[MakeKey(_T("ClipboardHistory"), _T("ConfirmClear"))] = _T("确定清空全部剪贴板历史吗？此操作不可恢复。");
 
     // ===== Window tab controls =====
     m_defaults[MakeKey(_T("WindowTab"), _T("TranparencyLabel"))] = _T("透明度: 100%");

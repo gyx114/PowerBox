@@ -21,6 +21,7 @@
 #include "TerminalView.h"
 #include "TerminalTabBar.h"
 #include "TerminalSplitter.h"
+#include "ClipboardManager.h"
 
 // Forward declarations for menu-launched dialogs
 class CQRCodeGenDlg;
@@ -30,6 +31,7 @@ class CStickyNoteDlg;
 class CContextMenuDlg;
 class CEnvVarDlg;
 class CGitCmdResultDlg;
+class CClipboardHistoryDlg;
 
 class CQuickLaunchDlg;
 class CWebBrowserEventSink;
@@ -183,12 +185,21 @@ public:
 	afx_msg void OnBnClickedCheckAutoOpenSticky();
 	afx_msg LRESULT OnAutoClickStopped(WPARAM wParam, LPARAM lParam);
 
-	// Clipboard manager: recent copy history (double-click to re-copy)
+	// Clipboard history: shared core + two views (tab3 text view + enhanced window)
 	afx_msg LRESULT OnClipboardUpdate(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnRefreshClipboardUI(WPARAM wParam, LPARAM lParam);
 	afx_msg void OnNMDblclkList3(NMHDR* pNMHDR, LRESULT* pResult);
+	afx_msg void OnViewClipboardHistory();
+	afx_msg LRESULT OnOpenClipHistory(WPARAM wParam, LPARAM lParam);
+	afx_msg void OnBnClickedClipHistory();
+	void RefreshClipboardTab();
 
-	std::vector<CString> m_clipHistory;
-	static constexpr int CLIP_HISTORY_MAX = 10;
+	ClipboardManager m_clipboard;
+	CClipboardHistoryDlg* m_pClipDlg = nullptr;
+	// custom message: clipboard data changed -> refresh tab3 + enhanced window
+	static constexpr UINT WM_REFRESH_CLIPBOARD = WM_APP + 8;
+	// custom message: open the enhanced clipboard history window (post from tray modal loop)
+	static constexpr UINT WM_OPEN_CLIP_HISTORY = WM_APP + 13;
 
     // custom messages for background refresh completion
 	static constexpr UINT WM_REFRESH_PROCESSES_DONE = WM_APP + 2;

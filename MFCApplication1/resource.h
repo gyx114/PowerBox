@@ -51,6 +51,7 @@
 #define IDC_BUTTON18                    1034
 #define IDC_CHECK4                      1035
 #define IDC_LIST3                       1036
+#define IDC_BTN_CLIP_HISTORY        1447
 #define IDC_BUTTON19                    1037
 #define IDC_SPLIT1                      1038
 #define IDC_BUTTON20                    1039
@@ -521,13 +522,37 @@
 #define IDC_BTN_SYSINFO_COPY            1420
 #define IDC_STATIC_QUICK_SYSINFO_SEP    1421
 
+// Clipboard history (enhanced window)
+#define IDD_CLIPBOARD_HISTORY           160
+#define ID_VIEW_CLIPBOARD_HISTORY       32863
+#define IDC_CLIP_LIST                   1429
+#define IDC_CLIP_SEARCH_EDIT            1430
+#define IDC_CLIP_PREVIEW                1431
+#define IDC_BTN_CLIP_COPY               1432
+#define IDC_BTN_CLIP_DELETE             1433
+#define IDC_BTN_CLIP_CLEAR              1434
+#define IDC_BTN_CLIP_SETTINGS           1435
+#define IDC_BTN_CLIP_PIN                1436
+
+// Clipboard history settings area
+#define IDC_CLIP_SET_GROUP              1437
+#define IDC_STATIC_CLIP_MAX             1438
+#define IDC_CLIP_SET_MAX                1439
+#define IDC_CLIP_SET_SNAP               1440
+#define IDC_STATIC_CLIP_SNAPFILES       1441
+#define IDC_CLIP_SET_SNAPFILES          1442
+#define IDC_STATIC_CLIP_SNAPMP          1443
+#define IDC_CLIP_SET_SNAPMP             1444
+#define IDC_BTN_CLIP_APPLY              1445
+#define IDC_STATIC_CLIP_SET_TIP         1446
+
 // Next default values for new objects
 //
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        160
-#define _APS_NEXT_COMMAND_VALUE         32863
-#define _APS_NEXT_CONTROL_VALUE         1429
+#define _APS_NEXT_RESOURCE_VALUE        161
+#define _APS_NEXT_COMMAND_VALUE         32864
+#define _APS_NEXT_CONTROL_VALUE         1447
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

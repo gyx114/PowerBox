@@ -28,6 +28,7 @@
 #include "ConversationHistoryDlg.h"
 #include "AIAssistantDlg.h"
 #include "QuickLaunchDlg.h"
+#include "ClipboardHistoryDlg.h"
 #include "LocalizationManager.h"
 #include "json.hpp"
 #include <TlHelp32.h>
@@ -309,6 +310,10 @@ BEGIN_MESSAGE_MAP(CMFCApplication1Dlg, CDialogEx)
     ON_MESSAGE(CMFCApplication1Dlg::WM_AUTOCLICK_STOPPED, &CMFCApplication1Dlg::OnAutoClickStopped)
     ON_MESSAGE(CMFCApplication1Dlg::WM_SPEED_DLG_CLOSED, &CMFCApplication1Dlg::OnSpeedDlgClosed)
     ON_NOTIFY(NM_DBLCLK, IDC_LIST3, &CMFCApplication1Dlg::OnNMDblclkList3)
+    ON_MESSAGE(CMFCApplication1Dlg::WM_REFRESH_CLIPBOARD, &CMFCApplication1Dlg::OnRefreshClipboardUI)
+    ON_MESSAGE(CMFCApplication1Dlg::WM_OPEN_CLIP_HISTORY, &CMFCApplication1Dlg::OnOpenClipHistory)
+    ON_COMMAND(ID_VIEW_CLIPBOARD_HISTORY, &CMFCApplication1Dlg::OnViewClipboardHistory)
+    ON_COMMAND(IDC_BTN_CLIP_HISTORY, &CMFCApplication1Dlg::OnBnClickedClipHistory)
     ON_NOTIFY(NM_DBLCLK, IDC_LIST2, &CMFCApplication1Dlg::OnNMDblclkList2)
     ON_NOTIFY(NM_CLICK,  IDC_LIST6, &CMFCApplication1Dlg::OnClickList6)
     ON_NOTIFY(NM_CLICK,  IDC_LIST7, &CMFCApplication1Dlg::OnClickList7)
@@ -560,6 +565,12 @@ BOOL CMFCApplication1Dlg::OnInitDialog()
 
 	// Clipboard listener
 	::AddClipboardFormatListener(m_hWnd);
+	// Load persisted clipboard history and subscribe to change notifications.
+	m_clipboard.LoadIndex();
+	m_clipboard.SetChangeCallback([this]() {
+		PostMessage(WM_REFRESH_CLIPBOARD, 0, 0);
+	});
+	RefreshClipboardTab();
 
 	// File drag-and-drop
 	::DragAcceptFiles(m_hWnd, TRUE);
@@ -829,6 +840,16 @@ void CMFCApplication1Dlg::OnDestroy()
 
     // Ensure we unregister clipboard listener if we registered it in OnInitDialog.
     ::RemoveClipboardFormatListener(m_hWnd);
+    m_clipboard.Shutdown();
+
+    // Destroy enhanced clipboard window if open.
+    if (m_pClipDlg)
+    {
+        if (::IsWindow(m_pClipDlg->m_hWnd))
+            m_pClipDlg->DestroyWindow();
+        delete m_pClipDlg;
+        m_pClipDlg = nullptr;
+    }
 
     // Destroy auto-clicker speed adjustment window
     if (m_pSpeedDlg)
@@ -1307,55 +1328,72 @@ BOOL CMFCApplication1Dlg::PreTranslateMessage(MSG* pMsg)
     return CDialogEx::PreTranslateMessage(pMsg);
 }
 
-// Handle clipboard update messages
+// Handle clipboard update messages: delegate to the shared ClipboardManager.
 LRESULT CMFCApplication1Dlg::OnClipboardUpdate(WPARAM wParam, LPARAM lParam)
 {
-    // Only handle text
-    if (!::IsClipboardFormatAvailable(CF_UNICODETEXT))
-        return 0;
+    m_clipboard.Capture();
+    return 0;
+}
 
-    if (!::OpenClipboard(m_hWnd))
-        return 0;
+// Refresh the tab3 text view and the enhanced clipboard window after capture/change.
+afx_msg LRESULT CMFCApplication1Dlg::OnRefreshClipboardUI(WPARAM wParam, LPARAM lParam)
+{
+    RefreshClipboardTab();
+    if (m_pClipDlg && ::IsWindow(m_pClipDlg->m_hWnd))
+        m_pClipDlg->Refresh();
+    return 0;
+}
 
-    HGLOBAL hData = ::GetClipboardData(CF_UNICODETEXT);
-    if (hData)
+// Open (or focus) the enhanced clipboard history window.
+// Posting keeps creation outside command handlers (including the tray menu) so
+// the dialog is never created while another modal loop is still dispatching.
+void CMFCApplication1Dlg::OnViewClipboardHistory()
+{
+    if (m_pClipDlg && ::IsWindow(m_pClipDlg->m_hWnd))
     {
-        LPCWSTR pszText = (LPCWSTR)::GlobalLock(hData);
-        if (pszText)
-        {
-            CString s = pszText;
-            ::GlobalUnlock(hData);
+        m_pClipDlg->SetFocus();
+        return;
+    }
+    PostMessage(WM_OPEN_CLIP_HISTORY, 0, 0);
+}
 
-            // Trim and ignore empty
-            s.Trim();
-            if (!s.IsEmpty())
-            {
-                // Avoid duplicate consecutive entries
-                if (m_clipHistory.empty() || m_clipHistory.front() != s)
-                {
-                    m_clipHistory.insert(m_clipHistory.begin(), s);
-                    if ((int)m_clipHistory.size() > CLIP_HISTORY_MAX)
-                        m_clipHistory.pop_back();
-
-                    // update list control
-                    CListCtrl* pList3 = (CListCtrl*)GetDlgItem(IDC_LIST3);
-                    if (pList3)
-                    {
-                        pList3->DeleteAllItems();
-                        int idx = 0;
-                        for (auto &item : m_clipHistory)
-                        {
-                            pList3->InsertItem(idx, item);
-                            idx++;
-                        }
-                    }
-                }
-            }
-        }
+// Actually create/focus the enhanced window, run from the normal message pump.
+LRESULT CMFCApplication1Dlg::OnOpenClipHistory(WPARAM, LPARAM)
+{
+    if (m_pClipDlg && ::IsWindow(m_pClipDlg->m_hWnd))
+    {
+        m_pClipDlg->SetFocus();
+        return 0;
     }
 
-    ::CloseClipboard();
+    // The enhanced dialog destroys its HWND on close but keeps its C++ object
+    // alive, so replace that stale instance before creating a new one.
+    if (m_pClipDlg)
+    {
+        delete m_pClipDlg;
+        m_pClipDlg = nullptr;
+    }
+
+    m_pClipDlg = new CClipboardHistoryDlg(&m_clipboard, this);
+    if (m_pClipDlg)
+    {
+        if (m_pClipDlg->Create(IDD_CLIPBOARD_HISTORY, this))
+        {
+            m_pClipDlg->ShowWindow(SW_SHOW);
+        }
+        else
+        {
+            delete m_pClipDlg;
+            m_pClipDlg = nullptr;
+        }
+    }
     return 0;
+}
+
+// Toolbar button in tab3: open (or focus) the enhanced clipboard history window.
+void CMFCApplication1Dlg::OnBnClickedClipHistory()
+{
+    OnViewClipboardHistory();
 }
 
 afx_msg LRESULT CMFCApplication1Dlg::OnRefreshProcessesDone(WPARAM wParam, LPARAM lParam)
@@ -2286,9 +2324,10 @@ CString CMFCApplication1Dlg::BuildSystemPrompt()
         _T("   - F5 刷新启动项列表\n\n")
 
         _T("3. 剪贴板（标签页 3）\n")
-        _T("   - 实时剪贴板监控：自动记录最近 10 次复制的文本\n")
-        _T("   - 双击任意条目可重新复制到剪贴板\n")
-        _T("   - 连续重复的条目自动去重\n\n")
+        _T("   - 实时剪贴板监控：自动记录最近复制的文本，双击任意条目可重新复制到剪贴板\n")
+        _T("   - 连续重复的条目自动去重\n")
+        _T("   - 支持文本 / 文件 / 图片，跨程序重启持久化（配置了存储体积与条数上限）\n")
+        _T("   - 独立\"剪贴板历史\"窗口：搜索、预览、置顶、删除、清空，可从标签页 3 顶部\"剪贴板历史\"按钮、系统托盘菜单或菜单栏打开\n\n")
 
         _T("4. 窗口处理（标签页 4）\n")
         _T("   - \"定位窗口\"按钮（或 Ctrl+Alt+D）：点击目标窗口以捕获其详细信息\n")

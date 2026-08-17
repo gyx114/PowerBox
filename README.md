@@ -57,7 +57,7 @@ Supports Chinese/English switching, language files located in the `lang/` direct
 |------|-------------|
 | Process Manager | Enumerate processes, show CPU/Memory, support sorting/filtering (including regex), end process, locate file, AI analysis |
 | Startup Manager | View/Add/Delete/Enable/Disable registry startup items, double-click to copy path, supports adding machine-level startup items |
-| Clipboard History | Records the last 10 text entries, double-click to paste back, consecutive duplicate entries are auto-deduplicated |
+| Clipboard History | Records recent text/files/images; double-click to paste back; persists across program restarts; the "Clipboard History" tab lists all entries (text/files/images); the standalone "Clipboard History" window offers search, preview, pin, delete, clear and storage size-limit settings, opened via the tab toolbar button or the tray menu |
 | Window Tool | Locate window (Ctrl+Alt+D), pin to top (supports multiple windows), transparency adjustment (10%-100%), force close, screenshot save; auto-saves locate history |
 | File Manager | Drag in files to create copies (customizable name), rename, delete (recycle bin), copy, move; drag in folder to open batch rename |
 | Git Toolbox | 20 preset commands, supports custom list (config.ini [GitCommands]), auto-detects repo branch, AI-assisted command generation, Git Bash quick launch, standalone Git command result window |

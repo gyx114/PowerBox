@@ -48,6 +48,7 @@ LRESULT CMFCApplication1Dlg::OnTrayNotification(WPARAM wParam, LPARAM lParam)
         CMenu menu;
         menu.CreatePopupMenu();
         menu.AppendMenu(MF_STRING, 2001, loc.GetString(_T("TrayMenu"), _T("ShowWindow")));
+        menu.AppendMenu(MF_STRING, ID_VIEW_CLIPBOARD_HISTORY, loc.GetString(_T("TrayMenu"), _T("ClipboardHistory")));
 
         // Media submenu: previous / next track
         CMenu mediaMenu;
@@ -62,8 +63,32 @@ LRESULT CMFCApplication1Dlg::OnTrayNotification(WPARAM wParam, LPARAM lParam)
         POINT pt;
         GetCursorPos(&pt);
         ::SetForegroundWindow(m_hWnd);
-        menu.TrackPopupMenu(TPM_RIGHTBUTTON, pt.x, pt.y, this);
+        UINT nCmd = menu.TrackPopupMenu(TPM_RIGHTBUTTON | TPM_RETURNCMD, pt.x, pt.y, this);
         PostMessage(WM_NULL, 0, 0);
+
+        // TPM_RETURNCMD returns only after the menu modal loop has finished.
+        // Opening the enhanced clipboard window before that point can re-enter
+        // the popup message loop and leave the UI thread stuck.
+        switch (nCmd)
+        {
+        case 2001:
+            OnTrayShowWindow();
+            break;
+        case ID_VIEW_CLIPBOARD_HISTORY:
+            OnViewClipboardHistory();
+            break;
+        case 41002:
+            OnMediaPrev();
+            break;
+        case 41003:
+            OnMediaNext();
+            break;
+        case 2002:
+            OnTrayExit();
+            break;
+        default:
+            break;
+        }
     }
     else if (lParam == WM_LBUTTONDBLCLK)
     {

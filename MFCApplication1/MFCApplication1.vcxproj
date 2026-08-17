@@ -217,6 +217,8 @@ xcopy /y /e /i "$(ProjectDir)lang" "$(OutDir)lang"</Command>
     <ClInclude Include="AboutDlg.h" />
     <ClInclude Include="AIApiClient.h" />
     <ClInclude Include="AutoClickerSpeedDlg.h" />
+    <ClInclude Include="ClipboardManager.h" />
+    <ClInclude Include="ClipboardHistoryDlg.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="BatchRenameDlg.h" />
     <ClInclude Include="BatchRenameAIDlg.h" />
@@ -253,6 +255,8 @@ xcopy /y /e /i "$(ProjectDir)lang" "$(OutDir)lang"</Command>
     <ClCompile Include="AIApiClient.cpp" />
     <ClCompile Include="AIAssistantDlg.cpp" />
     <ClCompile Include="AutoClickerSpeedDlg.cpp" />
+    <ClCompile Include="ClipboardManager.cpp" />
+    <ClCompile Include="ClipboardHistoryDlg.cpp" />
     <ClCompile Include="BatchRenameDlg.cpp" />
     <ClCompile Include="BatchRenameAIDlg.cpp" />
     <ClCompile Include="RegexGuideDlg.cpp" />

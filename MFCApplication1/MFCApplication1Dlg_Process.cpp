@@ -32,37 +32,14 @@ static ULONGLONG FileTimeToUInt64(const FILETIME& ft)
 void CMFCApplication1Dlg::OnNMDblclkList3(NMHDR* pNMHDR, LRESULT* pResult)
 {
     LPNMITEMACTIVATE pItem = (LPNMITEMACTIVATE)pNMHDR;
-    int nItem = pItem->iItem;
-    if (nItem >= 0 && nItem < (int)m_clipHistory.size())
+    if (pItem->iItem >= 0)
     {
-        CString text = m_clipHistory[nItem];
-        if (!text.IsEmpty())
+        CListCtrl* pList3 = (CListCtrl*)GetDlgItem(IDC_LIST3);
+        if (pList3)
         {
-            if (::OpenClipboard(m_hWnd))
-            {
-                ::EmptyClipboard();
-                int len = (text.GetLength() + 1);
-                HGLOBAL hGlob = ::GlobalAlloc(GMEM_MOVEABLE, len * sizeof(WCHAR));
-                if (hGlob)
-                {
-                    LPWSTR pBuf = (LPWSTR)::GlobalLock(hGlob);
-                    if (pBuf)
-                    {
-                        wcscpy_s(pBuf, len, text);
-                        ::GlobalUnlock(hGlob);
-                        HGLOBAL hSet = ::SetClipboardData(CF_UNICODETEXT, hGlob);
-                        if (hSet == NULL)
-                        {
-                            ::GlobalFree(hGlob);
-                        }
-                    }
-                    else
-                    {
-                        ::GlobalFree(hGlob);
-                    }
-                }
-                ::CloseClipboard();
-            }
+            std::uint64_t id = (std::uint64_t)pList3->GetItemData(pItem->iItem);
+            if (id != 0)
+                m_clipboard.Replay(id);
         }
     }
     *pResult = 0;
