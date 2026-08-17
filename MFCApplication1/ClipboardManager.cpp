@@ -63,7 +63,11 @@ void ClipboardManager::NotifyChange()
 std::vector<ClipboardEntry> ClipboardManager::Snapshot() const
 {
     std::lock_guard<std::mutex> lk(m_mutex);
-    return { m_entries.begin(), m_entries.end() };
+    std::vector<ClipboardEntry> out(m_entries.begin(), m_entries.end());
+    // Pinned entries always stay on top, preserving their relative order.
+    std::stable_partition(out.begin(), out.end(),
+                          [](const ClipboardEntry& e) { return e.pinned; });
+    return out;
 }
 
 std::vector<std::wstring> ClipboardManager::RecentTextItems(int n) const
@@ -117,6 +121,21 @@ static bool SamePrimary(const ClipboardEntry& a, const ClipboardEntry& b)
     return false;
 }
 
+// FNV-1a 64-bit hash used to fingerprint an image's DIB bytes so that the same
+// screenshot arriving twice on the clipboard (e.g. how Snipping Tool posts the
+// image) is collapsed into a single entry.
+static std::uint64_t HashBytes(const void* data, size_t len)
+{
+    const unsigned char* p = static_cast<const unsigned char*>(data);
+    std::uint64_t h = 1469598103934665603ULL;
+    for (size_t i = 0; i < len; ++i)
+    {
+        h ^= p[i];
+        h *= 1099511628211ULL;
+    }
+    return h;
+}
+
 bool ClipboardManager::BuildEntry(ClipboardEntry& e)
 {
     if (!::OpenClipboard(nullptr)) return false;
@@ -133,6 +152,31 @@ bool ClipboardManager::BuildEntry(ClipboardEntry& e)
     const bool hasText  = ::IsClipboardFormatAvailable(CF_UNICODETEXT);
     const bool hasFiles = ::IsClipboardFormatAvailable(CF_HDROP);
     const bool hasImage = ::IsClipboardFormatAvailable(CF_DIB) || ::IsClipboardFormatAvailable(CF_DIBV5);
+
+    // Ignore a momentarily blank clipboard (e.g. an app briefly clearing it while
+    // preparing an action) - never record a zero-payload entry.
+    if (!hasText && !hasFiles && !hasImage)
+    {
+        ::CloseClipboard();
+        return false;
+    }
+
+    // Fingerprint the image bytes while the clipboard is still open. Used below to
+    // collapse a screenshot that Snipping Tool posts more than once.
+    std::uint64_t imgFp = 0;
+    if (hasImage)
+    {
+        HANDLE hDib = ::GetClipboardData(CF_DIB);
+        if (!hDib) hDib = ::GetClipboardData(CF_DIBV5);
+        if (hDib)
+        {
+            if (const void* mem = ::GlobalLock(hDib))
+            {
+                imgFp = HashBytes(mem, static_cast<size_t>(::GlobalSize(hDib)));
+                ::GlobalUnlock(hDib);
+            }
+        }
+    }
 
     if (hasText)
     {
@@ -177,9 +221,23 @@ bool ClipboardManager::BuildEntry(ClipboardEntry& e)
 
     {
         std::lock_guard<std::mutex> lk(m_mutex);
-        if (!m_entries.empty() && SamePrimary(m_entries.front(), e)) return false;
+        if (!m_entries.empty())
+        {
+            const ClipboardEntry& f = m_entries.front();
+            if (SamePrimary(f, e)) return false;
+            // Collapse a duplicate image (identical bytes) posted more than once,
+            // e.g. Snipping Tool delivering the same screenshot in two notifications.
+            if (hasImage && imgFp)
+            {
+                const auto it = std::find_if(m_entries.begin(), m_entries.end(),
+                                             [imgFp](const ClipboardEntry& x)
+                                             { return x.type == ClipType::Image && x.imageFp == imgFp; });
+                if (it != m_entries.end()) return false;
+            }
+        }
         e.id = m_nextId++;
     }
+    e.imageFp = imgFp;
     e.timestamp = static_cast<std::uint64_t>(std::time(nullptr));
 
     if (hasImage)      e.type = ClipType::Image;
@@ -280,7 +338,7 @@ std::wstring ClipboardManager::ClipboardStoreDir()
 {
     wchar_t buf[MAX_PATH]{};
     ::SHGetFolderPathW(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_CURRENT, buf);
-    std::wstring d = std::wstring(buf) + L"\\MFCApplication1\\ClipboardHistory";
+    std::wstring d = std::wstring(buf) + L"\\PowerBox\\ClipboardHistory";
     ::SHCreateDirectoryExW(nullptr, d.c_str(), nullptr);
     return d;
 }
@@ -447,6 +505,7 @@ void ClipboardManager::SaveIndex()
             o["ts"] = e.timestamp;
             o["pinned"] = e.pinned;
             o["type"] = static_cast<int>(e.type);
+            if (e.imageFp) o["fp"] = e.imageFp;
             if (!e.text.empty())      o["text"] = Utf16ToUtf8(e.text);
             if (!e.files.empty())     { for (const auto& f : e.files) o["files"].push_back(Utf16ToUtf8(f)); }
             if (!e.imagePath.empty()) o["image"] = Utf16ToUtf8(e.imagePath);
@@ -500,6 +559,7 @@ void ClipboardManager::LoadIndex()
             e.timestamp = o.value("ts", static_cast<std::uint64_t>(0));
             e.pinned = o.value("pinned", false);
             e.type = static_cast<ClipType>(o.value("type", 0));
+            e.imageFp = o.value("fp", static_cast<std::uint64_t>(0));
             if (o.contains("text"))  e.text = Utf8ToUtf16(o["text"]);
             if (o.contains("files")) { for (const auto& f : o["files"]) e.files.push_back(Utf8ToUtf16(f)); }
             if (o.contains("image")) e.imagePath = Utf8ToUtf16(o["image"]);

@@ -23,8 +23,23 @@ struct ClipboardEntry {
     std::wstring thumbPath;          // on-disk thumbnail absolute path, may be empty
     std::wstring dir;                // per-entry sub-directory
     bool pinned = false;
+    std::uint64_t imageFp = 0;       // hash of the DIB image contents (image dedup)
     std::map<std::wstring, std::wstring> snapshotMap; // source path -> archived leaf name in dir
 };
+
+// Classify an entry's display type from its actual payload (text / files / image),
+// returning Mixed when more than one non-empty kind is present. This is the single
+// source of truth used by both the main tab3 list and the enhanced window.
+inline ClipType ClassifyClipType(const ClipboardEntry& e)
+{
+    const int kinds = (!e.text.empty() ? 1 : 0) +
+                      (!e.files.empty() ? 1 : 0) +
+                      (!e.imagePath.empty() ? 1 : 0);
+    if (kinds >= 2) return ClipType::Mixed;
+    if (!e.imagePath.empty()) return ClipType::Image;
+    if (!e.files.empty())     return ClipType::Files;
+    return ClipType::Text;   // text or empty payload
+}
 
 class ClipboardManager {
 public:

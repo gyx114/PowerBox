@@ -63,7 +63,25 @@ void CMFCApplication1Dlg::InitClipboardTab()
     auto& loc = CLocalizationManager::GetInstance();
     pList3->ModifyStyle(0, LVS_REPORT);
     pList3->SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_INFOTIP);
-    pList3->InsertColumn(0, loc.GetString(_T("ClipboardTab"), _T("ColText")), LVCFMT_LEFT, 195);
+
+    // Two columns: type + content. Both are sized from the list client area so the
+    // width is distributed sensibly (type gets a fixed comfortable width, content
+    // fills the remainder).
+    pList3->InsertColumn(0, loc.GetString(_T("ClipboardTab"), _T("ColType")), LVCFMT_LEFT, 70);
+    pList3->InsertColumn(1, loc.GetString(_T("ClipboardTab"), _T("ColText")), LVCFMT_LEFT, 195);
+
+    CRect rc;
+    pList3->GetClientRect(&rc);
+    const int scrollW = ::GetSystemMetrics(SM_CXVSCROLL);
+    const int total = rc.Width() - scrollW;
+    const int wType = 70;
+    const int wContent = (total - wType) > 0 ? (total - wType) : 120;
+    pList3->SetColumnWidth(0, wType);
+    pList3->SetColumnWidth(1, wContent);
+
+    // Force header redraw
+    if (pList3->GetHeaderCtrl())
+        pList3->GetHeaderCtrl()->Invalidate(TRUE);
 
     // Toolbar button to open the enhanced clipboard history window.
     if (CWnd* pBtn = GetDlgItem(IDC_BTN_CLIP_HISTORY))
@@ -71,7 +89,8 @@ void CMFCApplication1Dlg::InitClipboardTab()
 }
 
 // Fill the tab3 clipboard view from the shared clipboard manager.
-// Every entry (text / files / image / mixed) is shown; row item data = entry id.
+// Every entry (text / files / image / mixed) is shown with its type in column 0 and
+// a compact content description in column 1. Row item data = entry id.
 void CMFCApplication1Dlg::RefreshClipboardTab()
 {
     CListCtrl* pList3 = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST3));
@@ -79,35 +98,94 @@ void CMFCApplication1Dlg::RefreshClipboardTab()
 
     auto& loc = CLocalizationManager::GetInstance();
 
-    // Short, kind-aware description of an entry (image > files > text priority).
-    auto Describe = [&](const ClipboardEntry& e) -> CString
+    auto TypeName = [&](ClipType t, size_t fileCount) -> CString
     {
-        if (!e.imagePath.empty() && e.files.empty())
+        CString s;
+        switch (t)
         {
-            CString t = loc.GetString(_T("ClipboardHistory"), _T("TabImage"));
-            if (!e.text.empty()) { std::wstring s = e.text; for (auto& c : s) if (c == L'\r' || c == L'\n') c = L' '; t += CString(L"  ") + CString(s.c_str()); }
-            return t;
+        case ClipType::Files: s = loc.GetString(_T("ClipboardHistory"), _T("TabFiles")); break;
+        case ClipType::Image: s = loc.GetString(_T("ClipboardHistory"), _T("TabImage")); break;
+        case ClipType::Mixed: s = loc.GetString(_T("ClipboardHistory"), _T("TabMixed")); break;
+        default:              s = loc.GetString(_T("ClipboardHistory"), _T("TabText")); break;
         }
-        if (!e.files.empty())
+        // Distinguish a multi-file selection from a single file with a count.
+        if (fileCount > 1)
+        {
+            CString cnt;
+            cnt.Format(_T(" (%d)"), static_cast<int>(fileCount));
+            s += cnt;
+        }
+        return s;
+    };
+
+    // Compact content description, resolved from the classified type. Handles every
+    // combination (text / files / image / mixed) so the type column is not wrong.
+    auto Content = [](const ClipboardEntry& e) -> CString
+    {
+        const size_t npos = std::wstring::npos;
+        switch (ClassifyClipType(e))
+        {
+        case ClipType::Text:
+        {
+            std::wstring s = e.text;
+            for (auto& c : s) if (c == L'\r' || c == L'\n') c = L' ';
+            if (s.size() > 80) s = s.substr(0, 80) + L"…";
+            return s.c_str();
+        }
+        case ClipType::Files:
         {
             std::wstring names;
             for (size_t i = 0; i < e.files.size() && i < 3; ++i)
             {
-                const std::wstring& p = e.files[i];
-                const size_t s = p.find_last_of(L"\\/");
-                CString leaf((s != std::wstring::npos) ? p.substr(s + 1).c_str() : p.c_str());
-                names += (i ? L"、" : L"") + std::wstring(leaf);
+                const size_t s = e.files[i].find_last_of(L"\\/");
+                std::wstring leaf((s != npos) ? e.files[i].substr(s + 1) : e.files[i]);
+                names += (i ? L"、" : L"") + leaf;
             }
             if (e.files.size() > 3) names += L"…";
-            CString t = loc.GetString(_T("ClipboardHistory"), _T("TabFiles"));
-            t += CString(L"  ") + names.c_str();
-            return t;
+            return names.c_str();
         }
-        // text (or empty)
-        std::wstring s = e.text;
-        for (auto& c : s) if (c == L'\r' || c == L'\n') c = L' ';
-        if (s.size() > 80) s = s.substr(0, 80) + L"…";
-        return s.c_str();
+        case ClipType::Image:
+        {
+            const size_t s = e.imagePath.find_last_of(L"\\/");
+            std::wstring name = (s != npos) ? e.imagePath.substr(s + 1) : e.imagePath;
+            if (name.size() > 80) name = name.substr(0, 80) + L"…";
+            return name.c_str();
+        }
+        case ClipType::Mixed:
+        default:
+        {
+            std::wstring parts;
+            if (!e.text.empty())
+            {
+                std::wstring s = e.text;
+                for (auto& c : s) if (c == L'\r' || c == L'\n') c = L' ';
+                if (s.size() > 40) s = s.substr(0, 40) + L"…";
+                parts = s;
+            }
+            if (!e.files.empty())
+            {
+                std::wstring names;
+                for (size_t i = 0; i < e.files.size() && i < 2; ++i)
+                {
+                    const size_t s = e.files[i].find_last_of(L"\\/");
+                    std::wstring leaf((s != npos) ? e.files[i].substr(s + 1) : e.files[i]);
+                    names += (i ? L"、" : L"") + leaf;
+                }
+                if (e.files.size() > 2) names += L"…";
+                if (!parts.empty()) parts += L" | ";
+                parts += names;
+            }
+            if (!e.imagePath.empty())
+            {
+                const size_t s = e.imagePath.find_last_of(L"\\/");
+                std::wstring name = (s != npos) ? e.imagePath.substr(s + 1) : e.imagePath;
+                if (!parts.empty()) parts += L" | ";
+                parts += name;
+            }
+            if (parts.size() > 120) parts = parts.substr(0, 120) + L"…";
+            return parts.c_str();
+        }
+        }
     };
 
     pList3->SetRedraw(FALSE);
@@ -115,10 +193,14 @@ void CMFCApplication1Dlg::RefreshClipboardTab()
     int idx = 0;
     for (const auto& e : m_clipboard.Snapshot())
     {
-        const CString text = Describe(e);
-        if (text.IsEmpty()) continue;
-        int row = pList3->InsertItem(idx, text);
-        if (row >= 0) pList3->SetItemData(row, (DWORD_PTR)e.id);
+        if (e.text.empty() && e.files.empty() && e.imagePath.empty()) continue;
+        const ClipType t = ClassifyClipType(e);
+        int row = pList3->InsertItem(idx, TypeName(t, e.files.size()));
+        if (row >= 0)
+        {
+            pList3->SetItemData(row, (DWORD_PTR)e.id);
+            pList3->SetItemText(row, 1, Content(e));
+        }
         ++idx;
     }
     pList3->SetRedraw(TRUE);

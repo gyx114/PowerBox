@@ -170,7 +170,8 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("StartupTab"), _T("StatusDisabled"))] = _T("已禁用");
 
     // Clipboard tab
-    m_defaults[MakeKey(_T("ClipboardTab"), _T("ColText"))] = _T("文本内容(双击复制)");
+    m_defaults[MakeKey(_T("ClipboardTab"), _T("ColType"))] = _T("类型");
+    m_defaults[MakeKey(_T("ClipboardTab"), _T("ColText"))] = _T("内容");
 
     // Window tab columns
     m_defaults[MakeKey(_T("WindowTab"), _T("ColField"))] = _T("字段");

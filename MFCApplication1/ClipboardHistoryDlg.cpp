@@ -251,10 +251,15 @@ CString CClipboardHistoryDlg::DescribeSub(const ClipboardEntry& e) const
 {
     CString t;
     auto& loc = CLocalizationManager::GetInstance();
-    if (e.imagePath.empty() && e.files.empty())        t = loc.GetString(_T("ClipboardHistory"), _T("TabText"));
-    else if (!e.files.empty() && e.imagePath.empty()) t = loc.GetString(_T("ClipboardHistory"), _T("TabFiles"));
-    else if (!e.imagePath.empty() && e.files.empty())  t = loc.GetString(_T("ClipboardHistory"), _T("TabImage"));
-    else                                               t = loc.GetString(_T("ClipboardHistory"), _T("TabMixed"));
+    // Use the same payload-based classification as the main tab so that combined
+    // entries (e.g. text + files, files + image) are labelled correctly, not Files.
+    switch (ClassifyClipType(e))
+    {
+    case ClipType::Files: t = loc.GetString(_T("ClipboardHistory"), _T("TabFiles")); break;
+    case ClipType::Image: t = loc.GetString(_T("ClipboardHistory"), _T("TabImage")); break;
+    case ClipType::Mixed: t = loc.GetString(_T("ClipboardHistory"), _T("TabMixed")); break;
+    default:              t = loc.GetString(_T("ClipboardHistory"), _T("TabText")); break;
+    }
 
     if (e.timestamp)
     {
@@ -357,7 +362,9 @@ void CClipboardHistoryDlg::UpdatePreview()
         for (const auto& e : es)
         {
             if (e.id != id) continue;
-            txt += DescribeTitle(e) + _T("\r\n") + DescribeSub(e) + _T("\r\n\r\n");
+            // Show only the descriptive detail line plus the actual content; the
+            // brief title (filename / text preview) is redundant in the preview.
+            txt += DescribeSub(e) + _T("\r\n\r\n");
             if (!e.text.empty()) txt += e.text.c_str();
             else if (!e.files.empty())
             {
