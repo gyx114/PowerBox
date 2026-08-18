@@ -9,6 +9,7 @@
 #include <functional>
 #include <map>
 #include <thread>
+#include <chrono>
 
 // Display priority of an entry: Image > Files > Text
 enum class ClipType { Text, Files, Image, Mixed };
@@ -91,4 +92,7 @@ private:
     std::condition_variable     m_captureCv;
     bool                        m_capturePending = false;
     bool                        m_captureStop = false;
+    // Debounce timestamp for coalescing bursty WM_CLIPBOARDUPDATE notifications
+    // (e.g. Snipping Tool posts the same screenshot in two quick notifications).
+    std::chrono::steady_clock::time_point m_lastCapture = {};
 };

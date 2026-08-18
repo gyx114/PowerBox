@@ -86,6 +86,10 @@ void ClipboardManager::Capture()
 {
     {
         std::lock_guard<std::mutex> lk(m_captureMutex);
+        // Record the arrival time. A short debounce window lets repeated
+        // notifications (Snipping Tool posting one screenshot twice, an app
+        // clearing-then-filling the clipboard) collapse into a single capture.
+        m_lastCapture = std::chrono::steady_clock::now();
         m_capturePending = true;
     }
     m_captureCv.notify_one();
@@ -93,11 +97,20 @@ void ClipboardManager::Capture()
 
 void ClipboardManager::CaptureLoop()
 {
+    constexpr auto kDebounce = std::chrono::milliseconds(600);
+
     std::unique_lock<std::mutex> lk(m_captureMutex);
     for (;;)
     {
         m_captureCv.wait(lk, [this]() { return m_capturePending || m_captureStop; });
         if (m_captureStop) break;
+
+        // Keep waiting until the debounce window elapses after the most recent
+        // notification, so bursts of updates are coalesced into one capture.
+        m_captureCv.wait_until(lk, m_lastCapture + kDebounce,
+                               [this]() { return m_captureStop; });
+        if (m_captureStop) break;
+
         m_capturePending = false;
         lk.unlock();
         try { CaptureWorker(); }
