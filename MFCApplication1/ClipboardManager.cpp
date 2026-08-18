@@ -715,6 +715,9 @@ void ClipboardManager::Remove(std::uint64_t id)
         if (it == m_entries.end()) return;
         victim = *it;
         m_entries.erase(it);
+        // Deleting the last entry behaves like Clear: restart the id sequence so
+        // the next captured entry starts from id 1 again.
+        if (m_entries.empty()) m_nextId = 1;
     }
     std::wstring dir = victim.dir;
     if (dir.empty() && (!victim.imagePath.empty() || !victim.snapshotMap.empty()))
