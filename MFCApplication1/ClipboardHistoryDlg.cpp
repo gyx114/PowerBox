@@ -291,7 +291,7 @@ CString CClipboardHistoryDlg::DescribeTitle(const ClipboardEntry& e) const
 {
     CString t;
     auto& loc = CLocalizationManager::GetInstance();
-    const CString pin = e.pinned ? CString(_T("\x2605 ")) : CString(_T(""));
+    const CString pin = e.pinned ? CString(L"\u2605 ") : CString();
 
     if (!e.text.empty() && e.imagePath.empty() && e.files.empty())
     {
