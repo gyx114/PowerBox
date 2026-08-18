@@ -24,6 +24,7 @@ protected:
 
     DECLARE_MESSAGE_MAP()
     afx_msg void OnClose();
+    afx_msg void OnDestroy();
     afx_msg void OnSize(UINT nType, int cx, int cy);
     afx_msg void OnDrawItem(int nIDCtl, LPDRAWITEMSTRUCT lpDrawItemStruct);
     afx_msg void OnMeasureItem(int nIDCtl, LPMEASUREITEMSTRUCT lpMeasureItemStruct);
@@ -43,9 +44,11 @@ private:
     void UpdatePreview();
     void ShowSettings(bool show);
     HICON  IconForKey(const std::wstring& key) const;
+    HBITMAP LoadPreviewBitmap(const std::wstring& imgPath);
     CString DescribeTitle(const ClipboardEntry& e) const;
     CString DescribeSub(const ClipboardEntry& e) const;
     uint64_t SelectedId() const;
+    std::wstring SelectedImagePath() const;
     void DoReplay(uint64_t id);
     bool QueryMatches(const ClipboardEntry& e) const;
     LRESULT OnRefresh(WPARAM, LPARAM);
@@ -55,6 +58,11 @@ private:
     CListCtrl m_list;
     CEdit     m_search;
     CEdit     m_preview;
+    CStatic   m_previewImg;
+    HBITMAP   m_previewBmp = nullptr;      // current image preview bitmap (owned here)
+    CRect     m_previewBox{ 0, 0, 0, 0 };  // static fit box for the image preview,
+                                           // captured once so the scale target never
+                                           // changes between entry switches
 
     // Entries currently displayed, parallel to the list items; rows own their HICON.
     // iconKey caches the per-row thumbnail path / first file path so the icon can be
@@ -62,7 +70,7 @@ private:
     // title caches the display text so WM_DRAWITEM never has to reenter the list
     // control (sending LVM_GETITEMTEXT while COMCTL32 dispatches WM_DRAWITEM can
     // raise a fatal user-callback exception, 0xc000041d).
-    struct Row { std::uint64_t id = 0; HICON icon = nullptr; std::wstring iconKey; CString title; };
+    struct Row { std::uint64_t id = 0; HICON icon = nullptr; std::wstring iconKey; CString title; CString typeName; };
     std::vector<Row> m_rows;
 
     bool m_showSettings = false;

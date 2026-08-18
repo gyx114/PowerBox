@@ -23,6 +23,7 @@ CClipboardHistoryDlg::CClipboardHistoryDlg(ClipboardManager* pMgr, CWnd* pParent
 
 BEGIN_MESSAGE_MAP(CClipboardHistoryDlg, CDialogEx)
     ON_WM_CLOSE()
+    ON_WM_DESTROY()
     ON_WM_SIZE()
     ON_WM_DRAWITEM()
     ON_WM_MEASUREITEM()
@@ -45,9 +46,15 @@ BOOL CClipboardHistoryDlg::OnInitDialog()
     m_list.SubclassDlgItem(IDC_CLIP_LIST, this);
     m_search.SubclassDlgItem(IDC_CLIP_SEARCH_EDIT, this);
     m_preview.SubclassDlgItem(IDC_CLIP_PREVIEW, this);
+    m_previewImg.SubclassDlgItem(IDC_CLIP_PREVIEW_IMG, this);
+    // The image box is statically sized in the .rc resource; capture its client
+    // area once so every preview scales to the very same fixed target. Reading
+    // the live control size on each switch can drift if the control ever resizes.
+    if (m_previewImg.GetSafeHwnd()) m_previewImg.GetClientRect(&m_previewBox);
 
     m_list.SetExtendedStyle(LVS_EX_FULLROWSELECT);
-    m_list.InsertColumn(0, _T(""), LVCFMT_LEFT, 460);
+    m_list.InsertColumn(0, _T(""), LVCFMT_LEFT, 90);
+    m_list.InsertColumn(1, _T(""), LVCFMT_LEFT, 370);
 
     auto& loc = CLocalizationManager::GetInstance();
     SetWindowText(loc.GetString(_T("ClipboardHistory"), _T("DlgCaption")));
@@ -86,6 +93,12 @@ BOOL CClipboardHistoryDlg::OnInitDialog()
 void CClipboardHistoryDlg::OnCancel() { DestroyWindow(); }
 void CClipboardHistoryDlg::OnClose() { DestroyWindow(); }
 
+void CClipboardHistoryDlg::OnDestroy()
+{
+    if (m_previewBmp) { ::DeleteObject(m_previewBmp); m_previewBmp = nullptr; }
+    CDialogEx::OnDestroy();
+}
+
 LRESULT CClipboardHistoryDlg::OnRefresh(WPARAM, LPARAM)
 {
     Populate();
@@ -102,6 +115,8 @@ void CClipboardHistoryDlg::ShowSettings(bool show)
     for (int id : ids)
         if (CWnd* w = GetDlgItem(id)) w->ShowWindow(show ? SW_SHOW : SW_HIDE);
     if (CWnd* w = GetDlgItem(IDC_CLIP_PREVIEW)) w->ShowWindow(show ? SW_HIDE : SW_SHOW);
+    if (m_previewImg.GetSafeHwnd()) m_previewImg.ShowWindow(SW_HIDE);
+    if (!show) UpdatePreview(); // restore the stacked (text + image) preview layout
 }
 
 void CClipboardHistoryDlg::OnBnClickedClipSettings()
@@ -148,6 +163,7 @@ void CClipboardHistoryDlg::Populate()
 {
     if (!m_pMgr) return;
     const std::vector<ClipboardEntry> entries = m_pMgr->Snapshot();
+    auto& loc = CLocalizationManager::GetInstance();
 
     for (auto& r : m_rows) if (r.icon) { ::DestroyIcon(r.icon); r.icon = nullptr; }
     m_rows.clear();
@@ -165,13 +181,38 @@ void CClipboardHistoryDlg::Populate()
                                : !e.files.empty()   ? e.files[0]
                                : std::wstring();
         CString title = DescribeTitle(e);
-        m_rows.push_back({ e.id, nullptr, key, title });
-        m_list.InsertItem(item, title);
+        CString typeName;
+        switch (ClassifyClipType(e))
+        {
+        case ClipType::Files: typeName = loc.GetString(_T("ClipboardHistory"), _T("TabFiles")); break;
+        case ClipType::Image: typeName = loc.GetString(_T("ClipboardHistory"), _T("TabImage")); break;
+        case ClipType::Mixed: typeName = loc.GetString(_T("ClipboardHistory"), _T("TabMixed")); break;
+        default:              typeName = loc.GetString(_T("ClipboardHistory"), _T("TabText")); break;
+        }
+        // For multi-file entries the type shows its count too, e.g. "文件(4)".
+        if (!e.files.empty() && e.files.size() > 1)
+        {
+            CString n; n.Format(_T("(%d)"), (int)e.files.size());
+            typeName += n;
+        }
+        m_rows.push_back({ e.id, nullptr, key, title, typeName });
+        m_list.InsertItem(item, typeName);
+        m_list.SetItemText(item, 1, title);
         m_list.SetItemData(item, (DWORD_PTR)(m_rows.size() - 1));
         ++item;
     }
     m_list.SetRedraw(TRUE);
     m_list.Invalidate();
+
+    // Widths: type column gets a fixed comfortable width, content fills the rest.
+    CRect rc;
+    m_list.GetClientRect(&rc);
+    const int scrollW = ::GetSystemMetrics(SM_CXVSCROLL);
+    const int total = rc.Width() - scrollW;
+    const int wType = 90;
+    const int wContent = (total - wType) > 0 ? (total - wType) : 120;
+    m_list.SetColumnWidth(0, wType);
+    m_list.SetColumnWidth(1, wContent);
 
     UpdatePreview();
 }
@@ -201,6 +242,49 @@ HICON CClipboardHistoryDlg::IconForKey(const std::wstring& key) const
     if (::SHGetFileInfoW(L".txt", FILE_ATTRIBUTE_NORMAL, &sfi, sizeof(sfi), SHGFI_ICON | SHGFI_LARGEICON | SHGFI_USEFILEATTRIBUTES))
         return sfi.hIcon;
     return nullptr;
+}
+
+// Load an image file (PNG from the per-entry archive) as an HBITMAP, scaled to fit
+// the preview box so large screenshots fit without cropping. The caller owns the
+// returned bitmap.
+HBITMAP CClipboardHistoryDlg::LoadPreviewBitmap(const std::wstring& imgPath)
+{
+    if (imgPath.empty()) return nullptr;
+    Gdiplus::Bitmap src(imgPath.c_str());
+    if (src.GetLastStatus() != Gdiplus::Ok) return nullptr;
+
+    // Scale to the fixed-fit box captured at init so the target never drifts
+    // between entry switches; fall back to the live control size only if unset.
+    CRect rc = m_previewBox;
+    if (rc.Width() <= 0 || rc.Height() <= 0)
+        m_previewImg.GetClientRect(&rc);
+    if (rc.Width() <= 0 || rc.Height() <= 0) return nullptr;
+
+    const int availW = rc.Width(), availH = rc.Height();
+    const int sw = src.GetWidth(), sh = src.GetHeight();
+    if (sw <= 0 || sh <= 0) return nullptr;
+
+    // Aspect-preserving fit inside the preview box.
+    double scale = 1.0;
+    if (sw > availW || sh > availH)
+    {
+        const double s1 = (double)availW / sw;
+        const double s2 = (double)availH / sh;
+        scale = (s1 < s2) ? s1 : s2;
+    }
+    const int dw = (sw * scale >= 1.0) ? (int)(sw * scale) : 1;
+    const int dh = (sh * scale >= 1.0) ? (int)(sh * scale) : 1;
+
+    Gdiplus::Bitmap scaled(dw, dh, PixelFormat32bppARGB);
+    {
+        Gdiplus::Graphics g(&scaled);
+        g.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+        g.DrawImage(&src, 0, 0, dw, dh);
+    }
+    Gdiplus::Bitmap* pBmp = &scaled;
+    HBITMAP hb = nullptr;
+    pBmp->GetHBITMAP(Gdiplus::Color(255, 255, 255), &hb);
+    return hb;
 }
 
 CString CClipboardHistoryDlg::DescribeTitle(const ClipboardEntry& e) const
@@ -287,25 +371,43 @@ void CClipboardHistoryDlg::OnDrawItem(int nIDCtl, LPDRAWITEMSTRUCT dis)
     const COLORREF bg = sel ? RGB(51, 153, 255) : RGB(255, 255, 255);
     dc.FillSolidRect(&rc, bg);
 
-    // Note: deliberately no icon loading and NO list-control access here.
-    // Decoding thumbnails / querying the shell icon / calling back into m_list
-    // (e.g. GetItemText) inside the WM_DRAWITEM callback is unsafe — a reentrant
-    // send into the list view while COMCTL32 is dispatching WM_DRAWITEM can raise
-    // a fatal user callback exception (0xc000041d). Draw from the cached rows.
     if (m_rows.empty() || dis->itemID >= m_rows.size())
     {
         dc.Detach();
         return;
     }
-    const CString& title = m_rows[dis->itemID].title;
-    CRect textRc(rc.left + 6, rc.top + 3, rc.right - 4, rc.bottom - 3);
+    Row& row = m_rows[dis->itemID];
+
+    // Lazy-load the row thumbnail once and cache it. IconForKey reads only the
+    // on-disk thumb.png / shell icon from the cached key — no list-control access
+    // — so it is safe here (avoids the 0xc000041d reentrancy crash).
+    if (!row.icon && !row.iconKey.empty())
+        row.icon = IconForKey(row.iconKey);
+
+    const CString& title = row.title;
+    const CString& typeName = row.typeName;
+
+    // Thumbnail strip on the left (48x48, centered vertically in the 48px row).
+    if (row.icon)
+        ::DrawIconEx(dc.m_hDC, rc.left + 2, rc.top + ((rc.Height() - 48) / 2),
+                     row.icon, 48, 48, 0, nullptr, DI_NORMAL);
+
+    const int thumbW = 48 + 6; // icon + gap before the text columns
+    CRect textRc(rc.left + thumbW, rc.top + 3, rc.right - 4, rc.bottom - 3);
     dc.SaveDC();
     dc.SetBkMode(TRANSPARENT);
     dc.SetTextColor(sel ? RGB(255, 255, 255) : RGB(30, 30, 30));
     CFont* f = GetFont();
     if (f) dc.SelectObject(f);
+
+    // Column 0 = type (fixed width), column 1 = content (title).
+    const int typeW = 90;
+    CRect typeRc = textRc;
+    typeRc.right = textRc.left + typeW - 6;
+    dc.DrawText(typeName, &typeRc, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS);
+
     CRect titleRc = textRc;
-    titleRc.bottom = titleRc.top + 22;
+    titleRc.left = textRc.left + typeW;
     dc.DrawText(title, &titleRc, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS);
     dc.RestoreDC(-1);
     dc.Detach();
@@ -327,6 +429,17 @@ uint64_t CClipboardHistoryDlg::SelectedId() const
     const DWORD_PTR row = m_list.GetItemData(n);
     if (row < m_rows.size()) return m_rows[row].id;
     return 0;
+}
+
+// Return the archived PNG path of the currently selected entry, if it is an image.
+std::wstring CClipboardHistoryDlg::SelectedImagePath() const
+{
+    const uint64_t id = SelectedId();
+    if (!id || !m_pMgr) return std::wstring();
+    const std::vector<ClipboardEntry> es = m_pMgr->Snapshot();
+    for (const auto& e : es)
+        if (e.id == id && !e.imagePath.empty()) return e.imagePath;
+    return std::wstring();
 }
 
 void CClipboardHistoryDlg::DoReplay(uint64_t id)
@@ -356,25 +469,58 @@ void CClipboardHistoryDlg::UpdatePreview()
 {
     const uint64_t id = SelectedId();
     CString txt;
+    bool wantImg = false;
     if (id && m_pMgr)
     {
         const std::vector<ClipboardEntry> es = m_pMgr->Snapshot();
         for (const auto& e : es)
         {
             if (e.id != id) continue;
-            // Show only the descriptive detail line plus the actual content; the
-            // brief title (filename / text preview) is redundant in the preview.
-            txt += DescribeSub(e) + _T("\r\n\r\n");
+            // Path / summary line, always shown even for pure images.
+            txt += DescribeSub(e) + _T("\r\n") + _T("----------------------------") + _T("\r\n\r\n");
             if (!e.text.empty()) txt += e.text.c_str();
             else if (!e.files.empty())
             {
                 for (const auto& f : e.files) { txt += f.c_str(); txt += _T("\r\n"); }
             }
-            else if (!e.imagePath.empty()) txt += e.imagePath.c_str();
+            else if (!e.imagePath.empty())
+            {
+                // Pure image: keep the path visible and flag that a picture
+                // preview should be rendered below the text.
+                txt += e.imagePath.c_str();
+                if (e.text.empty()) wantImg = true;
+            }
             break;
         }
     }
     m_preview.SetWindowTextW(txt);
+
+    // Image preview: for a pure image entry show the picture inside the statically
+    // defined image box (stacked below the text in the .rc layout). Everything else
+    // just shows text. No runtime MoveWindow is used — control positions are static.
+    if (m_previewImg.GetSafeHwnd())
+    {
+        m_preview.ShowWindow(SW_SHOW);
+        if (wantImg)
+        {
+            if (HBITMAP hb = LoadPreviewBitmap(SelectedImagePath()))
+            {
+                if (m_previewBmp) { ::DeleteObject(m_previewBmp); m_previewBmp = nullptr; }
+                m_previewBmp = hb;
+                m_previewImg.SetBitmap(m_previewBmp);
+                m_previewImg.ShowWindow(SW_SHOW);
+                m_previewImg.Invalidate(TRUE);
+            }
+            else
+            {
+                m_previewImg.ShowWindow(SW_HIDE);
+            }
+        }
+        else
+        {
+            m_previewImg.ShowWindow(SW_HIDE);
+        }
+    }
 }
 
 void CClipboardHistoryDlg::OnBnClickedClipCopy()
@@ -416,37 +562,7 @@ void CClipboardHistoryDlg::OnBnClickedClipPin()
 
 void CClipboardHistoryDlg::OnSize(UINT nType, int cx, int cy)
 {
+    // The dialog is fixed-size (no resize border): every control keeps its
+    // statically defined position from the .rc resource. No MoveWindow here.
     CDialogEx::OnSize(nType, cx, cy);
-    if (!m_list.GetSafeHwnd() || cx < 100 || cy < 100) return;
-
-    const int l = 7, t = 7, g = 7;
-    const int searchH = 14, btnW = 46;
-    const int bottomH = 14;
-
-    // Top row: search box (stretchable) + 设置/清空 buttons.
-    m_search.MoveWindow(l, t, static_cast<int>(cx - 3 * btnW - 3 * g), searchH);
-    GetDlgItem(IDC_BTN_CLIP_SETTINGS)->MoveWindow(cx - 2 * btnW - 2 * g, t, btnW, searchH);
-    GetDlgItem(IDC_BTN_CLIP_CLEAR)->MoveWindow(cx - btnW - g, t, btnW, searchH);
-
-    const int contentTop = t + searchH + g;
-    const int contentBottom = cy - bottomH - g;
-
-    // Left: list. Right: preview (or settings panel).
-    const int leftW = 200;
-    const int rightL = l + leftW + g;
-    const int rightW = cx - rightL - g;
-    m_list.MoveWindow(l, contentTop, leftW, contentBottom - contentTop);
-    if (CWnd* pv = GetDlgItem(IDC_CLIP_PREVIEW)) pv->MoveWindow(rightL, contentTop, rightW, contentBottom - contentTop);
-    if (CWnd* pg = GetDlgItem(IDC_CLIP_SET_GROUP)) pg->MoveWindow(rightL, contentTop, rightW, contentBottom - contentTop);
-
-    // Bottom row buttons.
-    const int by = cy - bottomH - g;
-    GetDlgItem(IDC_BTN_CLIP_COPY)->MoveWindow(l, by, 60, bottomH);
-    GetDlgItem(IDC_BTN_CLIP_DELETE)->MoveWindow(l + 67, by, 60, bottomH);
-    GetDlgItem(IDC_BTN_CLIP_PIN)->MoveWindow(l + 134, by, 60, bottomH);
-    GetDlgItem(IDCANCEL)->MoveWindow(cx - 60 - g, by, 60, bottomH);
-
-    // Reposition the column width to fill the list.
-    m_list.SetColumnWidth(0, LVSCW_AUTOSIZE);
-    m_list.SetColumnWidth(0, leftW - 8);
 }

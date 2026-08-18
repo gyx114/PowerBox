@@ -545,6 +545,8 @@
 #define IDC_CLIP_SET_SNAPMP             1444
 #define IDC_BTN_CLIP_APPLY              1445
 #define IDC_STATIC_CLIP_SET_TIP         1446
+#define IDC_CLIP_PREVIEW_IMG            1451
+
 
 // Next default values for new objects
 //
