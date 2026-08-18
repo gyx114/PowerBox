@@ -14,8 +14,6 @@
 #include "TerminalTabBar.h"
 #include "TerminalSplitter.h"
 
-class CWebBrowserEventSink; // Forward declaration
-
 class CAIAssistantDlg : public CDialogEx
 {
     DECLARE_DYNAMIC(CAIAssistantDlg)
@@ -43,11 +41,11 @@ protected:
 private:
     // AI state
     std::vector<std::pair<CString, CString>> m_aiHistory;
-    CWnd m_aiBrowser;
+    CWebView2Ctrl m_webview2;
     CRect m_aiBrowserRect;
-    bool m_aiBrowserReady{ false };
     CString m_aiPendingHtml;
     CString m_aiStreamingContent;
+    CString m_aiScrollTarget;   // element to scroll to after the page finishes loading
     CString m_strConvTitle;
     CString m_strConvPath;
     CString m_strConvCreated;
@@ -65,9 +63,6 @@ private:
     CActionCommandRegistry m_aiActionCommands;
     UINT_PTR m_aiNextCommandId = 1;
 
-    // WebBrowser event sink
-    CWebBrowserEventSink* m_pAiEventSink{ nullptr };
-    DWORD m_dwAiEventCookie{ 0 };
 
     // Terminal
     CTerminalView m_terminalView;
@@ -111,8 +106,7 @@ private:
         std::map<CString, int>& cmdResultIndex);
     bool SetAiBrowserHtml(const CString& html);
     void ScrollAiBrowserToAnchor(const CString& elementId);
-    void ConnectAiBrowserEvents();
-    void DisconnectAiBrowserEvents();
+    void ResizeWebView();
     void SaveCurrentConversation();
     void LoadConversation(const CString& filePath);
     CString GetExeDir();
@@ -134,7 +128,6 @@ private:
     afx_msg void OnBnClickedAiHistory();
     afx_msg void OnBnClickedTerminalClear();
     afx_msg void OnCbnSelchangeTerminalShell();
-    afx_msg void OnTimer(UINT_PTR nIDEvent);
     afx_msg void OnSize(UINT nType, int cx, int cy);
     afx_msg void OnGetMinMaxInfo(MINMAXINFO* lpMMI);
 

@@ -34,7 +34,6 @@ class CGitCmdResultDlg;
 class CClipboardHistoryDlg;
 
 class CQuickLaunchDlg;
-class CWebBrowserEventSink;
 
 // Forward declaration for Quick Launch dialog
 struct QLItem;
@@ -384,10 +383,10 @@ public:
 
     // AI Assistant
     std::vector<std::pair<CString, CString>> m_aiHistory; // (role, content) pairs
-    CWnd m_aiBrowser;                     // WebBrowser ActiveX for Markdown rendering
+    CWebView2Ctrl m_webview2;             // WebView2 for AI chat rendering
     CRect m_aiBrowserRect;                // saved rect for off-screen restore
-    bool m_aiBrowserReady{false};         // true when WebBrowser document is ready
     CString m_aiPendingHtml;              // buffered HTML before browser is ready
+    CString m_aiScrollTarget;             // element to scroll to after the page finishes loading
     CString m_aiStreamingContent;         // accumulated streaming content
     CString m_strConvTitle;               // Current conversation title
     CString m_strConvPath;                // Current conversation file path (empty if new)
@@ -401,6 +400,7 @@ public:
 		std::map<CString, int>& cmdResultIndex);
 	bool SetAiBrowserHtml(const CString& html);
 	void ScrollAiBrowserToAnchor(const CString& elementId);
+	void ResizeWebView();
     afx_msg void OnBnClickedAiSend();
     afx_msg void OnBnClickedAiClear();
     afx_msg void OnBnClickedAiStop();
@@ -436,11 +436,6 @@ public:
     afx_msg LRESULT OnQLClosed(WPARAM wParam, LPARAM lParam);
     afx_msg void OnTimer(UINT_PTR nIDEvent);
 
-    // WebBrowser event sink for AI executable commands
-    CWebBrowserEventSink* m_pAiEventSink{nullptr};
-    DWORD m_dwAiEventCookie{0};
-    void ConnectAiBrowserEvents();
-    void DisconnectAiBrowserEvents();
 
     // Quick Launch: icon-based list control
     std::vector<QLItem> m_qlItems;

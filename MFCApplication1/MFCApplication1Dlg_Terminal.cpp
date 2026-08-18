@@ -185,6 +185,7 @@ void CMFCApplication1Dlg::LayoutAiTabControls()
     }
 
     ::EndDeferWindowPos(hdwp);
+    ResizeWebView();
 
     // Show/hide terminal views
     if (m_pActiveTerminal && m_pActiveTerminal->m_hWnd)

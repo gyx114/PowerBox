@@ -103,21 +103,48 @@ void CTerminalSession::ReadLoop()
         DWORD wait = ::WaitForSingleObject(m_hProcess, 100);
         if (wait == WAIT_OBJECT_0)
         {
-            // Drain remaining output even if a child process still holds the
-            // pipe open, otherwise ReadFile would block forever.
-            DWORD available = 0;
-            while (::PeekNamedPipe(m_hOutputRead, nullptr, 0, nullptr, &available, nullptr) &&
-                available > 0)
-            {
-                DWORD bytesRead = 0;
-                DWORD toRead = __min(available, static_cast<DWORD>(sizeof(buf)));
-                if (!::ReadFile(m_hOutputRead, buf, toRead, &bytesRead, nullptr) || bytesRead == 0)
-                    break;
+            // The process has exited, but ConPTY flushes its last output into
+            // the pipe asynchronously, so a native command that completes
+            // instantly (e.g. `git --version`) may still have a trailing chunk
+            // in flight. Keep reading until the pipe is idle for a short time;
+            // breaking after the first chunk can truncate the output to "g".
+            constexpr int kMaxDrainChecks = 100;
+            constexpr DWORD kDrainSleepMs = 20;
+            bool sawOutput = false;
+            int idleChecks = 0;
 
-                auto* p = new std::string(buf, bytesRead);
-                if (!::PostMessage(m_hNotify, WM_TERM_OUTPUT,
-                    reinterpret_cast<WPARAM>(this), reinterpret_cast<LPARAM>(p)))
-                    delete p;
+            for (int tryCount = 0; tryCount < kMaxDrainChecks; tryCount++)
+            {
+                DWORD available = 0;
+                bool any = false;
+                while (::PeekNamedPipe(m_hOutputRead, nullptr, 0, nullptr, &available, nullptr) &&
+                    available > 0)
+                {
+                    DWORD bytesRead = 0;
+                    DWORD toRead = __min(available, static_cast<DWORD>(sizeof(buf)));
+                    if (!::ReadFile(m_hOutputRead, buf, toRead, &bytesRead, nullptr) || bytesRead == 0)
+                        break;
+
+                    any = true;
+                    sawOutput = true;
+                    auto* p = new std::string(buf, bytesRead);
+                    if (!::PostMessage(m_hNotify, WM_TERM_OUTPUT,
+                        reinterpret_cast<WPARAM>(this), reinterpret_cast<LPARAM>(p)))
+                        delete p;
+                }
+
+                if (!any)
+                {
+                    if (!sawOutput && tryCount >= 4)
+                        break;
+                    if (sawOutput && ++idleChecks >= 3)
+                        break;
+                }
+                else
+                {
+                    idleChecks = 0;
+                }
+                ::Sleep(kDrainSleepMs);
             }
             break;
         }

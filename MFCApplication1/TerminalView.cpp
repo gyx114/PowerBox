@@ -320,18 +320,46 @@ CString EncodePowerShellCommand(const CString& command)
     return Base64Encode(utf16le);
 }
 
-CString BashSingleQuoted(const CString& command)
+// Quote one argument for CreateProcessW's command line parser. Wrapping the
+// whole bash command in double quotes makes it arrive as ONE argv; backslashes
+// before quotes or at the end must be doubled so CommandLineToArgvW restores
+// the exact command before bash parses it.
+CString QuoteForWindowsCommandLine(const CString& argument)
 {
     CString out;
-    out += _T("'");
-    for (int i = 0; i < command.GetLength(); i++)
+    out += _T("\"");
+    int len = argument.GetLength();
+    int i = 0;
+    while (i < len)
     {
-        if (command[i] == _T('\''))
-            out += _T("'\\''");
+        int backslashes = 0;
+        while (i < len && argument[i] == _T('\\'))
+        {
+            backslashes++;
+            i++;
+        }
+
+        if (i == len)
+        {
+            for (int j = 0; j < backslashes * 2; j++)
+                out += _T('\\');
+        }
+        else if (argument[i] == _T('"'))
+        {
+            for (int j = 0; j < backslashes * 2 + 1; j++)
+                out += _T('\\');
+            out += _T('"');
+            i++;
+        }
         else
-            out += command[i];
+        {
+            for (int j = 0; j < backslashes; j++)
+                out += _T('\\');
+            out += argument[i];
+            i++;
+        }
     }
-    out += _T("'");
+    out += _T("\"");
     return out;
 }
 
@@ -1148,12 +1176,15 @@ CString CTerminalView::BuildAiCommandLine(const CString& shellName, const CStrin
         cmdLine = _T("powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand ")
             + EncodePowerShellCommand(cmd);
     else if (shell.CompareNoCase(_T("WSL")) == 0)
-        cmdLine = _T("wsl.exe -e bash -lc ") + BashSingleQuoted(cmd);
+        cmdLine = _T("wsl.exe -e bash -lc ") + QuoteForWindowsCommandLine(cmd);
     else if (shell.CompareNoCase(_T("Git Bash")) == 0)
         cmdLine.Format(_T("\"%s\" -lc %s"),
-            ResolveGitBashPath().GetString(), BashSingleQuoted(cmd).GetString());
+            ResolveGitBashPath().GetString(), QuoteForWindowsCommandLine(cmd).GetString());
     else
-        cmdLine = _T("cmd.exe /d /s /c \"\"") + cmd + _T("\"\"");
+        // cmd /s /c "cmd": with /s cmd strips exactly one leading and one
+        // trailing quote, so wrapping with a single pair of quotes executes the
+        // command verbatim (works with embedded quotes, &, and spaced paths).
+        cmdLine = _T("cmd.exe /d /s /c \"") + cmd + _T("\"");
 
     return cmdLine;
 }

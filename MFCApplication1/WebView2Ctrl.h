@@ -35,6 +35,10 @@ public:
     // Use this to send initial content (web messages) once the target page is live.
     std::function<void()> OnNavigationCompleted;
 
+    // Invoked on the UI thread when the page posts a message to the host via
+    // window.chrome.webview.postMessage(...). The argument is the raw JSON string.
+    std::function<void(const std::wstring& json)> OnWebMessageReceived;
+
     // Start environment + controller creation bound to hParent (UI thread).
     bool Create(HWND hParent);
     void Destroy();
@@ -43,6 +47,7 @@ public:
     bool Navigate(const std::wstring& url);                 // no-op before IsReady()
     bool NavigateToString(const std::wstring& html);        // no-op before IsReady()
     bool PostWebMessageAsJson(const std::wstring& json);    // no-op before IsReady()
+    bool ExecuteScript(const std::wstring& script);         // no-op before IsReady()
     void Resize(LONG x, LONG y, LONG width, LONG height);   // Bounds in parent client coords; no-op before IsReady()
 
 private:

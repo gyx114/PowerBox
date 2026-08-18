@@ -61,135 +61,6 @@ static bool IsComboBoxDropDown(HWND hwnd)
     return _tcsicmp(szClass, _T("ComboLBox")) == 0;
 }
 
-// ============================================================================
-// WebBrowser event sink: intercepts BeforeNavigate2 to handle AI executable
-// commands via the custom "http://127.0.0.1:1/exec/" URL scheme.
-// ============================================================================
-class CWebBrowserEventSink : public IDispatch
-{
-public:
-    CWebBrowserEventSink(HWND hTargetWnd) : m_hTargetWnd(hTargetWnd) {}
-
-    // IUnknown
-    STDMETHODIMP QueryInterface(REFIID riid, void** ppv) override
-    {
-        if (riid == IID_IUnknown || riid == IID_IDispatch)
-        {
-            *ppv = this;
-            AddRef();
-            return S_OK;
-        }
-        *ppv = nullptr;
-        return E_NOINTERFACE;
-    }
-
-    STDMETHODIMP_(ULONG) AddRef() override { return InterlockedIncrement(&m_refCount); }
-
-    STDMETHODIMP_(ULONG) Release() override
-    {
-        ULONG ref = InterlockedDecrement(&m_refCount);
-        if (ref == 0) { delete this; return 0; }
-        return ref;
-    }
-
-    // IDispatch (minimal implementation — only Invoke needed)
-    STDMETHODIMP GetTypeInfoCount(UINT*) override { return E_NOTIMPL; }
-    STDMETHODIMP GetTypeInfo(UINT, LCID, ITypeInfo**) override { return E_NOTIMPL; }
-    STDMETHODIMP GetIDsOfNames(REFIID, LPOLESTR*, UINT, LCID, DISPID*) override { return E_NOTIMPL; }
-
-    // Helper: extract URL from rgvarg[N] which may be VT_VARIANT|VT_BYREF or VT_BSTR directly
-    static CString GetUrlParam(DISPPARAMS* pParams, int index)
-    {
-        if (index < 0 || index >= (int)pParams->cArgs)
-            return CString();
-        VARIANTARG& v = pParams->rgvarg[index];
-        if (v.vt == (VT_VARIANT | VT_BYREF) && v.pvarVal)
-        {
-            if (v.pvarVal->vt == VT_BSTR && v.pvarVal->bstrVal)
-                return CString(v.pvarVal->bstrVal);
-        }
-        else if (v.vt == VT_BSTR && v.bstrVal)
-        {
-            return CString(v.bstrVal);
-        }
-        return CString();
-    }
-
-    // Helper: cancel the navigation at rgvarg[0] (Cancel parameter)
-    static void CancelNavigation(DISPPARAMS* pParams)
-    {
-        if (pParams->cArgs >= 1 &&
-            pParams->rgvarg[0].vt == (VT_BOOL | VT_BYREF) &&
-            pParams->rgvarg[0].pboolVal)
-        {
-            *pParams->rgvarg[0].pboolVal = VARIANT_TRUE;
-        }
-    }
-
-    // Helper: handle http://127.0.0.1:1/exec/ URL — decode payload and post to main window
-    static const CString kExecPrefix()
-    {
-        return CString(_T("http://127.0.0.1:1/exec/"));
-    }
-
-    bool HandleAppExecUrl(const CString& url)
-    {
-        int prefixLen = kExecPrefix().GetLength();
-        if (url.Left(prefixLen) != kExecPrefix())
-            return false;
-
-        // The browser only sends a short command id. The full command lives in
-        // the C++ side registry, so long commands never enter the URL.
-        CString id = url.Mid(prefixLen);
-        if (id.IsEmpty())
-            return false;
-
-        ::PostMessage(m_hTargetWnd, WM_AI_EXECUTE_COMMAND, 0,
-            reinterpret_cast<LPARAM>(_tcsdup(id)));
-        return true;
-    }
-
-    STDMETHODIMP Invoke(DISPID dispid, REFIID, LCID, WORD, DISPPARAMS* pParams,
-        VARIANT*, EXCEPINFO*, UINT*) override
-    {
-        // DISPID_BEFORENAVIGATE2 = 250 — fires before navigation
-        //   rgvarg[0] = Cancel (VT_BOOL|VT_BYREF)
-        //   rgvarg[5] = URL (VT_VARIANT|VT_BYREF or VT_BSTR)
-        //   rgvarg[6] = pDisp (IDispatch*)
-        if (dispid == 250 && pParams && pParams->cArgs >= 6)
-        {
-            CString url = GetUrlParam(pParams, 5);
-            if (!url.IsEmpty() && url.Find(kExecPrefix()) == 0)
-            {
-                CancelNavigation(pParams);
-                HandleAppExecUrl(url);
-                return S_OK;
-            }
-        }
-
-        // DISPID_NAVIGATEERROR = 271 — fires when navigation fails
-        //   rgvarg[0] = Cancel (VT_BOOL|VT_BYREF)
-        //   rgvarg[3] = URL (VT_VARIANT|VT_BYREF or VT_BSTR)
-        //   rgvarg[4] = StatusCode (VT_I4)
-        if (dispid == 271 && pParams && pParams->cArgs >= 4)
-        {
-            CString url = GetUrlParam(pParams, 3);
-            if (!url.IsEmpty() && url.Find(kExecPrefix()) == 0)
-            {
-                CancelNavigation(pParams);
-                // Try to handle the URL in case BeforeNavigate2 missed it
-                HandleAppExecUrl(url);
-                return S_OK;
-            }
-        }
-
-        return S_OK;
-    }
-
-private:
-    HWND m_hTargetWnd;
-    LONG m_refCount = 1;
-};
 
 // capture overlay is implemented via a window class registered at runtime
 
@@ -742,26 +613,13 @@ void CMFCApplication1Dlg::UpdateQuickTab(int nTab)
         }
     }
 
-    // WebBrowser: move off-screen instead of hiding to preserve internal state
-    if (m_aiBrowser.m_hWnd && ::IsWindow(m_aiBrowser.m_hWnd))
+    // WebView2: show/hide the host placeholder when switching tabs.
+    // The document state is preserved by WebView2 automatically.
+    if (CWnd* pHost = GetDlgItem(IDC_AI_BROWSER))
     {
+        pHost->ShowWindow(nTab == 0 ? SW_SHOW : SW_HIDE);
         if (nTab == 0)
-        {
-            // Restore to original position
-            m_aiBrowser.SetWindowPos(nullptr,
-                m_aiBrowserRect.left, m_aiBrowserRect.top,
-                m_aiBrowserRect.Width(), m_aiBrowserRect.Height(),
-                SWP_NOZORDER | SWP_NOACTIVATE);
-            m_aiBrowser.ShowWindow(SW_SHOW);
-        }
-        else
-        {
-            // Move off-screen (hide without losing internal state)
-            m_aiBrowser.SetWindowPos(nullptr,
-                -10000, -10000,
-                m_aiBrowserRect.Width(), m_aiBrowserRect.Height(),
-                SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSENDCHANGING);
-        }
+            pHost->BringWindowToTop();
     }
 
     // Quick Launch list (tab 1)
@@ -861,8 +719,6 @@ void CMFCApplication1Dlg::OnDestroy()
     // Ensure autoclicker threads are stopped (C++20: using CAutoClicker class)
     m_autoClicker.Stop();
 
-    // Disconnect WebBrowser event sink
-    DisconnectAiBrowserEvents();
     m_aiActionCommands.Clear();
 
     // ensure any background volume thread is stopped (CVolumeManager handles this automatically)
@@ -1990,57 +1846,48 @@ void CMFCApplication1Dlg::InitAIControls()
         pCombo->SetCurSel(idx != CB_ERR ? idx : 0);
     }
 
-    // Create WebBrowser ActiveX control for AI chat rendering
-    // Follow the same pattern as MarkdownDlg which works reliably
+    // Create WebView2 for AI chat rendering, hosted on the static IDC_AI_BROWSER.
+    // (Matches MarkdownDlg: keep the static as host + WS_CLIPCHILDREN, size via
+    // put_Bounds; content is pushed via NavigateToString once the controller is ready.)
     CWnd* pPlaceholder = GetDlgItem(IDC_AI_BROWSER);
     if (pPlaceholder)
     {
         CRect rc;
         pPlaceholder->GetWindowRect(&rc);
         ScreenToClient(&rc);
-        pPlaceholder->DestroyWindow();
+        m_aiBrowserRect = rc;
+        pPlaceholder->ModifyStyle(0, WS_CLIPCHILDREN);
 
-        // Match MarkdownDlg: WS_VISIBLE|WS_CHILD only, no WS_BORDER, no WS_EX_CLIENTEDGE
-        if (m_aiBrowser.CreateControl(CLSID_WebBrowser, nullptr,
-            WS_VISIBLE | WS_CHILD, rc, this, IDC_AI_BROWSER))
-        {
-            // Save original rect for off-screen restore when switching tabs
-            m_aiBrowserRect = rc;
-
-            // Give the browser its real size immediately — a zero-size control
-            // will never render even if content is written to its document
-            m_aiBrowser.SetWindowPos(nullptr, rc.left, rc.top, rc.Width(), rc.Height(), SWP_NOZORDER);
-
-            LPUNKNOWN pUnk = m_aiBrowser.GetControlUnknown();
-            if (pUnk)
+        m_webview2.OnReady = [this]() {
+            ResizeWebView();
+            SetAiBrowserHtml(m_aiPendingHtml.IsEmpty() ? CString(_T("")) : m_aiPendingHtml);
+        };
+        // The page posts the command id via chrome.webview.postMessage(id).
+        m_webview2.OnWebMessageReceived = [this](const std::wstring& json) {
+            CString id((LPCWSTR)json.c_str());
+            id.Trim(_T("\" "));   // host receives the id as a JSON string, e.g. "42"
+            if (!id.IsEmpty())
+                ::PostMessage(m_hWnd, WM_AI_EXECUTE_COMMAND, 0,
+                    reinterpret_cast<LPARAM>(_tcsdup(id)));
+        };
+        // Scroll to the requested element once the newly rendered page has loaded.
+        m_webview2.OnNavigationCompleted = [this]() {
+            if (!m_aiScrollTarget.IsEmpty())
             {
-                IWebBrowser2* pWeb2 = nullptr;
-                if (SUCCEEDED(pUnk->QueryInterface(IID_IWebBrowser2, (void**)&pWeb2)))
-                {
-                    BSTR bstrBlank = SysAllocString(L"about:blank");
-                    pWeb2->Navigate(bstrBlank, nullptr, nullptr, nullptr, nullptr);
-                    SysFreeString(bstrBlank);
-                    pWeb2->Release();
-                }
+                CString target = m_aiScrollTarget;
+                m_aiScrollTarget.Empty();
+                std::wstring js = L"document.getElementById('"
+                    + std::wstring((LPCWSTR)target) + L"').scrollIntoView(true);";
+                m_webview2.ExecuteScript(js);
             }
+        };
+        m_webview2.Create(pPlaceholder->GetSafeHwnd());
 
-            // Bring browser to front — tab control may cover it otherwise
-            m_aiBrowser.BringWindowToTop();
-
-            // Navigate("about:blank") is async — the document won't be ready yet.
-            // Use a retry timer until SetAiBrowserHtml succeeds.
-            // Preload a welcome message so the timer has actual content to write,
-            // matching MarkdownDlg's approach (always passes real content to SetBrowserHtml).
-            m_aiPendingHtml = BuildAiHtmlPage(
-                _T("<div style='color:#888;text-align:center;padding-top:20px;'>")
-                _T("AI Assistant Ready<br>")
-                _T("<span style='font-size:13px;'>Ask me anything about this toolbox!</span>")
-                _T("</div>"));
-            SetTimer(1, 100, nullptr);
-        }
-
-        // Connect WebBrowser event sink for AI executable commands
-        ConnectAiBrowserEvents();
+        m_aiPendingHtml = BuildAiHtmlPage(
+            _T("<div style='color:#888;text-align:center;padding-top:20px;'>")
+            _T("AI Assistant Ready<br>")
+            _T("<span style='font-size:13px;'>Ask me anything about this toolbox!</span>")
+            _T("</div>"));
     }
 
     // Stop button is initially disabled (no request to cancel)
@@ -2778,7 +2625,7 @@ LRESULT CMFCApplication1Dlg::OnAiStreamDone(WPARAM wParam, LPARAM lParam)
 CString CMFCApplication1Dlg::BuildAiHtmlPage(const CString& bodyContent)
 {
     return _T("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\"><style>")
-        _T("body{font-family:Consolas,'Microsoft YaHei',sans-serif;font-size:18px;")
+        _T("body{font-family:Consolas,'Microsoft YaHei',sans-serif;font-size:12px;")
         _T("background:#1e1e1e;color:#d4d4d4;padding:8px;margin:0;line-height:1.5;}")
         _T("code{background:#2d2d2d;padding:1px 4px;border-radius:3px;font-family:Consolas,monospace;}")
         _T("pre{background:#2d2d2d;padding:8px;border-radius:4px;overflow-x:auto;}")
@@ -2801,24 +2648,24 @@ CString CMFCApplication1Dlg::BuildAiHtmlPage(const CString& bodyContent)
         _T(".action-card.action-level-low{border-color:#2da44e;}")
         _T(".action-card.action-level-medium{border-color:#d4a72c;}")
         _T(".action-card.action-level-high{border-color:#cf222e;}")
-        _T(".action-purpose{font-size:16px;color:#d4d4d4;margin-bottom:4px;}")
-        _T(".action-risk{font-size:14px;font-weight:600;margin-bottom:8px;}")
+        _T(".action-purpose{font-size:12px;color:#d4d4d4;margin-bottom:4px;}")
+        _T(".action-risk{font-size:12px;font-weight:600;margin-bottom:8px;}")
         _T(".action-risk.level-low{color:#2da44e;}")
         _T(".action-risk.level-medium{color:#d4a72c;}")
         _T(".action-risk.level-high{color:#cf222e;}")
-        _T(".action-terminal{font-size:14px;color:#9cdcfe;margin-bottom:6px;}")
-        _T(".action-btn{background:#2da44e;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:16px;cursor:pointer;margin-bottom:6px;}")
+        _T(".action-terminal{font-size:12px;color:#9cdcfe;margin-bottom:6px;}")
+        _T(".action-btn{background:#2da44e;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;margin-bottom:6px;}")
         _T(".action-btn:hover{background:#218838;}")
         _T(".action-card.action-level-high .action-btn{background:#cf222e;}")
         _T(".action-card.action-level-high .action-btn:hover{background:#a11c26;}")
         _T(".action-card.action-level-medium .action-btn{background:#d4a72c;}")
         _T(".action-card.action-level-medium .action-btn:hover{background:#b88a1f;}")
-        _T(".action-command{font-size:15px;color:#888;background:#333;padding:4px 8px;border-radius:4px;word-break:break-all;}")
+        _T(".action-command{font-size:12px;color:#888;background:#333;padding:4px 8px;border-radius:4px;word-break:break-all;}")
         _T("</style><script>")
         _T("function execCmd(btn){")
         _T("var id=btn.getAttribute('data-cmd-id');")
         _T("if(!id)return;")
-        _T("location.href='http://127.0.0.1:1/exec/'+id;")
+        _T("if(window.chrome&&window.chrome.webview){window.chrome.webview.postMessage(id);}")
         _T("}")
         _T("function copyText(t){")
         _T("if(window.clipboardData&&window.clipboardData.setData){window.clipboardData.setData('Text',t);return true;}")
@@ -2883,6 +2730,21 @@ CString CMFCApplication1Dlg::BuildAiBodyFromHistory(const CString& streamingCont
             body += _T("<div style='color:#c8c8c8;margin-bottom:4px;'>AI:</div>");
             // Render assistant message with action cards interleaved with results
             body += RenderAssistantWithResults(msg.second, cmdResults, cmdResultIndex);
+        }
+    }
+
+    // Fallback: show the latest result of any command that no action card
+    // consumed (e.g. a result whose card is not present in the rendered
+    // history). Only the newest run is shown, never a pile of old ones.
+    for (auto& pair : cmdResults)
+    {
+        const CString& cmd = pair.first;
+        auto& results = pair.second;
+        if (!results.empty() && cmdResultIndex[cmd] == 0)
+        {
+            body += _T("<div style='color:#569cd6;border-left:3px solid #569cd6;padding-left:8px;margin:4px 0;'>")
+                + CMarkdownDlg::MarkdownToBody(results.back(), &m_aiActionCommands) + _T("</div>");
+            cmdResultIndex[cmd] = 1;
         }
     }
 
@@ -2987,15 +2849,16 @@ CString CMFCApplication1Dlg::RenderAssistantWithResults(const CString& content,
 
             if (!matchedCommand.IsEmpty())
             {
-                // Look up the next unconsumed result for this command
+                // Show only the latest run of this command (users may re-run
+                // history cards; piling up every historical result is noisy).
                 auto& results = cmdResults[matchedCommand];
-                int idx = cmdResultIndex[matchedCommand];
-                if (idx < (int)results.size())
+                if (!results.empty() && cmdResultIndex[matchedCommand] == 0)
                 {
-                    html += _T("<div style='color:#569cd6;font-size:15px;border-left:3px solid #569cd6;padding-left:8px;margin:4px 0;'>")
-                        + CMarkdownDlg::MarkdownToBody(results[idx], &m_aiActionCommands) + _T("</div>")
+                    const CString& latest = results.back();
+                    html += _T("<div style='color:#569cd6;border-left:3px solid #569cd6;padding-left:8px;margin:4px 0;'>")
+                        + CMarkdownDlg::MarkdownToBody(latest, &m_aiActionCommands) + _T("</div>")
                         + _T("<div class=\"cmd-result-marker\" data-command=\"") + CMarkdownDlg::EscapeHtml(matchedCommand) + _T("\"></div>");
-                    cmdResultIndex[matchedCommand] = idx + 1;
+                    cmdResultIndex[matchedCommand] = 1;
                 }
             }
         }
@@ -3008,142 +2871,34 @@ CString CMFCApplication1Dlg::RenderAssistantWithResults(const CString& content,
 
 bool CMFCApplication1Dlg::SetAiBrowserHtml(const CString& html)
 {
-    // Follow the same pattern as CMarkdownDlg::SetBrowserHtml which works reliably.
-    // The caller is responsible for providing a complete HTML document.
-    if (!m_aiBrowser.m_hWnd || !::IsWindow(m_aiBrowser.m_hWnd))
+    if (!m_webview2.IsReady())
     {
         m_aiPendingHtml = html;
         return false;
     }
-
-    LPUNKNOWN pUnk = m_aiBrowser.GetControlUnknown();
-    if (!pUnk)
-    {
-        m_aiPendingHtml = html;
-        return false;
-    }
-
-    IWebBrowser2* pWeb2 = nullptr;
-    if (FAILED(pUnk->QueryInterface(IID_IWebBrowser2, (void**)&pWeb2)))
-    {
-        m_aiPendingHtml = html;
-        return false;
-    }
-
-    IDispatch* pDocDisp = nullptr;
-    if (FAILED(pWeb2->get_Document(&pDocDisp)) || !pDocDisp)
-    {
-        // Document not ready yet (Navigate is async)
-        pWeb2->Release();
-        m_aiPendingHtml = html;
-        return false;
-    }
-
-    IHTMLDocument2* pDoc = nullptr;
-    if (FAILED(pDocDisp->QueryInterface(IID_IHTMLDocument2, (void**)&pDoc)))
-    {
-        pDocDisp->Release();
-        pWeb2->Release();
-        m_aiPendingHtml = html;
-        return false;
-    }
-
-    BSTR bstrHtml = html.AllocSysString();
-    SAFEARRAY* psa = SafeArrayCreateVector(VT_VARIANT, 0, 1);
-    if (psa)
-    {
-        VARIANT* pv = nullptr;
-        if (SUCCEEDED(SafeArrayAccessData(psa, (void**)&pv)))
-        {
-            pv->vt = VT_BSTR;
-            pv->bstrVal = bstrHtml;
-            SafeArrayUnaccessData(psa);
-            pDoc->close();
-            pDoc->write(psa);
-            pDoc->close();
-        }
-        SafeArrayDestroy(psa);
-    }
-    else
-    {
-        SysFreeString(bstrHtml);
-    }
-
-    pDoc->Release();
-    pDocDisp->Release();
-    pWeb2->Release();
     m_aiPendingHtml.Empty();
-    // Kill the readiness timer and mark ready - prevents timer from
-    // overwriting content written by streaming handlers
-    if (!m_aiBrowserReady)
-    {
-        m_aiBrowserReady = true;
-        KillTimer(1);
-    }
-    return true;
+    return m_webview2.NavigateToString(std::wstring((LPCWSTR)html));
 }
 
 void CMFCApplication1Dlg::ScrollAiBrowserToAnchor(const CString& elementId)
 {
-    // Use IHTMLDocument3::getElementById + IHTMLElement::scrollIntoView to scroll the browser.
-    // This runs after the document is fully written, so it's more reliable than inline <script>.
-    if (!m_aiBrowser.m_hWnd || !::IsWindow(m_aiBrowser.m_hWnd))
-        return;
+    // Navigation is async — the scroll runs in OnNavigationCompleted after the
+    // newly rendered page finishes loading. Remember the target element here.
+    m_aiScrollTarget = elementId;
+}
 
-    LPUNKNOWN pUnk = m_aiBrowser.GetControlUnknown();
-    if (!pUnk) return;
-
-    IWebBrowser2* pWeb2 = nullptr;
-    if (FAILED(pUnk->QueryInterface(IID_IWebBrowser2, (void**)&pWeb2)))
-        return;
-
-    IDispatch* pDocDisp = nullptr;
-    if (FAILED(pWeb2->get_Document(&pDocDisp)) || !pDocDisp)
+void CMFCApplication1Dlg::ResizeWebView()
+{
+    if (CWnd* pHost = GetDlgItem(IDC_AI_BROWSER))
     {
-        pWeb2->Release();
-        return;
+        CRect rc;
+        pHost->GetClientRect(&rc);
+        m_webview2.Resize(0, 0, rc.Width(), rc.Height());
     }
-
-    IHTMLDocument3* pDoc3 = nullptr;
-    if (FAILED(pDocDisp->QueryInterface(IID_IHTMLDocument3, (void**)&pDoc3)))
-    {
-        pDocDisp->Release();
-        pWeb2->Release();
-        return;
-    }
-
-    BSTR bstrId = elementId.AllocSysString();
-    IHTMLElement* pElement = nullptr;
-    if (SUCCEEDED(pDoc3->getElementById(bstrId, &pElement)) && pElement)
-    {
-        VARIANT vTop = { 0 };
-        vTop.vt = VT_BOOL;
-        vTop.boolVal = VARIANT_TRUE; // align to top
-        pElement->scrollIntoView(vTop);
-        pElement->Release();
-    }
-    SysFreeString(bstrId);
-
-    pDoc3->Release();
-    pDocDisp->Release();
-    pWeb2->Release();
 }
 
 void CMFCApplication1Dlg::OnTimer(UINT_PTR nIDEvent)
 {
-    if (nIDEvent == 1)
-    {
-        if (m_aiBrowserReady)
-        {
-            KillTimer(1);
-            return;
-        }
-        // Retry until WebBrowser document is ready (about:blank is async)
-        if (SetAiBrowserHtml(m_aiPendingHtml.IsEmpty() ? CString(_T("")) : m_aiPendingHtml))
-        {
-            // SetAiBrowserHtml already kills timer and sets m_aiBrowserReady on success
-        }
-    }
     CDialogEx::OnTimer(nIDEvent);
 }
 
@@ -3340,69 +3095,7 @@ CString CMFCApplication1Dlg::GetConversationsFolder()
     return convDir;
 }
 
-// ============================================================================
-// Connect WebBrowser event sink to intercept BeforeNavigate2
-// ============================================================================
-void CMFCApplication1Dlg::ConnectAiBrowserEvents()
-{
-    if (m_pAiEventSink || m_dwAiEventCookie != 0)
-        return;
 
-    LPUNKNOWN pUnk = m_aiBrowser.GetControlUnknown();
-    if (!pUnk) return;
-
-    IConnectionPointContainer* pCPC = nullptr;
-    if (FAILED(pUnk->QueryInterface(IID_IConnectionPointContainer, (void**)&pCPC)))
-        return;
-
-    IConnectionPoint* pCP = nullptr;
-    if (SUCCEEDED(pCPC->FindConnectionPoint(DIID_DWebBrowserEvents2, &pCP)))
-    {
-        m_pAiEventSink = new CWebBrowserEventSink(m_hWnd);
-        if (SUCCEEDED(pCP->Advise(m_pAiEventSink, &m_dwAiEventCookie)))
-        {
-            // Success — event sink is now connected
-        }
-        else
-        {
-            // Failed to advise — clean up
-            delete m_pAiEventSink;
-            m_pAiEventSink = nullptr;
-            m_dwAiEventCookie = 0;
-        }
-        pCP->Release();
-    }
-    pCPC->Release();
-}
-
-// ============================================================================
-// Disconnect WebBrowser event sink
-// ============================================================================
-void CMFCApplication1Dlg::DisconnectAiBrowserEvents()
-{
-    if (!m_pAiEventSink || m_dwAiEventCookie == 0)
-        return;
-
-    LPUNKNOWN pUnk = m_aiBrowser.GetControlUnknown();
-    if (pUnk)
-    {
-        IConnectionPointContainer* pCPC = nullptr;
-        if (SUCCEEDED(pUnk->QueryInterface(IID_IConnectionPointContainer, (void**)&pCPC)))
-        {
-            IConnectionPoint* pCP = nullptr;
-            if (SUCCEEDED(pCPC->FindConnectionPoint(DIID_DWebBrowserEvents2, &pCP)))
-            {
-                pCP->Unadvise(m_dwAiEventCookie);
-                pCP->Release();
-            }
-            pCPC->Release();
-        }
-    }
-
-    m_pAiEventSink->Release(); // Release our ref — sink deletes itself at ref=0
-    m_pAiEventSink = nullptr;
-    m_dwAiEventCookie = 0;
-}
 
 // ============================================================================
 // High-risk confirmation dialog — sets prompt text in OnInitDialog

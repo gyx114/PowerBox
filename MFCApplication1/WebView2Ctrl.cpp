@@ -65,6 +65,22 @@ HRESULT CWebView2Ctrl::CreateController()
                                 OnNavigationCompleted();
                             return S_OK;
                         }).Get(), &navToken);
+
+                // Receive messages the page posts via window.chrome.webview.postMessage.
+                EventRegistrationToken msgToken;
+                m_webview->add_WebMessageReceived(
+                    Callback<ICoreWebView2WebMessageReceivedEventHandler>(
+                        [this](ICoreWebView2*, ICoreWebView2WebMessageReceivedEventArgs* args) -> HRESULT
+                        {
+                            LPWSTR json = nullptr;
+                            if (args && SUCCEEDED(args->get_WebMessageAsJson(&json)) && json)
+                            {
+                                if (OnWebMessageReceived)
+                                    OnWebMessageReceived(json);
+                                ::CoTaskMemFree(json);
+                            }
+                            return S_OK;
+                        }).Get(), &msgToken);
                 m_ctrl->put_IsVisible(TRUE);
                 m_ready = true;
                 if (OnReady) OnReady();   // UI thread; controller is valid here
@@ -97,6 +113,14 @@ bool CWebView2Ctrl::PostWebMessageAsJson(const std::wstring& json)
 {
     if (!IsReady() || !m_webview) return false;
     return SUCCEEDED(m_webview->PostWebMessageAsJson(json.c_str()));
+}
+
+bool CWebView2Ctrl::ExecuteScript(const std::wstring& script)
+{
+    if (!IsReady() || !m_webview) return false;
+    return SUCCEEDED(m_webview->ExecuteScript(script.c_str(),
+        Callback<ICoreWebView2ExecuteScriptCompletedHandler>(
+            [](HRESULT, LPCWSTR) -> HRESULT { return S_OK; }).Get()));
 }
 
 void CWebView2Ctrl::Resize(LONG x, LONG y, LONG width, LONG height)
