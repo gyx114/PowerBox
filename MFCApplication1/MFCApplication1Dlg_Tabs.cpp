@@ -67,14 +67,14 @@ void CMFCApplication1Dlg::InitClipboardTab()
     // Two columns: type + content. Both are sized from the list client area so the
     // width is distributed sensibly (type gets a fixed comfortable width, content
     // fills the remainder).
-    pList3->InsertColumn(0, loc.GetString(_T("ClipboardTab"), _T("ColType")), LVCFMT_LEFT, 70);
+    pList3->InsertColumn(0, loc.GetString(_T("ClipboardTab"), _T("ColType")), LVCFMT_LEFT, 100);
     pList3->InsertColumn(1, loc.GetString(_T("ClipboardTab"), _T("ColText")), LVCFMT_LEFT, 195);
 
     CRect rc;
     pList3->GetClientRect(&rc);
     const int scrollW = ::GetSystemMetrics(SM_CXVSCROLL);
     const int total = rc.Width() - scrollW;
-    const int wType = 70;
+    const int wType = 100;
     const int wContent = (total - wType) > 0 ? (total - wType) : 120;
     pList3->SetColumnWidth(0, wType);
     pList3->SetColumnWidth(1, wContent);

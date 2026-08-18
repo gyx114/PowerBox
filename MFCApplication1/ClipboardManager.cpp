@@ -722,6 +722,8 @@ void ClipboardManager::Clear()
     {
         std::lock_guard<std::mutex> lk(m_mutex);
         m_entries.clear();
+        // All entries are gone, so restart the id sequence for fresh entries.
+        m_nextId = 1;
     }
     ClipboardDeleteTree(ClipboardStoreDir()); // clears archived files + index dir contents
     ::CreateDirectoryW(ClipboardStoreDir().c_str(), nullptr);
