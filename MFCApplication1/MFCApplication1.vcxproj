@@ -108,7 +108,9 @@
       <Command>if exist "$(OutDir)microsoft" rmdir /s /q "$(OutDir)microsoft"
 if exist "$(OutDir)Merged" rmdir /s /q "$(OutDir)Merged"
 if exist "$(OutDir)Unmerged" rmdir /s /q "$(OutDir)Unmerged"
-xcopy /y /e /i "$(ProjectDir)lang" "$(OutDir)lang"</Command>
+xcopy /y /e /i "$(ProjectDir)lang" "$(OutDir)lang"
+if exist "$(OutDir)runtimes" rmdir /s /q "$(OutDir)runtimes"
+xcopy /y /d "$(NuGetPackageRoot)microsoft.web.webview2\1.0.4078.44\build\native\x64\WebView2Loader.dll" "$(OutDir)"</Command>
     </PostBuildEvent>
     <Midl>
       <MkTypLibCompatible>false</MkTypLibCompatible>
@@ -200,7 +202,9 @@ xcopy /y /e /i "$(ProjectDir)lang" "$(OutDir)lang"</Command>
       <Command>if exist "$(OutDir)microsoft" rmdir /s /q "$(OutDir)microsoft"
 if exist "$(OutDir)Merged" rmdir /s /q "$(OutDir)Merged"
 if exist "$(OutDir)Unmerged" rmdir /s /q "$(OutDir)Unmerged"
-xcopy /y /e /i "$(ProjectDir)lang" "$(OutDir)lang"</Command>
+xcopy /y /e /i "$(ProjectDir)lang" "$(OutDir)lang"
+if exist "$(OutDir)runtimes" rmdir /s /q "$(OutDir)runtimes"
+xcopy /y /d "$(NuGetPackageRoot)microsoft.web.webview2\1.0.4078.44\build\native\x64\WebView2Loader.dll" "$(OutDir)"</Command>
     </PostBuildEvent>
     <Midl>
       <MkTypLibCompatible>false</MkTypLibCompatible>
@@ -240,6 +244,7 @@ xcopy /y /e /i "$(ProjectDir)lang" "$(OutDir)lang"</Command>
     <ClInclude Include="SettingsDlg.h" />
     <ClInclude Include="StickyNoteDlg.h" />
     <ClInclude Include="MarkdownDlg.h" />
+    <ClInclude Include="WebView2Ctrl.h" />
     <ClInclude Include="EncodingConverterDlg.h" />
     <ClInclude Include="ContextMenuDlg.h" />
     <ClInclude Include="ConversationHistoryDlg.h" />
@@ -295,6 +300,7 @@ xcopy /y /e /i "$(ProjectDir)lang" "$(OutDir)lang"</Command>
     <ClCompile Include="ProcessAiResultDlg.cpp" />
     <ClCompile Include="StickyNoteDlg.cpp" />
     <ClCompile Include="MarkdownDlg.cpp" />
+    <ClCompile Include="WebView2Ctrl.cpp" />
     <ClCompile Include="TerminalView.cpp" />
     <ClCompile Include="TerminalSession.cpp" />
     <ClCompile Include="TerminalTabBar.cpp" />
@@ -324,5 +330,6 @@ xcopy /y /e /i "$(ProjectDir)lang" "$(OutDir)lang"</Command>
   </ImportGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Windows.CppWinRT" Version="2.0.240405.15" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4078.44" />
   </ItemGroup>
 </Project>

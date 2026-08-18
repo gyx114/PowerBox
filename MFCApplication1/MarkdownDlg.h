@@ -3,6 +3,7 @@
 
 #pragma once
 #include "afxdialogex.h"
+#include "WebView2Ctrl.h"
 #include <map>
 
 class CActionCommandRegistry
@@ -40,7 +41,7 @@ protected:
 private:
 	CString m_markdownText;
 	CFont m_fontEdit;
-	CWnd m_browser;
+	CWebView2Ctrl m_webview2;
 	int m_splitPos;        // current x position of the splitter
 	bool m_bDragging;      // whether the splitter is being dragged
 	int m_dragOffset;      // offset from mouse to splitter during drag
@@ -49,14 +50,18 @@ private:
 	int m_btnWidth;        // button width (from RC)
 	int m_btnHeight;       // button height (from RC)
 	int m_contentTop;      // top of edit/preview area (from RC)
+	int m_previewRight;    // right edge of the preview area, from RC (fixed, does not move on resize)
 	int m_pathLabelLeft;    // path label left (from RC)
 	int m_pathLabelTop;     // path label top (from RC)
 	int m_pathLabelHeight;  // path label height (from RC)
+	CString m_baseDir;     // directory of the loaded markdown file (for relative image/link resolution)
+	bool m_pageReady;      // reader.html has finished loading and accepts web messages
 
 	void ResizeControls();
 	void RefreshPreview();
 	void LoadFile(const CString& path);
-	bool SetBrowserHtml(const CString& html);
+	void SendContentToPreview();
+	CString PreviewTemplateUrl() const;
 public:
     static CString MarkdownToHtml(const CString& markdown);
     static CString MarkdownToBody(const CString& markdown);

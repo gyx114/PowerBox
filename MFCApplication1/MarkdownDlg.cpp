@@ -130,37 +130,37 @@ BOOL CMarkdownDlg::OnInitDialog()
 		pEdit->SetFont(&m_fontEdit);
 	}
 
-	// Compute initial split position from the preview placeholder in RC
-	CWnd* pPlaceholder = GetDlgItem(IDC_MARKDOWN_PREVIEW);
-	if (pPlaceholder)
+	// The preview is rendered INSIDE the right-side static IDC_MARKDOWN_PREVIEW.
+	CWnd* pHost = GetDlgItem(IDC_MARKDOWN_PREVIEW);
+	if (pHost)
 	{
 		CRect rcPreview;
-		pPlaceholder->GetWindowRect(&rcPreview);
+		pHost->GetWindowRect(&rcPreview);
 		ScreenToClient(&rcPreview);
 		m_splitPos = rcPreview.left;
-		pPlaceholder->DestroyWindow();
+		m_contentTop = rcPreview.top;
+		m_previewRight = rcPreview.right;
+		// WS_CLIPCHILDREN stops the static from painting its background over the
+		// WebView child.
+		pHost->ModifyStyle(0, WS_CLIPCHILDREN);
 	}
 
-	// Create WebBrowser ActiveX control; position will be set in ResizeControls
-	if (m_browser.CreateControl(CLSID_WebBrowser, nullptr,
-		WS_VISIBLE | WS_CHILD, CRect(0, 0, 0, 0), this, IDC_MARKDOWN_PREVIEW))
-	{
-		LPUNKNOWN pUnk = m_browser.GetControlUnknown();
-		if (pUnk)
-		{
-			IWebBrowser2* pWeb2 = nullptr;
-			if (SUCCEEDED(pUnk->QueryInterface(IID_IWebBrowser2, (void**)&pWeb2)))
-			{
-				BSTR bstrBlank = SysAllocString(L"about:blank");
-				pWeb2->Navigate(bstrBlank, nullptr, nullptr, nullptr, nullptr);
-				SysFreeString(bstrBlank);
-				pWeb2->Release();
-			}
-		}
-	}
+	// Render content via the JS-based reader.html template: navigate to the
+	// template (file:// origin so it can load the sibling markdown-it / highlight.js
+	// and GitHub CSS, and resolve relative images), then push the Markdown text
+	// over a web message once the page has loaded.
+	m_webview2.OnReady = [this]() {
+		ResizeControls();
+		m_webview2.Navigate(std::wstring((LPCWSTR)PreviewTemplateUrl()));
+	};
+	m_webview2.OnNavigationCompleted = [this]() {
+		m_pageReady = true;
+		SendContentToPreview();
+	};
+	if (pHost)
+		m_webview2.Create(pHost->GetSafeHwnd());
 
-	// Give the browser its real size immediately — a zero-size control
-	// will never render even if content is written to its document
+	// Size the host so the embedded WebView2 control renders immediately.
 	ResizeControls();
 
 	static const wchar_t* sample = L"# Markdown Preview\r\n"
@@ -199,10 +199,6 @@ BOOL CMarkdownDlg::OnInitDialog()
 	m_markdownText = sample;
 	UpdateData(FALSE);
 
-	// Navigate("about:blank") is async — the document won't be ready yet.
-	// Use a retry timer until SetBrowserHtml succeeds.
-	SetTimer(1, 100, nullptr);
-
 	return TRUE;
 }
 
@@ -229,12 +225,8 @@ void CMarkdownDlg::OnPaint()
 
 void CMarkdownDlg::OnTimer(UINT_PTR nIDEvent)
 {
-	if (nIDEvent == 1)
-	{
-		// Retry until the WebBrowser document is ready (about:blank is async)
-		if (SetBrowserHtml(MarkdownToHtml(m_markdownText)))
-			KillTimer(1);
-	}
+	// Content render/resize is driven by OnReady and OnSize — never by a polling
+	// timer that could poke the WebView2 controller during async teardown.
 	CDialogEx::OnTimer(nIDEvent);
 }
 
@@ -341,6 +333,15 @@ void CMarkdownDlg::LoadFile(const CString& path)
 	UpdateData(FALSE);
 	RefreshPreview();
 
+	// Remember the directory of the loaded file so the preview can resolve
+	// relative image paths (e.g. README banners) against it.
+	m_baseDir = path;
+	int slashPos = m_baseDir.ReverseFind(_T('\\'));
+	if (slashPos >= 0)
+		m_baseDir = m_baseDir.Left(slashPos + 1);
+	else
+		m_baseDir.Empty();
+
 	CString title;
 	title.Format(CLocalizationManager::GetInstance().GetString(_T("Markdown"), _T("MarkdownTitle")), PathFindFileName(path));
 	SetWindowText(title);
@@ -391,16 +392,18 @@ void CMarkdownDlg::ResizeControls()
 			SWP_NOZORDER);
 	}
 
-	// WebBrowser: fills from splitter to right edge
-	if (m_browser.m_hWnd && ::IsWindow(m_browser.m_hWnd))
-	{
-		int previewLeft = m_splitPos + splitterHalf;
-		m_browser.SetWindowPos(nullptr,
-			previewLeft, m_contentTop,
-			rcClient.Width() - previewLeft - 5,
-			rcClient.Height() - m_contentTop - 5,
-			SWP_NOZORDER);
-	}
+	// The preview fills the IDC_MARKDOWN_PREVIEW host: right edge anchored at the
+	// RC layout (m_previewRight, fixed), left edge follows the splitter. The host
+	// is moved to that rect and the WebView2 fills it via Bounds {0,0,w,h}.
+	int previewLeft = m_splitPos + splitterHalf;
+	int previewRight = (m_previewRight > 0) ? m_previewRight : (rcClient.Width() - 5);
+	if (previewRight > rcClient.Width() - 5) previewRight = rcClient.Width() - 5;
+	int w = previewRight - previewLeft;
+	if (w < 0) w = 0;
+	const int h = rcClient.Height() - m_contentTop - 5;
+	if (CWnd* host = GetDlgItem(IDC_MARKDOWN_PREVIEW))
+		host->SetWindowPos(nullptr, previewLeft, m_contentTop, w, h, SWP_NOZORDER);
+	m_webview2.Resize(0, 0, static_cast<LONG>(w), static_cast<LONG>(h));
 
 	// Invalidate the splitter area to ensure it repaints
 	CRect rcSplitter(m_splitPos - splitterHalf, m_contentTop,
@@ -481,62 +484,38 @@ void CMarkdownDlg::OnMouseMove(UINT nFlags, CPoint point)
 
 void CMarkdownDlg::RefreshPreview()
 {
-	if (!m_browser.m_hWnd)
+	if (!m_webview2.IsReady())
 		return;
-	SetBrowserHtml(MarkdownToHtml(m_markdownText));
+	SendContentToPreview();
 }
 
-bool CMarkdownDlg::SetBrowserHtml(const CString& html)
+CString CMarkdownDlg::PreviewTemplateUrl() const
 {
-	LPUNKNOWN pUnk = m_browser.GetControlUnknown();
-	if (!pUnk)
-		return false;
+	// Absolute path to the JS-based preview template shipped with the source tree.
+	// It is loaded as a file:// page so the relative <link>/<script> entries and
+	// relative image paths all resolve. Backslashes are converted to URL slashes.
+	static const wchar_t* kReaderPath =
+		L"D:\\my_projects\\MFCApplication1\\MFCApplication1\\res\\markdown\\reader.html";
+	CString url = _T("file:///");
+	url += kReaderPath;
+	url.Replace(_T('\\'), _T('/'));
+	return url;
+}
 
-	IWebBrowser2* pWeb2 = nullptr;
-	if (FAILED(pUnk->QueryInterface(IID_IWebBrowser2, (void**)&pWeb2)))
-		return false;
+void CMarkdownDlg::SendContentToPreview()
+{
+	if (!m_pageReady || !m_webview2.IsReady())
+		return;
 
-	IDispatch* pDocDisp = nullptr;
-	if (FAILED(pWeb2->get_Document(&pDocDisp)) || !pDocDisp)
-	{
-		// Document not ready yet (Navigate is async)
-		pWeb2->Release();
-		return false;
-	}
+	nlohmann::json j;
+	j["markdown"] = (LPCSTR)CT2A(m_markdownText, CP_UTF8);
 
-	IHTMLDocument2* pDoc = nullptr;
-	if (FAILED(pDocDisp->QueryInterface(IID_IHTMLDocument2, (void**)&pDoc)))
-	{
-		pDocDisp->Release();
-		pWeb2->Release();
-		return false;
-	}
+	CString base = m_baseDir;
+	base.Replace(_T('\\'), _T('/'));   // JS `resolve()` expects URL-style separators
+	j["base"] = (LPCSTR)CT2A(base, CP_UTF8);
 
-	BSTR bstrHtml = html.AllocSysString();
-	SAFEARRAY* psa = SafeArrayCreateVector(VT_VARIANT, 0, 1);
-	if (psa)
-	{
-		VARIANT* pv = nullptr;
-		if (SUCCEEDED(SafeArrayAccessData(psa, (void**)&pv)))
-		{
-			pv->vt = VT_BSTR;
-			pv->bstrVal = bstrHtml;
-			SafeArrayUnaccessData(psa);
-			pDoc->close();
-			pDoc->write(psa);
-			pDoc->close();
-		}
-		SafeArrayDestroy(psa);
-	}
-	else
-	{
-		SysFreeString(bstrHtml);
-	}
-
-	pDoc->Release();
-	pDocDisp->Release();
-	pWeb2->Release();
-	return true;
+	std::wstring json((LPCWSTR)CA2W(j.dump().c_str(), CP_UTF8));
+	m_webview2.PostWebMessageAsJson(json);
 }
 
 CString CMarkdownDlg::EscapeHtml(const CString& text)

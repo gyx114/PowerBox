@@ -14,6 +14,8 @@ x64/*.pdb
 x64/*.ilk
 x64/*.exp
 x64/*.lib
+# NuGet restore / per-config intermediates (auto-generated)
+obj/
 .vs/
 *.suo
 *.user

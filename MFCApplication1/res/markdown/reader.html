@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Markdown Preview</title>
+<link rel="stylesheet" href="github-markdown.min.css">
+<link rel="stylesheet" href="github-theme.min.css">
+<style>
+  html, body { margin: 0; padding: 0; background: var(--color-canvas-default, #fff); }
+  .markdown-body { box-sizing: border-box; min-width: 200px; max-width: 980px; margin: 0 auto; padding: 32px 40px; }
+  @media (max-width: 767px) { .markdown-body { padding: 16px; } }
+  /* inline code background contrast on the preview host background */
+  .markdown-body code, .markdown-body tt { background-color: var(--color-neutral-muted, rgba(175,184,193,.2)); }
+</style>
+</head>
+<body>
+<article class="markdown-body" id="content"></article>
+
+<script src="markdown-it.min.js"></script>
+<script src="highlight.min.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var md = window.markdownit({
+    html: true,          // allow inline HTML (README badges/divs/img)
+    linkify: true,       // autolink bare URLs
+    breaks: false,
+    highlight: function (str, lang) {
+      if (lang && hljs.getLanguage(lang)) {
+        try {
+          return '<pre class="hljs"><code>' +
+                 hljs.highlight(str, { language: lang, ignoreIllegals: true }).value +
+                 '</code></pre>';
+        } catch (e) {}
+      }
+      return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + '</code></pre>';
+    }
+  });
+
+  // Resolve a relative path against a base directory (forward-slash separated).
+  function resolve(url, base) {
+    if (!url) return url;
+    if (/[\r\n\t ]/.test(url)) url = url.trim();
+    if (/^data:/i.test(url)) return url;
+    if (/^([a-z][a-z0-9+.\-]*:)?\/\//i.test(url)) return url;  // http:, https:, //host
+    if (url.charAt(0) === '#') return url;                     // anchor within page
+    if (!base) return url;
+    if (base.charAt(base.length - 1) !== '/') base += '/';
+    var hash = '';
+    var i = url.indexOf('#');
+    if (i >= 0) { hash = url.slice(i); url = url.slice(0, i); }
+    return base + url + hash;
+  }
+
+  function render(markdownText, base) {
+    var html = md.render(markdownText || '');
+
+    // Task list items: "[ ]" / "[x]" -> checkbox (markdown-it has no built-in).
+    html = html.replace(/(<li[^>]*>\s*)\[([ xX])\]\s+/g, function (m, open, box) {
+      var checked = (box === 'x' || box === 'X') ? ' checked="" ' : ' ';
+      return open + '<input type="checkbox" class="task-list-item-checkbox" disabled' + checked + '>';
+    });
+
+    var tmp = document.createElement('div');
+    tmp.innerHTML = html;
+
+    // Resolve relative image src / link href against the loaded file's dir.
+    var imgs = tmp.querySelectorAll('img[src]');
+    for (var i = 0; i < imgs.length; i++) imgs[i].src = resolve(imgs[i].getAttribute('src'), base);
+
+    var links = tmp.querySelectorAll('a[href]');
+    for (var j = 0; j < links.length; j++) {
+      var h = links[j].getAttribute('href');
+      if (h && h.charAt(0) !== '#') links[j].href = resolve(h, base);
+    }
+
+    document.getElementById('content').innerHTML = tmp.innerHTML;
+  }
+
+  // Messages posted from the host (CWebView2::PostWebMessageAsJson).
+  window.chrome.webview.addEventListener('message', function (e) {
+    var d = e.data || {};
+    render(d.markdown, d.base);
+  });
+
+  document.getElementById('content').innerHTML =
+    '<p style="color:#999">Loading preview…</p>';
+})();
+</script>
+</body>
+</html>
