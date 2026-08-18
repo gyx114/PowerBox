@@ -86,7 +86,7 @@
 #define IDC_STATIC18                    1100
 #define IDC_BUTTON15                    1101
 #define IDC_BUTTON16                    1102
-#define IDC_STATIC_IGNORE_GROUP         1102
+#define IDC_STATIC_IGNORE_GROUP         1448
 #define IDC_EDIT_SCREENSHOT_DIR         1103
 #define IDC_BROWSE_SCREENSHOT           1104
 #define IDC_SLIDER_CLICK_SPEED          1105
@@ -335,8 +335,8 @@
 #define IDC_STATIC_GIT_WORKDIR          1295
 #define IDC_STATIC_GIT_STATUS           1296
 #define IDC_EDIT_GIT_OUTPUT             1297
-#define IDC_BTN_GIT_OUTPUT_COPY         1298
-#define IDC_BTN_GIT_OUTPUT_CLOSE        1299
+#define IDC_BTN_GIT_OUTPUT_COPY         1449
+#define IDC_BTN_GIT_OUTPUT_CLOSE        1450
 // Git tab AI controls
 #define IDC_EDIT_GIT_AI_INPUT           1300
 #define IDC_BTN_GIT_AI_GEN              1301
