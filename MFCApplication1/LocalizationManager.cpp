@@ -388,6 +388,7 @@ void CLocalizationManager::LoadBuiltinDefaults()
     m_defaults[MakeKey(_T("ClipboardHistory"), _T("BtnClear"))] = _T("清空");
     m_defaults[MakeKey(_T("ClipboardHistory"), _T("BtnPin"))] = _T("置顶");
     m_defaults[MakeKey(_T("ClipboardHistory"), _T("MenuPin"))] = _T("置顶");
+    m_defaults[MakeKey(_T("ClipboardHistory"), _T("MenuUnpin"))] = _T("取消置顶");
     m_defaults[MakeKey(_T("ClipboardHistory"), _T("BtnSettings"))] = _T("设置");
     m_defaults[MakeKey(_T("ClipboardHistory"), _T("BtnApply"))] = _T("应用设置");
     m_defaults[MakeKey(_T("ClipboardHistory"), _T("ColTime"))] = _T("时间");

@@ -683,13 +683,20 @@ bool ClipboardManager::Replay(std::uint64_t id)
         HBITMAP hbm = ClipboardLoadPngToBitmap(e.imagePath);
         if (hbm)
         {
+            // Build the DIB first (hbm stays alive), then hand hbm to the
+            // clipboard as CF_BITMAP — the most widely accepted image format for
+            // pasting into Word / Paint / rich edit controls / browsers.
             HGLOBAL g = ClipboardBitmapToDib(hbm);
-            ::DeleteObject(hbm);
             if (g)
             {
                 if (::SetClipboardData(CF_DIB, g) == nullptr) { ::GlobalFree(g); ok = false; }
             }
             else ok = false;
+            if (::SetClipboardData(CF_BITMAP, hbm) == nullptr)
+            {
+                ::DeleteObject(hbm); // clipboard did not take ownership
+                ok = false;
+            }
         }
         else ok = false;
     }

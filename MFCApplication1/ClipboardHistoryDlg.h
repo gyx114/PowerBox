@@ -37,6 +37,7 @@ protected:
     afx_msg void OnBnClickedClipApply();
     afx_msg void OnEnChangeClipSearch();
     afx_msg void OnLvnItemchangedClipList(NMHDR* pNMHDR, LRESULT* pResult);
+    afx_msg void OnRclickClipList(NMHDR* pNMHDR, LRESULT* pResult);
 
 private:
     void Relayout();
@@ -48,6 +49,7 @@ private:
     CString DescribeTitle(const ClipboardEntry& e) const;
     CString DescribeSub(const ClipboardEntry& e) const;
     uint64_t SelectedId() const;
+    std::vector<std::uint64_t> SelectedIds() const;
     std::wstring SelectedImagePath() const;
     void DoReplay(uint64_t id);
     bool QueryMatches(const ClipboardEntry& e) const;

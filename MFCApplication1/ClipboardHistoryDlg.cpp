@@ -29,6 +29,7 @@ BEGIN_MESSAGE_MAP(CClipboardHistoryDlg, CDialogEx)
     ON_WM_MEASUREITEM()
     ON_MESSAGE(kRefreshMsg, &CClipboardHistoryDlg::OnRefresh)
     ON_NOTIFY(NM_DBLCLK, IDC_CLIP_LIST, &CClipboardHistoryDlg::OnNMDblclkClipList)
+    ON_NOTIFY(NM_RCLICK, IDC_CLIP_LIST, &CClipboardHistoryDlg::OnRclickClipList)
     ON_NOTIFY(LVN_ITEMCHANGED, IDC_CLIP_LIST, &CClipboardHistoryDlg::OnLvnItemchangedClipList)
     ON_EN_CHANGE(IDC_CLIP_SEARCH_EDIT, &CClipboardHistoryDlg::OnEnChangeClipSearch)
     ON_COMMAND(IDC_BTN_CLIP_COPY, &CClipboardHistoryDlg::OnBnClickedClipCopy)
@@ -431,6 +432,19 @@ uint64_t CClipboardHistoryDlg::SelectedId() const
     return 0;
 }
 
+// All currently selected entry ids (for multi-select delete). m_rows is kept in
+// parallel with the list items, so each selected row maps to a stable entry id.
+std::vector<uint64_t> CClipboardHistoryDlg::SelectedIds() const
+{
+    std::vector<uint64_t> ids;
+    for (int n = m_list.GetNextItem(-1, LVNI_SELECTED); n != -1; n = m_list.GetNextItem(n, LVNI_SELECTED))
+    {
+        const DWORD_PTR row = m_list.GetItemData(n);
+        if (row < m_rows.size()) ids.push_back(m_rows[row].id);
+    }
+    return ids;
+}
+
 // Return the archived PNG path of the currently selected entry, if it is an image.
 std::wstring CClipboardHistoryDlg::SelectedImagePath() const
 {
@@ -531,14 +545,55 @@ void CClipboardHistoryDlg::OnBnClickedClipCopy()
 
 void CClipboardHistoryDlg::OnBnClickedClipDelete()
 {
-    const uint64_t id = SelectedId();
-    if (!id || !m_pMgr) return;
+    if (!m_pMgr) return;
+    const std::vector<uint64_t> ids = SelectedIds();
+    if (ids.empty()) return;
     auto& loc = CLocalizationManager::GetInstance();
     if (MessageBox(loc.GetString(_T("ClipboardHistory"), _T("ConfirmDelete")),
                    loc.GetString(_T("ClipboardHistory"), _T("DlgCaption")), MB_YESNO | MB_ICONQUESTION) != IDYES)
         return;
-    m_pMgr->Remove(id);
+    for (uint64_t id : ids) m_pMgr->Remove(id);
     Populate();
+}
+
+// Right-click context menu on the clipboard list: copy / pin / delete / clear.
+// Copy and pin act on the primary (first) selection; delete removes every selected
+// entry, so a multi-select deletes them all at once.
+void CClipboardHistoryDlg::OnRclickClipList(NMHDR*, LRESULT* pResult)
+{
+    auto& loc = CLocalizationManager::GetInstance();
+    const bool hasSel = (m_list.GetNextItem(-1, LVNI_SELECTED) != -1);
+    const uint64_t primary = SelectedId();
+    bool pinned = false;
+    if (primary && m_pMgr)
+        for (const auto& e : m_pMgr->Snapshot())
+            if (e.id == primary) { pinned = e.pinned; break; }
+
+    enum { kCopy = 1, kPin = 2, kDelete = 3, kClear = 4 };
+    CMenu menu;
+    menu.CreatePopupMenu();
+    menu.AppendMenu(MF_STRING, kCopy, loc.GetString(_T("ClipboardHistory"), _T("BtnCopy")));
+    if (hasSel)
+    {
+        menu.AppendMenu(MF_STRING, kPin,
+                        pinned ? loc.GetString(_T("ClipboardHistory"), _T("MenuUnpin"))
+                               : loc.GetString(_T("ClipboardHistory"), _T("MenuPin")));
+        menu.AppendMenu(MF_STRING, kDelete, loc.GetString(_T("ClipboardHistory"), _T("BtnDelete")));
+    }
+    menu.AppendMenu(MF_SEPARATOR);
+    menu.AppendMenu(MF_STRING, kClear, loc.GetString(_T("ClipboardHistory"), _T("BtnClear")));
+
+    CPoint pt;
+    ::GetCursorPos(&pt);
+    const UINT cmd = menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_RETURNCMD, pt.x, pt.y, this);
+    switch (cmd)
+    {
+    case kCopy: { const uint64_t id = SelectedId(); if (id) DoReplay(id); break; }
+    case kPin:  OnBnClickedClipPin(); break;
+    case kDelete: OnBnClickedClipDelete(); break;
+    case kClear: OnBnClickedClipClear(); break;
+    }
+    *pResult = 0;
 }
 
 void CClipboardHistoryDlg::OnBnClickedClipClear()

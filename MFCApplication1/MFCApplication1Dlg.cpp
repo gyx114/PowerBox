@@ -1552,6 +1552,69 @@ void CMFCApplication1Dlg::OnContextMenu(CWnd* pWnd, CPoint point)
         }
         return;
     }
+    // Right-click on the tab3 clipboard-history list (copy / pin / delete / clear).
+    CListCtrl* pList3 = static_cast<CListCtrl*>(GetDlgItem(IDC_LIST3));
+    if (pList3 && hClicked == pList3->GetSafeHwnd())
+    {
+        auto& cl = CLocalizationManager::GetInstance();
+        // Row item data holds the entry id directly; collect every selected id so a
+        // multi-select deletion removes them all at once.
+        std::vector<uint64_t> selIds;
+        for (int n = pList3->GetNextItem(-1, LVNI_SELECTED); n != -1; n = pList3->GetNextItem(n, LVNI_SELECTED))
+            selIds.push_back(static_cast<uint64_t>(pList3->GetItemData(n)));
+        const uint64_t primary = selIds.empty() ? 0 : selIds[0];
+        bool pinned = false;
+        if (primary)
+            for (const auto& e : m_clipboard.Snapshot())
+                if (e.id == primary) { pinned = e.pinned; break; }
+
+        enum { kCopy = 1, kPin = 2, kDelete = 3, kClear = 4 };
+        CMenu menu;
+        menu.CreatePopupMenu();
+        menu.AppendMenu(MF_STRING, kCopy, cl.GetString(_T("ClipboardHistory"), _T("BtnCopy")));
+        if (!selIds.empty())
+        {
+            menu.AppendMenu(MF_STRING, kPin,
+                            pinned ? cl.GetString(_T("ClipboardHistory"), _T("MenuUnpin"))
+                                   : cl.GetString(_T("ClipboardHistory"), _T("MenuPin")));
+            menu.AppendMenu(MF_STRING, kDelete, cl.GetString(_T("ClipboardHistory"), _T("BtnDelete")));
+        }
+        menu.AppendMenu(MF_SEPARATOR);
+        menu.AppendMenu(MF_STRING, kClear, cl.GetString(_T("ClipboardHistory"), _T("BtnClear")));
+
+        CPoint sp = point; // point may be (-1,-1) when invoked via keyboard
+        if (sp.x == -1 && sp.y == -1) ::GetCursorPos(&sp);
+
+        const UINT cmd = menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_RETURNCMD, sp.x, sp.y, this);
+        switch (cmd)
+        {
+        case kCopy:
+            if (primary) m_clipboard.Replay(primary);
+            break;
+        case kPin:
+            if (primary) { m_clipboard.TogglePin(primary); RefreshClipboardTab(); }
+            break;
+        case kDelete:
+            if (!selIds.empty() &&
+                MessageBox(cl.GetString(_T("ClipboardHistory"), _T("ConfirmDelete")),
+                           cl.GetString(_T("ClipboardHistory"), _T("DlgCaption")), MB_YESNO | MB_ICONQUESTION) == IDYES)
+            {
+                for (uint64_t id : selIds) m_clipboard.Remove(id);
+                RefreshClipboardTab();
+            }
+            break;
+        case kClear:
+            if (MessageBox(cl.GetString(_T("ClipboardHistory"), _T("ConfirmClear")),
+                           cl.GetString(_T("ClipboardHistory"), _T("DlgCaption")), MB_YESNO | MB_ICONWARNING) == IDYES)
+            {
+                m_clipboard.Clear();
+                RefreshClipboardTab();
+            }
+            break;
+        }
+        return;
+    }
+
     // Note: Git tools list (IDC_LIST4) right-click is handled by OnNMRclickList4 (NM_RCLICK)
     // which provides the full menu (Execute/Copy/Edit/Delete). No OnContextMenu handler needed.
 }
