@@ -151,7 +151,9 @@ BOOL CMarkdownDlg::OnInitDialog()
 	// over a web message once the page has loaded.
 	m_webview2.OnReady = [this]() {
 		ResizeControls();
-		m_webview2.Navigate(std::wstring((LPCWSTR)PreviewTemplateUrl()));
+		CString url = PreviewTemplateUrl();
+		if (!url.IsEmpty())
+			m_webview2.Navigate(std::wstring((LPCWSTR)url));
 	};
 	m_webview2.OnNavigationCompleted = [this]() {
 		m_pageReady = true;
@@ -491,13 +493,20 @@ void CMarkdownDlg::RefreshPreview()
 
 CString CMarkdownDlg::PreviewTemplateUrl() const
 {
-	// Absolute path to the JS-based preview template shipped with the source tree.
-	// It is loaded as a file:// page so the relative <link>/<script> entries and
-	// relative image paths all resolve. Backslashes are converted to URL slashes.
-	static const wchar_t* kReaderPath =
-		L"D:\\my_projects\\MFCApplication1\\MFCApplication1\\res\\markdown\\reader.html";
-	CString url = _T("file:///");
-	url += kReaderPath;
+	// Resolve the preview template relative to the exe's own directory, so the
+	// app works no matter where it is installed or run portably. The template is
+	// a file:// page, so its relative <link>/<script> and relative image paths
+	// all resolve against the same res\markdown folder beside the exe.
+	wchar_t buf[MAX_PATH] = {};
+	DWORD n = ::GetModuleFileNameW(nullptr, buf, MAX_PATH);
+	if (n == 0 || n >= MAX_PATH)
+		return CString();   // cannot locate ourselves → caller ignores an empty URL
+
+	CString exePath(buf);
+	int slash = exePath.ReverseFind(_T('\\'));
+	exePath = (slash >= 0) ? exePath.Left(slash + 1) : CString();
+
+	CString url = _T("file:///") + exePath + _T("res\\markdown\\reader.html");
 	url.Replace(_T('\\'), _T('/'));
 	return url;
 }

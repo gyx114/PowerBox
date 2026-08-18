@@ -110,7 +110,8 @@ if exist "$(OutDir)Merged" rmdir /s /q "$(OutDir)Merged"
 if exist "$(OutDir)Unmerged" rmdir /s /q "$(OutDir)Unmerged"
 xcopy /y /e /i "$(ProjectDir)lang" "$(OutDir)lang"
 if exist "$(OutDir)runtimes" rmdir /s /q "$(OutDir)runtimes"
-xcopy /y /d "$(NuGetPackageRoot)microsoft.web.webview2\1.0.4078.44\build\native\x64\WebView2Loader.dll" "$(OutDir)"</Command>
+xcopy /y /d "$(NuGetPackageRoot)microsoft.web.webview2\1.0.4078.44\build\native\x64\WebView2Loader.dll" "$(OutDir)"
+xcopy /y /e /i "$(ProjectDir)res\markdown" "$(OutDir)res\markdown"</Command>
     </PostBuildEvent>
     <Midl>
       <MkTypLibCompatible>false</MkTypLibCompatible>
@@ -204,7 +205,8 @@ if exist "$(OutDir)Merged" rmdir /s /q "$(OutDir)Merged"
 if exist "$(OutDir)Unmerged" rmdir /s /q "$(OutDir)Unmerged"
 xcopy /y /e /i "$(ProjectDir)lang" "$(OutDir)lang"
 if exist "$(OutDir)runtimes" rmdir /s /q "$(OutDir)runtimes"
-xcopy /y /d "$(NuGetPackageRoot)microsoft.web.webview2\1.0.4078.44\build\native\x64\WebView2Loader.dll" "$(OutDir)"</Command>
+xcopy /y /d "$(NuGetPackageRoot)microsoft.web.webview2\1.0.4078.44\build\native\x64\WebView2Loader.dll" "$(OutDir)"
+xcopy /y /e /i "$(ProjectDir)res\markdown" "$(OutDir)res\markdown"</Command>
     </PostBuildEvent>
     <Midl>
       <MkTypLibCompatible>false</MkTypLibCompatible>
