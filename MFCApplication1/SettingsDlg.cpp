@@ -5,6 +5,7 @@
 #include "AIApiClient.h"
 #include "resource.h"
 #include "MFCApplication1Dlg.h"
+#include "FontSizeSettingsDlg.h"
 #include <Shellapi.h>
 
 CSettingsDlg::CSettingsDlg(CWnd* pParent /*= nullptr*/) : CDialogEx(IDD_SETTINGS_DIALOG, pParent) {}
@@ -16,6 +17,7 @@ BEGIN_MESSAGE_MAP(CSettingsDlg, CDialogEx)
     ON_BN_CLICKED(IDC_BROWSE_SCREENSHOT, &CSettingsDlg::OnBrowseScreenshot)
     ON_BN_CLICKED(IDC_BROWSE_STICKY_DIR, &CSettingsDlg::OnBrowseStickyDir)
     ON_BN_CLICKED(IDC_BUTTON_AI_KEY_SHOW, &CSettingsDlg::OnBnClickedAiKeyShow)
+    ON_BN_CLICKED(IDC_BTN_AI_FONT_SIZE, &CSettingsDlg::OnBnClickedAiFontSize)
     ON_CBN_SELCHANGE(IDC_COMBO_AI_VENDOR_CFG, &CSettingsDlg::OnCbnSelchangeAiVendor)
     ON_CBN_SELCHANGE(IDC_COMBO_LANGUAGE, &CSettingsDlg::OnCbnSelchangeLanguage)
     ON_BN_CLICKED(IDC_BTN_HOTKEY_SHOWHIDE, &CSettingsDlg::OnBnClickedHotkeyShowHide)
@@ -57,6 +59,7 @@ BOOL CSettingsDlg::OnInitDialog()
     SetChildTextByCurrentText(this, _T("路径设置"), loc.GetString(_T("Settings"), _T("GroupPathSettings")));
     SetChildTextByCurrentText(this, _T("连点器"), loc.GetString(_T("Settings"), _T("GroupAutoClicker")));
     SetChildTextByCurrentText(this, _T("AI助手"), loc.GetString(_T("Settings"), _T("GroupAI")));
+    SetDlgItemText(IDC_BTN_AI_FONT_SIZE, loc.GetString(_T("Settings"), _T("BtnAiFontSize"), _T("AI 字号设置")));
     SetChildTextByCurrentText(this, _T("语言"), loc.GetString(_T("Settings"), _T("GroupLanguage")));
 
     // Static labels (find by current text)
@@ -360,6 +363,12 @@ void CSettingsDlg::OnBnClickedAiKeyShow()
     auto& loc = CLocalizationManager::GetInstance();
     SetDlgItemText(IDC_BUTTON_AI_KEY_SHOW, bShowing ? loc.GetString(_T("Settings"), _T("BtnHide")) : loc.GetString(_T("Settings"), _T("BtnShow")));
     pEdit->Invalidate();
+}
+
+void CSettingsDlg::OnBnClickedAiFontSize()
+{
+    CFontSizeSettingsDlg dlg(this);
+    dlg.DoModal();
 }
 
 void CSettingsDlg::OnCbnSelchangeAiVendor()

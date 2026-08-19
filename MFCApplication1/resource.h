@@ -25,6 +25,7 @@
 #define IDD_ENVVAR_PATH_DLG             148
 #define IDD_FILELOCK_DLG                149
 #define IDD_BATCH_RENAME_AI_DLG         150
+#define IDD_FONT_SIZE_DLG               162
 #define IDC_TAB1                        1000
 #define IDC_LIST1                       1001
 #define IDC_LIST2                       1002
@@ -547,14 +548,36 @@
 #define IDC_STATIC_CLIP_SET_TIP         1446
 #define IDC_CLIP_PREVIEW_IMG            1451
 
+// ---- AI font-size settings dialog controls ----
+#define IDC_FS_TAB                      1460
+#define IDC_FS_PREV_MAIN                1461
+#define IDC_FS_PREV_STAND               1462
+#define IDC_FS_SLIDER_SYNC              1463
+#define IDC_FS_LABEL_SYNC               1464
+#define IDC_FS_VALUE_SYNC               1465
+#define IDC_FS_SLIDER_BODY              1466
+#define IDC_FS_LABEL_BODY               1467
+#define IDC_FS_VALUE_BODY               1468
+#define IDC_FS_SLIDER_CARD              1469
+#define IDC_FS_LABEL_CARD               1470
+#define IDC_FS_VALUE_CARD               1471
+#define IDC_FS_SLIDER_RESULT            1472
+#define IDC_FS_LABEL_RESULT             1473
+#define IDC_FS_VALUE_RESULT             1474
+#define IDC_FS_SLIDER_CODE              1475
+#define IDC_FS_LABEL_CODE               1476
+#define IDC_FS_VALUE_CODE               1477
+#define IDC_FS_BTN_DEFAULT              1478
+#define IDC_FS_LABEL_PREVIEW            1479
+#define IDC_BTN_AI_FONT_SIZE            1480
 
 // Next default values for new objects
 //
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        161
+#define _APS_NEXT_RESOURCE_VALUE        163
 #define _APS_NEXT_COMMAND_VALUE         32864
-#define _APS_NEXT_CONTROL_VALUE         1447
+#define _APS_NEXT_CONTROL_VALUE         1481
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

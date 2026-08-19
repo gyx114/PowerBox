@@ -13,6 +13,7 @@
 #define WM_AI_STREAM_DONE     (WM_APP + 9)   // WPARAM: 0/1, LPARAM: CString*
 #define WM_AI_EXECUTE_COMMAND (WM_APP + 15)  // LPARAM: CString* (JSON command)
 #define WM_AI_COMMAND_RESULT  (WM_APP + 16)  // LPARAM: CommandResult* (allocated on heap)
+#define WM_AI_FONT_CHANGED    (WM_APP + 17)  // Broadcast after AI font sizes are saved
 
 // ============================================================================
 // RAII WinHTTP handle wrapper

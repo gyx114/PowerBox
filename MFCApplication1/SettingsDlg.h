@@ -16,6 +16,7 @@ public:
     void OnBrowseScreenshot();
     void OnBrowseStickyDir();
     afx_msg void OnBnClickedAiKeyShow();
+    afx_msg void OnBnClickedAiFontSize();
     afx_msg void OnCbnSelchangeAiVendor();
     afx_msg void OnBnClickedHotkeyShowHide();
     afx_msg void OnBnClickedHotkeyLocate();

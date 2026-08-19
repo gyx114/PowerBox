@@ -223,6 +223,7 @@ xcopy /y /e /i "$(ProjectDir)res\markdown" "$(OutDir)res\markdown"</Command>
     <ClInclude Include="AboutDlg.h" />
     <ClInclude Include="AIApiClient.h" />
     <ClInclude Include="AutoClickerSpeedDlg.h" />
+    <ClInclude Include="FontSizeSettingsDlg.h" />
     <ClInclude Include="ClipboardManager.h" />
     <ClInclude Include="ClipboardHistoryDlg.h" />
     <ClInclude Include="framework.h" />
@@ -262,6 +263,7 @@ xcopy /y /e /i "$(ProjectDir)res\markdown" "$(OutDir)res\markdown"</Command>
     <ClCompile Include="AIApiClient.cpp" />
     <ClCompile Include="AIAssistantDlg.cpp" />
     <ClCompile Include="AutoClickerSpeedDlg.cpp" />
+    <ClCompile Include="FontSizeSettingsDlg.cpp" />
     <ClCompile Include="ClipboardManager.cpp" />
     <ClCompile Include="ClipboardHistoryDlg.cpp" />
     <ClCompile Include="BatchRenameDlg.cpp" />

@@ -391,8 +391,15 @@ public:
     CString m_strConvTitle;               // Current conversation title
     CString m_strConvPath;                // Current conversation file path (empty if new)
     CString m_strConvCreated;             // Original creation time (preserved from loaded file)
+    // AI font sizes (px), configurable in the AI font-size settings dialog.
+    int m_aiFontBody   = 12;   // --fs-body
+    int m_aiFontCard   = 12;   // --fs-card
+    int m_aiFontResult = 12;   // --fs-result
+    int m_aiFontCode   = 12;   // --fs-code
     CString BuildSystemPrompt();
     void InitAIControls();
+    void LoadAiFontSizes();                 // read 4 font sizes from config into m_aiFont*
+    void RefreshAiPage();                   // re-render the AI page with current font members
     CString BuildAiHtmlPage(const CString& bodyContent);
     CString BuildAiBodyFromHistory(const CString& streamingContent = CString(), const CString& scrollToCommand = CString());
 	CString RenderAssistantWithResults(const CString& content,
@@ -416,6 +423,7 @@ public:
     afx_msg LRESULT OnAiStreamDone(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnAiExecuteCommand(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnAiCommandResult(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnAiFontChanged(WPARAM wParam, LPARAM lParam);
     struct AiCommandContext
     {
         CString command;

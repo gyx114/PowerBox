@@ -221,6 +221,7 @@ BEGIN_MESSAGE_MAP(CAIAssistantDlg, CDialogEx)
     ON_MESSAGE(WM_TERM_TAB_SELECT, &CAIAssistantDlg::OnTermTabSelect)
     ON_MESSAGE(WM_TERM_TAB_CLOSE, &CAIAssistantDlg::OnTermTabClose)
     ON_MESSAGE(WM_TERM_TAB_NEW, &CAIAssistantDlg::OnTermTabNew)
+    ON_MESSAGE(WM_AI_FONT_CHANGED, &CAIAssistantDlg::OnAiFontChanged)
 END_MESSAGE_MAP()
 
 // ============================================================================
@@ -240,6 +241,7 @@ BOOL CAIAssistantDlg::OnInitDialog()
     // Translate UI
     SetWindowText(loc.GetString(_T("DlgCaption"), _T("AIAssistantDlg")));
 
+    LoadAiFontSizes();
     InitAIAssistant();
     InitTerminal();
 
@@ -1030,7 +1032,8 @@ CString CAIAssistantDlg::BuildSystemPrompt()
         _T("=== 应用概述 ===\n\n")
         _T("这是一个多功能 Windows 工具箱，包含 6 个左侧标签页、")
         _T("4 个右侧快捷操作子标签页（AI助手/快捷打开/系统/工具），以及菜单栏中的 9 个工具。\n")
-        _T("应用程序以管理员权限运行，支持最小化到系统托盘。\n\n")
+        _T("应用程序以管理员权限运行，支持最小化到系统托盘。\n")
+        _T("AI 界面支持自定义字号（设置→AI 字号设置），可分别调整主窗口/独立窗口的正文、命令卡片、执行结果、代码块字号。\n\n")
 
         _T("=== 可执行命令协议（重要！你必须遵守此协议） ===\n\n")
         _T("当用户请求执行系统命令、操作文件、管理进程等时，你必须使用以下 ```action 格式返回可执行命令，\n")
@@ -1278,14 +1281,60 @@ CString CAIAssistantDlg::BuildSystemPrompt()
         
 }
 
+void CAIAssistantDlg::LoadAiFontSizes()
+{
+    // Config stores 4 absolute px values as "body|card|result|code".
+    static const TCHAR* kKey = _T("FontSizeStand");
+    CString cfg = AfxGetApp()->GetProfileString(_T("AI"), kKey, _T(""));
+    int v[4] = { m_aiFontBody, m_aiFontCard, m_aiFontResult, m_aiFontCode };
+    if (!cfg.IsEmpty())
+    {
+        int start = 0, i = 0;
+        while (i < 4)
+        {
+            int bar = cfg.Find(_T('|'), start);
+            if (bar < 0) break;
+            v[i++] = _ttoi(cfg.Mid(start, bar - start));
+            start = bar + 1;
+        }
+        if (i < 4 && start < cfg.GetLength())
+            v[i] = _ttoi(cfg.Mid(start));
+    }
+    auto clamp = [](int x) { return x < 8 ? 8 : (x > 32 ? 32 : x); };
+    m_aiFontBody   = clamp(v[0]);
+    m_aiFontCard   = clamp(v[1]);
+    m_aiFontResult = clamp(v[2]);
+    m_aiFontCode   = clamp(v[3]);
+}
+
+void CAIAssistantDlg::RefreshAiPage()
+{
+    if (m_webview2.IsReady())
+        SetAiBrowserHtml(BuildAiHtmlPage(BuildAiBodyFromHistory()));
+}
+
+// Re-read the standalone AI font sizes and re-render (user changed them in the
+// font-size settings dialog). Broadcast to any open assistant window.
+LRESULT CAIAssistantDlg::OnAiFontChanged(WPARAM /*wParam*/, LPARAM /*lParam*/)
+{
+    LoadAiFontSizes();
+    RefreshAiPage();
+    return 0;
+}
+
 CString CAIAssistantDlg::BuildAiHtmlPage(const CString& bodyContent)
 {
-    return _T("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\"><style>")
-        _T("body{font-family:Consolas,'Microsoft YaHei',sans-serif;font-size:14px;")
-        _T("background:#1e1e1e;color:#d4d4d4;padding:8px;margin:0;line-height:1.5;}")
+    CString rootDef;
+    rootDef.Format(
+        _T("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\"><style>")
+        _T(":root{--fs-body:%dpx;--fs-card:%dpx;--fs-result:%dpx;--fs-code:%dpx;}")
+        _T("body{font-family:Consolas,'Microsoft YaHei',sans-serif;font-size:var(--fs-body);"),
+        m_aiFontBody, m_aiFontCard, m_aiFontResult, m_aiFontCode);
+    return rootDef
+        + _T("background:#1e1e1e;color:#d4d4d4;padding:8px;margin:0;line-height:1.5;}")
         _T("code{background:#2d2d2d;padding:1px 4px;border-radius:3px;font-family:Consolas,monospace;}")
         _T("pre{background:#2d2d2d;padding:8px;border-radius:4px;overflow-x:auto;}")
-        _T("pre code{background:none;padding:0;}")
+        _T("pre code{background:none;padding:0;font-size:var(--fs-code);}")
         _T(".code-block{margin:8px 0;}")
         _T(".code-header{display:flex;justify-content:space-between;align-items:center;gap:8px;")
         _T("padding:4px 8px;background:#333;border-radius:4px 4px 0 0;font-size:13px;color:#888;}")
@@ -1303,19 +1352,20 @@ CString CAIAssistantDlg::BuildAiHtmlPage(const CString& bodyContent)
         _T(".action-card.action-level-low{border-color:#2da44e;}")
         _T(".action-card.action-level-medium{border-color:#d4a72c;}")
         _T(".action-card.action-level-high{border-color:#cf222e;}")
-        _T(".action-purpose{font-size:16px;color:#d4d4d4;margin-bottom:4px;}")
-        _T(".action-risk{font-size:13px;font-weight:600;margin-bottom:8px;}")
+        _T(".action-purpose{font-size:var(--fs-card);color:#d4d4d4;margin-bottom:4px;}")
+        _T(".action-risk{font-size:var(--fs-card);font-weight:600;margin-bottom:8px;}")
         _T(".action-risk.level-low{color:#2da44e;}")
         _T(".action-risk.level-medium{color:#d4a72c;}")
         _T(".action-risk.level-high{color:#cf222e;}")
-        _T(".action-terminal{font-size:14px;color:#9cdcfe;margin-bottom:6px;}")
-        _T(".action-btn{background:#2da44e;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:14px;cursor:pointer;margin-bottom:6px;}")
+        _T(".action-terminal{font-size:var(--fs-card);color:#9cdcfe;margin-bottom:6px;}")
+        _T(".action-btn{background:#2da44e;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:var(--fs-card);cursor:pointer;margin-bottom:6px;}")
         _T(".action-btn:hover{background:#218838;}")
         _T(".action-card.action-level-high .action-btn{background:#cf222e;}")
         _T(".action-card.action-level-high .action-btn:hover{background:#a11c26;}")
         _T(".action-card.action-level-medium .action-btn{background:#d4a72c;}")
         _T(".action-card.action-level-medium .action-btn:hover{background:#b88a1f;}")
-        _T(".action-command{font-size:13px;color:#888;background:#333;padding:4px 8px;border-radius:4px;word-break:break-all;}")
+        _T(".action-command{font-size:var(--fs-card);color:#888;background:#333;padding:4px 8px;border-radius:4px;word-break:break-all;}")
+        _T(".ai-result{font-size:var(--fs-result);}")
         _T("</style><script>")
         _T("function execCmd(btn){")
         _T("var id=btn.getAttribute('data-cmd-id');")
@@ -1390,7 +1440,7 @@ CString CAIAssistantDlg::BuildAiBodyFromHistory(const CString& streamingContent,
         auto& results = pair.second;
         if (!results.empty() && cmdResultIndex[cmd] == 0)
         {
-            body += _T("<div style='color:#569cd6;border-left:3px solid #569cd6;padding-left:8px;margin:4px 0;'>")
+            body += _T("<div class='ai-result' style='color:#569cd6;border-left:3px solid #569cd6;padding-left:8px;margin:4px 0;'>")
                 + CMarkdownDlg::MarkdownToBody(results.back(), &m_aiActionCommands) + _T("</div>");
             cmdResultIndex[cmd] = 1;
         }
@@ -1490,7 +1540,7 @@ CString CAIAssistantDlg::RenderAssistantWithResults(const CString& content,
                 if (!results.empty() && cmdResultIndex[matchedCommand] == 0)
                 {
                     const CString& latest = results.back();
-                    html += _T("<div style='color:#569cd6;border-left:3px solid #569cd6;padding-left:8px;margin:4px 0;'>")
+                    html += _T("<div class='ai-result' style='color:#569cd6;border-left:3px solid #569cd6;padding-left:8px;margin:4px 0;'>")
                         + CMarkdownDlg::MarkdownToBody(latest, &m_aiActionCommands) + _T("</div>")
                         + _T("<div class=\"cmd-result-marker\" data-command=\"") + CMarkdownDlg::EscapeHtml(matchedCommand) + _T("\"></div>");
                     cmdResultIndex[matchedCommand] = 1;

@@ -49,6 +49,11 @@ private:
     CString m_strConvTitle;
     CString m_strConvPath;
     CString m_strConvCreated;
+    // AI configured font sizes (px). See FontSizeSettingsDlg.
+    int m_aiFontBody   = 14;   // --fs-body
+    int m_aiFontCard   = 14;   // --fs-card
+    int m_aiFontResult = 14;   // --fs-result
+    int m_aiFontCode   = 14;   // --fs-code
 
     // AI command execution context
     struct AiCommandContext
@@ -99,6 +104,8 @@ private:
 
     // AI helpers
     CString BuildSystemPrompt();
+    void LoadAiFontSizes();                 // read 4 font sizes from config into m_aiFont*
+    void RefreshAiPage();                   // re-render the AI page with current font members
     CString BuildAiHtmlPage(const CString& bodyContent);
     CString BuildAiBodyFromHistory(const CString& streamingContent = CString(), const CString& scrollToCommand = CString());
     CString RenderAssistantWithResults(const CString& content,
@@ -144,4 +151,5 @@ private:
     afx_msg LRESULT OnTermTabSelect(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnTermTabClose(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnTermTabNew(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnAiFontChanged(WPARAM wParam, LPARAM lParam);
 };
