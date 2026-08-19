@@ -41,6 +41,7 @@ private:
     int  m_curTab = TabMain;
     int  m_syncPct = 100;
     bool m_prevCreated[2] = { false, false };   // per-tab preview WebView2 lazy-created
+    bool m_previewInited[2] = { false, false }; // per-tab: full page rendered once, then CSS-var only
 
     CSliderCtrl   m_sliderSync;
     CSliderCtrl   m_slider[4];

@@ -204,8 +204,29 @@ void CFontSizeSettingsDlg::UpdateSyncLabel()
 void CFontSizeSettingsDlg::UpdatePreview()
 {
     if (!m_activePreview || !m_activePreview->IsReady()) return;
-    CString html = BuildPreviewHtml(m_curTab);
-    m_activePreview->NavigateToString(std::wstring((LPCWSTR)html));
+
+    if (!m_previewInited[m_curTab])
+    {
+        // First render: load the full page with the current sizes baked into the
+        // :root vars. From now on the page is never reloaded while dragging a
+        // slider, so the preview keeps its scroll position and selection.
+        m_previewInited[m_curTab] = true;
+        CString html = BuildPreviewHtml(m_curTab);
+        m_activePreview->NavigateToString(std::wstring((LPCWSTR)html));
+        return;
+    }
+
+    // Later adjustments only rewrite the four root CSS custom properties; the
+    // inline style on <html> wins over the <style> :root rule, so no reload.
+    CString js;
+    js.Format(
+        _T("document.documentElement.style.setProperty('--fs-body','%dpx');")
+        _T("document.documentElement.style.setProperty('--fs-card','%dpx');")
+        _T("document.documentElement.style.setProperty('--fs-result','%dpx');")
+        _T("document.documentElement.style.setProperty('--fs-code','%dpx');"),
+        m_fonts[m_curTab][IdxBody], m_fonts[m_curTab][IdxCard],
+        m_fonts[m_curTab][IdxResult], m_fonts[m_curTab][IdxCode]);
+    m_activePreview->ExecuteScript(std::wstring((LPCWSTR)js));
 }
 
 void CFontSizeSettingsDlg::OnTcnSelchangeFsTab(NMHDR* pNMHDR, LRESULT* pResult)
@@ -276,27 +297,54 @@ void CFontSizeSettingsDlg::OnBnClickedFsDefault()
 
 CString CFontSizeSettingsDlg::BuildPreviewHtml(int tab)
 {
-    const int body = m_fonts[tab][IdxBody];
-    const int card = m_fonts[tab][IdxCard];
+    const int body   = m_fonts[tab][IdxBody];
+    const int card   = m_fonts[tab][IdxCard];
     const int result = m_fonts[tab][IdxResult];
-    const int code = m_fonts[tab][IdxCode];
+    const int code   = m_fonts[tab][IdxCode];
 
-    CString html;
-    html.Format(
-        _T("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><style>")
-        _T("body{margin:0;padding:8px;background:#1e1e1e;color:#d4d4d4;")
-        _T("font-family:Consolas,'Microsoft YaHei',sans-serif;font-size:%dpx;line-height:1.5;}")
-        _T("code{background:#2d2d2d;padding:1px 3px;border-radius:3px;font-size:%dpx;}")
-        _T("pre{background:#2d2d2d;padding:6px;border-radius:4px;font-size:%dpx;}")
-        _T(".card{border:2px solid #2da44e;border-radius:8px;padding:8px;margin:8px 0;")
-        _T("background:#2a2a2a;font-size:%dpx;}")
-        _T(".result{border-left:3px solid #569cd6;padding-left:8px;color:#569cd6;font-size:%dpx;}")
-        _T("</style></head><body>")
-        _T("<p>正文 sample text, 含 <code>inline code</code>。</p>")
-        _T("<div class=\"card\"><b>命令卡片</b> · 用途 purpose / 风险 risk</div>")
-        _T("<div class=\"result\"><b>执行结果</b> · 命令返回 output 示例</div>")
-        _T("<pre><code>printf(\"hello powerbox\");</code></pre>")
-        _T("</body></html>"),
-        body, card, code, card, result);
-    return html;
+    // Mirrors the real AI page's class names / CSS variables so each slider
+    // reflects exactly where its font size applies in the actual assistant.
+    CString rootDef;
+    rootDef.Format(
+        _T(":root{--fs-body:%dpx;--fs-card:%dpx;--fs-result:%dpx;--fs-code:%dpx;}"),
+        body, card, result, code);
+
+    return _T("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><style>")
+        + rootDef
+        + _T("body{margin:0;padding:8px;background:#1e1e1e;color:#d4d4d4;")
+          _T("font-family:Consolas,'Microsoft YaHei',sans-serif;font-size:var(--fs-body);line-height:1.5;}")
+        + _T("code{background:#2d2d2d;padding:1px 3px;border-radius:3px;font-family:Consolas,monospace;}")
+        + _T("pre{background:#2d2d2d;padding:8px;border-radius:4px;overflow-x:auto;}")
+        + _T("pre code{background:none;padding:0;font-size:var(--fs-code);}")
+        + _T(".code-header{display:flex;justify-content:space-between;align-items:center;padding:4px 8px;")
+          _T("background:#333;border-radius:4px 4px 0 0;font-size:var(--fs-code);color:#888;}")
+        + _T(".copy-code-btn{font-size:inherit;font-family:inherit;background:#444;color:#ccc;")
+          _T("border:1px solid #555;border-radius:4px;padding:0 6px;cursor:pointer;}")
+        + _T(".code-header + pre{margin:0;border-radius:0 0 4px 4px;}")
+        + _T(".action-card{border:2px solid #2da44e;border-radius:8px;padding:10px 14px;margin:10px 0;")
+          _T("background:#2a2a2a;}")
+        + _T(".action-purpose{font-size:var(--fs-card);margin-bottom:2px;}")
+        + _T(".action-risk{font-size:var(--fs-card);font-weight:600;margin-bottom:6px;color:#2da44e;}")
+        + _T(".action-terminal{font-size:var(--fs-card);color:#9cdcfe;margin-bottom:4px;}")
+        + _T(".action-btn{background:#2da44e;color:#fff;border:0;border-radius:6px;padding:4px 10px;")
+          _T("font-size:var(--fs-card);cursor:pointer;}")
+        + _T(".action-command{font-size:var(--fs-card);color:#888;background:#333;padding:3px 6px;")
+          _T("border-radius:4px;word-break:break-all;}")
+        + _T(".ai-result{font-size:var(--fs-result);border-left:3px solid #569cd6;padding-left:8px;")
+          _T("color:#569cd6;}")
+        + _T("</style></head><body>")
+        + _T("<p>我可以普通回答，例如在 <code>CMD</code> 中输入 <code>dir</code> 查看目录、")
+          _T("<code>ipconfig /all</code> 查看完整网络配置（正文字号）。</p>")
+        + _T("<div class=\"code-block\"><div class=\"code-header\"><span>powershell</span>")
+          _T("<button class=\"copy-code-btn\">复制</button></div>")
+          _T("<pre><code>Get-Process | Sort-Object WorkingSet64 -Descending | Select-Object -First 5</code></pre></div>")
+        + _T("<div class=\"action-card\">")
+          _T("<div class=\"action-purpose\">用途：查看各磁盘分区的总空间和剩余空间</div>")
+          _T("<div class=\"action-risk\">风险等级：低</div>")
+          _T("<div class=\"action-terminal\">终端：CMD</div>")
+          _T("<button class=\"action-btn\">执行</button>")
+          _T("<div class=\"action-command\">wmic logicaldisk get size,freespace,caption</div>")
+        + _T("</div>")
+        + _T("<div class=\"ai-result\">各磁盘剩余空间：C: 120GB · D: 340GB · E: 88GB</div>")
+        + _T("</body></html>");
 }
