@@ -8,6 +8,7 @@
 #include "LocalizationManager.h"
 #include "Utils.h"
 #include "afxdialogex.h"
+#include <afxcmn.h>
 #include <algorithm>
 #include <ShlObj.h>
 #include <shellapi.h>
@@ -99,6 +100,7 @@ public:
     HotkeyInfo m_hotkey;
     CString m_customIconPath;
     HICON m_hPreviewIcon = NULL;
+    CToolTipCtrl m_tipHelp;   // tooltip that explains the wake-hotkey "?" button
 
     CQLItemEditDlg(CWnd* pParent = nullptr)
         : CDialog(IDD_QL_ITEM_DLG, pParent) {}
@@ -131,6 +133,13 @@ protected:
         // Localize hotkey controls
         SetDlgItemText(IDC_QL_LABEL_HOTKEY, loc.GetString(_T("QuickLaunch"), _T("LabelHotkey")));
         SetDlgItemText(IDC_QL_BTN_HOTKEY, loc.GetString(_T("QuickLaunch"), _T("BtnHotkey")));
+
+        // "?" help button tooltip: explains what the wake hotkey does.
+        m_tipHelp.Create(this, TTS_ALWAYSTIP | TTS_BALLOON);
+        m_tipHelp.Activate(TRUE);
+        m_tipHelp.SetMaxTipWidth(420);
+        m_tipHelp.AddTool(GetDlgItem(IDC_QL_BTN_HELP),
+            loc.GetString(_T("QuickLaunch"), _T("TipHotkeyHelp")));
 
         // Localize icon label
         SetDlgItemText(IDC_QL_LABEL_ICON, loc.GetString(_T("QuickLaunch"), _T("LabelIcon")));
@@ -173,6 +182,14 @@ protected:
         DragAcceptFiles(TRUE);
 
         return TRUE;
+    }
+
+    // Forward mouse messages so the "?" help tooltip appears on hover.
+    virtual BOOL PreTranslateMessage(MSG* pMsg)
+    {
+        if (::IsWindow(m_tipHelp.m_hWnd))
+            m_tipHelp.RelayEvent(pMsg);
+        return CDialog::PreTranslateMessage(pMsg);
     }
 
     virtual void OnOK()
